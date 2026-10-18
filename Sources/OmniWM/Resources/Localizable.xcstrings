@@ -171480,7 +171480,18 @@
         }
       }
     },
+    "Drag a tiled window's edge or corner without a modifier. Dwindle resizes neighbouring windows while you drag; Niri refits them after you release. Moving a window by its title bar still snaps it back." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无需按住修饰键，拖动平铺窗口的边缘或角落。Dwindle 会在拖动时同步调整相邻窗口大小；Niri 会在松开后重新排列。拖动标题栏移动窗口时，窗口仍会回到原位。"
+          }
+        }
+      }
+    },
     "Drag a tiled window's edge or corner without a modifier. When you let go, the layout keeps the new size and fits the other windows around it. Moving a window by its title bar still snaps it back." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

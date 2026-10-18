@@ -100,6 +100,11 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
             handler.dispatchMouseUp(at: observed.center)
         }
 
+        func updateDrag(_ token: WindowToken, at observed: CGRect) {
+            handler.nativeWindowFrameProvider = { _ in observed }
+            controller.axEventHandler.handleFrameChanged(windowId: UInt32(token.windowId))
+        }
+
         func wireFrameApplyCallbacks() {
             controller.axManager.onFrameApplySucceeded = { [weak controller] result in
                 controller?.serviceLifecycleManager.handleFrameApplySucceeded(result)
@@ -290,6 +295,249 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
         XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
     }
 
+    func testDwindleNativeResizeWritesOnlyNeighborsBeforeMouseUp() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_081)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let (left, right) = (fixture.tokens[0], fixture.tokens[1])
+        let leftStart = try fixture.frame(left)
+        let rightStart = try fixture.frame(right)
+        try fixture.beginDrag(left)
+        defer { FrameApplyTrace.shared.endCapture() }
+        let deltas: [CGFloat] = [80, 150, 150, -40]
+        var writtenWidths: [CGFloat] = []
+
+        for (index, delta) in deltas.enumerated() {
+            FrameApplyTrace.shared.beginCapture()
+            fixture.updateDrag(left, at: grown(leftStart, right: delta))
+
+            XCTAssertEqual(try fixture.frame(left).width, leftStart.width + delta, accuracy: 1)
+            XCTAssertEqual(try fixture.frame(right).width, rightStart.width - delta, accuracy: 1)
+            XCTAssertEqual(fixture.phase, .dragging)
+            XCTAssertTrue(fixture.handler.isInteractiveGestureActive)
+            XCTAssertNotNil(fixture.controller.dwindleEngine?.interactiveResize)
+            XCTAssertNil(firstWriteTarget(for: left))
+            if index == 2 {
+                XCTAssertNil(firstWriteTarget(for: right))
+            } else {
+                writtenWidths.append(try XCTUnwrap(firstWriteTarget(for: right)).width)
+            }
+        }
+        XCTAssertLessThan(writtenWidths[1], writtenWidths[0])
+        XCTAssertGreaterThan(writtenWidths[2], writtenWidths[1])
+
+        fixture.handler.dispatchMouseUp(at: leftStart.center)
+
+        XCTAssertEqual(try fixture.frame(left).width, leftStart.width - 40, accuracy: 1)
+        XCTAssertEqual(fixture.phase, .awaitingCorrection)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.controller.axManager.isNativeTitleBarDragActive(for: left))
+    }
+
+    func testDwindleNativeResizeReturningToStartRestoresTheSplit() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_082)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        let before = try fixture.frames()
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 150))
+        XCTAssertNotEqual(try fixture.frames(), before)
+
+        fixture.updateDrag(token, at: start)
+        fixture.handler.dispatchMouseUp(at: start.center)
+
+        XCTAssertEqual(try fixture.frames(), before)
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+    }
+
+    func testDwindleNativeResizeFollowsLeftTopAndBottomEdges() throws {
+        let cases: [(Bool, Int, (CGRect) -> CGRect)] = [
+            (false, 1, { self.grown($0, left: 80) }),
+            (true, 0, { self.grown($0, top: 80) }),
+            (true, 2, { self.grown($0, bottom: 80) })
+        ]
+        for (index, (stacked, tokenIndex, change)) in cases.enumerated() {
+            let fixture = try makeFixture(
+                .dwindle, stacked: stacked, windowCount: stacked ? 3 : 2, pid: pid_t(834_096 + index)
+            )
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[tokenIndex]
+            let observed = change(try fixture.frame(token))
+            try fixture.beginDrag(token)
+
+            fixture.updateDrag(token, at: observed)
+
+            XCTAssertTrue(try fixture.frame(token).approximatelyEqual(to: observed, tolerance: 1))
+            XCTAssertEqual(fixture.phase, .dragging)
+            fixture.handler.dispatchMouseUp(at: observed.center)
+            XCTAssertTrue(try fixture.frame(token).approximatelyEqual(to: observed, tolerance: 1))
+        }
+    }
+
+    func testDwindleNativeResizeUsesTheFinalFrameWithoutAccumulatingTheLiveDelta() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_083)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+        fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 180) }
+
+        fixture.handler.dispatchMouseUp(at: start.center)
+
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 180, accuracy: 1)
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertNil(fixture.handler.state.nativeTitleBarDrag?.adoptionStartFrame)
+        let worldSeq = fixture.manager.worldSeq
+        fixture.updateDrag(token, at: grown(start, right: 200))
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 180, accuracy: 1)
+        XCTAssertEqual(fixture.manager.worldSeq, worldSeq)
+    }
+
+    func testDwindleNativeResizeCleansUpAtInputAndWindowLifecycleBoundaries() throws {
+        let cancellations: [(MouseEventHandler, WindowToken) -> Void] = [
+            { handler, _ in handler.handleInputSuppressionBegan() },
+            { handler, _ in handler.handleAppVisibilityChanged() },
+            { handler, token in handler.discardNativeTitleBarDrag(for: token) },
+            { handler, _ in handler.cleanup() }
+        ]
+        for (index, cancel) in cancellations.enumerated() {
+            let fixture = try makeFixture(.dwindle, pid: pid_t(834_084 + index))
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[0]
+            let start = try fixture.frame(token)
+            try fixture.beginDrag(token)
+            fixture.updateDrag(token, at: grown(start, right: 100))
+            XCTAssertNotNil(fixture.controller.dwindleEngine?.interactiveResize)
+
+            cancel(fixture.handler, token)
+
+            XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+            XCTAssertNil(fixture.handler.state.nativeTitleBarDrag)
+            XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+            XCTAssertFalse(fixture.controller.axManager.isNativeTitleBarDragActive(for: token))
+        }
+    }
+
+    func testDwindleNativeCornerResizeCanDiscoverTheSecondAxisLater() throws {
+        let fixture = try makeFixture(.dwindle, stacked: true, windowCount: 3, pid: 834_088)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        let aboveStart = try fixture.frame(fixture.tokens[2])
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+
+        fixture.updateDrag(token, at: grown(start, right: 150, top: 80))
+
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 150, accuracy: 1)
+        XCTAssertEqual(try fixture.frame(token).height, start.height + 80, accuracy: 1)
+        XCTAssertEqual(try fixture.frame(fixture.tokens[2]).height, aboveStart.height - 80, accuracy: 1)
+        fixture.handler.dispatchMouseUp(at: start.center)
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 150, accuracy: 1)
+        XCTAssertEqual(try fixture.frame(token).height, start.height + 80, accuracy: 1)
+    }
+
+    func testDwindleNativeResizeAtMinimumSizesStillEndsAfterReturningToStart() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_089)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let before = try fixture.frames()
+        for (token, frame) in before {
+            fixture.manager.setCachedConstraints(
+                WindowSizeConstraints(minSize: CGSize(width: frame.width, height: 1), maxSize: .zero, isFixed: false),
+                for: token
+            )
+        }
+        let start = try fixture.frame(token)
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+        XCTAssertEqual(try fixture.frames(), before)
+        XCTAssertNotNil(fixture.controller.dwindleEngine?.interactiveResize)
+
+        fixture.updateDrag(token, at: start)
+        fixture.handler.dispatchMouseUp(at: start.center)
+
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+        XCTAssertEqual(try fixture.frames(), before)
+    }
+
+    func testDisablingNativeResizeStopsLiveUpdatesAndReleasesTheEngine() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_090)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+
+        fixture.controller.settings.gestures.adoptNativeResize = false
+        fixture.updateDrag(token, at: grown(start, right: 180))
+
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 100, accuracy: 1)
+        fixture.handler.dispatchMouseUp(at: start.center)
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 100, accuracy: 1)
+    }
+
+    func testNeighborFrameNotificationsDoNotScheduleRelayoutDuringNativeResize() async throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_095)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let (token, neighbor) = (fixture.tokens[0], fixture.tokens[1])
+        let start = try fixture.frame(token)
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+        let frame = try fixture.frame(neighbor)
+        fixture.controller.axEventHandler.frameObservations.query = { windowId in
+            WindowServerInfo(id: windowId, pid: neighbor.pid, level: 0, frame: frame)
+        }
+
+        fixture.controller.axEventHandler.handleFrameChanged(windowId: UInt32(neighbor.windowId))
+        for _ in 0 ..< 20 where !fixture.controller.axEventHandler.frameObservations.byWindowId.isEmpty {
+            await Task.yield()
+        }
+
+        XCTAssertTrue(fixture.controller.axEventHandler.frameObservations.byWindowId.isEmpty)
+        XCTAssertNil(fixture.controller.layoutRefreshController.layoutState.pendingRefresh)
+        XCTAssertTrue(fixture.handler.isInteractiveGestureActive)
+    }
+
+    func testNativeResizeWithoutALiveDwindleTargetLeavesTheLayoutUnchangedWhileDragging() throws {
+        let cases: [(LayoutType, Bool, (CGRect) -> CGRect)] = [
+            (.niri, true, { self.grown($0, right: 100) }),
+            (.dwindle, false, { self.grown($0, right: 100) }),
+            (.dwindle, true, { $0.offsetBy(dx: 40, dy: 0) }),
+            (.dwindle, true, { self.grown($0, left: 100) })
+        ]
+        for (index, (layout, enabled, change)) in cases.enumerated() {
+            let fixture = try makeFixture(layout, pid: pid_t(834_091 + index))
+            fixture.controller.settings.gestures.adoptNativeResize = enabled
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[0]
+            let before = try fixture.frames()
+            try fixture.beginDrag(token)
+
+            fixture.updateDrag(token, at: change(try fixture.frame(token)))
+
+            XCTAssertEqual(try fixture.frames(), before)
+            XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+            XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+        }
+    }
+
     func testDwindleOuterEdgeIsCorrectedAndACornerAdoptsOnlyTheSplitAxis() throws {
         let outer = try makeFixture(.dwindle, pid: 834_022)
         let outerBlocker = blockRefreshes(outer)
@@ -338,25 +586,27 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
     }
 
     func testDelayedFinalFrameIsAdoptedOnce() throws {
-        let fixture = try makeFixture(.niri, pid: 834_041)
-        let blocker = blockRefreshes(fixture)
-        defer { unblockRefreshes(fixture, blocker: blocker) }
-        let token = fixture.tokens[0]
-        let start = try fixture.frame(token)
-        fixture.handler.nativeWindowFrameProvider = { _ in start }
-        try fixture.beginDrag(token)
-        fixture.handler.dispatchMouseUp(at: start.center)
-        XCTAssertEqual(fixture.phase, .awaitingFrameChange)
+        for (index, layout) in [LayoutType.niri, .dwindle].enumerated() {
+            let fixture = try makeFixture(layout, pid: pid_t(834_041 + index))
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[0]
+            let start = try fixture.frame(token)
+            fixture.handler.nativeWindowFrameProvider = { _ in start }
+            try fixture.beginDrag(token)
+            fixture.handler.dispatchMouseUp(at: start.center)
+            XCTAssertEqual(fixture.phase, .awaitingFrameChange)
 
-        fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 200) }
-        XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: try fixture.entry(token)))
-        XCTAssertEqual(try fixture.frame(token).width, start.width + 200, accuracy: 1)
-        let worldSeq = fixture.manager.worldSeq
+            fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 200) }
+            XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: try fixture.entry(token)))
+            XCTAssertEqual(try fixture.frame(token).width, start.width + 200, accuracy: 1)
+            let worldSeq = fixture.manager.worldSeq
 
-        fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 260) }
-        XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: try fixture.entry(token)))
-        XCTAssertEqual(try fixture.frame(token).width, start.width + 200, accuracy: 1)
-        XCTAssertEqual(fixture.manager.worldSeq, worldSeq)
+            fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 260) }
+            XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: try fixture.entry(token)))
+            XCTAssertEqual(try fixture.frame(token).width, start.width + 200, accuracy: 1)
+            XCTAssertEqual(fixture.manager.worldSeq, worldSeq)
+        }
     }
 
     func testDelayedResizeAfterASettledCorrectionIsCorrected() throws {
@@ -382,28 +632,30 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
     }
 
     func testPendingWriteAtDragStartDisablesAdoption() throws {
-        let fixture = try makeFixture(.niri, pid: 834_043)
-        let blocker = blockRefreshes(fixture)
-        defer { unblockRefreshes(fixture, blocker: blocker) }
-        let token = fixture.tokens[0]
-        let start = try fixture.frame(token)
-        fixture.controller.axManager.applyFramesParallel([
-            AXFrameApplicationTarget(
-                pid: token.pid,
-                window: try fixture.entry(token).axRef,
-                frame: start.offsetBy(dx: 0, dy: -20)
-            )
-        ])
-        XCTAssertTrue(fixture.controller.axManager.isAwaitingFrameWrite(token.windowId))
-        let grownFrame = grown(start, right: 200)
-        fixture.handler.nativeWindowFrameProvider = { _ in grownFrame }
+        for (index, layout) in [LayoutType.niri, .dwindle].enumerated() {
+            let fixture = try makeFixture(layout, pid: pid_t(834_043 + index))
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[0]
+            let start = try fixture.frame(token)
+            fixture.controller.axManager.applyFramesParallel([
+                AXFrameApplicationTarget(
+                    pid: token.pid,
+                    window: try fixture.entry(token).axRef,
+                    frame: start.offsetBy(dx: 0, dy: -20)
+                )
+            ])
+            XCTAssertTrue(fixture.controller.axManager.isAwaitingFrameWrite(token.windowId))
+            let grownFrame = grown(start, right: 200)
+            fixture.handler.nativeWindowFrameProvider = { _ in grownFrame }
 
-        try fixture.beginDrag(token)
-        XCTAssertNil(fixture.handler.state.nativeTitleBarDrag?.adoptionStartFrame)
-        fixture.handler.dispatchMouseUp(at: grownFrame.center)
+            try fixture.beginDrag(token)
+            XCTAssertNil(fixture.handler.state.nativeTitleBarDrag?.adoptionStartFrame)
+            fixture.handler.dispatchMouseUp(at: grownFrame.center)
 
-        XCTAssertEqual(fixture.phase, .awaitingCorrection)
-        XCTAssertEqual(try fixture.frame(token).width, start.width, accuracy: 1)
+            XCTAssertEqual(fixture.phase, .awaitingCorrection)
+            XCTAssertEqual(try fixture.frame(token).width, start.width, accuracy: 1)
+        }
     }
 
     func testVerifiedAdoptedWritesLearnNothingWhileRefusedWritesStillLearn() throws {
@@ -644,8 +896,13 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
             controller.enableDwindleLayout()
             let engine = try XCTUnwrap(controller.dwindleEngine)
             controller.workspaceManager.withEngineMutationScope(in: workspaceId) {
-                for token in tokens {
-                    _ = engine.setPreselection(.right, in: workspaceId)
+                for (index, token) in tokens.enumerated() {
+                    if stacked, index == 2 {
+                        engine.setSelectedNode(engine.findNode(for: tokens[0], in: workspaceId), in: workspaceId)
+                        _ = engine.setPreselection(.up, in: workspaceId)
+                    } else {
+                        _ = engine.setPreselection(.right, in: workspaceId)
+                    }
                     _ = engine.addWindow(token: token, to: workspaceId, activeWindowFrame: nil)
                 }
             }

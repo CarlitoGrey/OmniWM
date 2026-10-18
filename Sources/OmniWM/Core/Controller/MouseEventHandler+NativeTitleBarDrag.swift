@@ -87,7 +87,7 @@ extension MouseEventHandler {
               let entry = controller.workspaceManager.entry(for: drag.token),
               entry.mode == .tiling
         else {
-            state.nativeTitleBarDrag = nil
+            discardNativeTitleBarDragState()
             return
         }
 
@@ -112,7 +112,7 @@ extension MouseEventHandler {
         needsCorrection: Bool
     ) {
         var drag = drag
-        guard needsCorrection else {
+        guard needsCorrection || drag.dwindleResizeWorkspaceId != nil else {
             if drag.receivedFrameChange {
                 state.nativeTitleBarDrag = nil
             } else {
@@ -197,7 +197,8 @@ extension MouseEventHandler {
         state.awaitsNativeTitleBarDragTarget = false
         state.nativeTitleBarDragFallbackToken = nil
         state.nativeTitleBarDragFallbackReleased = false
-        if let drag = state.nativeTitleBarDrag {
+        if var drag = state.nativeTitleBarDrag {
+            finishNativeDwindleResize(&drag)
             _ = controller?.axManager.endNativeTitleBarDrag(for: drag.token)
         }
         state.nativeTitleBarDrag = nil

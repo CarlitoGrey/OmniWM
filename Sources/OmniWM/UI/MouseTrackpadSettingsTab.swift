@@ -114,7 +114,7 @@ struct MouseTrackpadSettingsTab: View {
                 .id("Keep Native Edge Resizes")
 
             SettingsCaption(
-                localized: "Drag a tiled window's edge or corner without a modifier. When you let go, the layout keeps the new size and fits the other windows around it. Moving a window by its title bar still snaps it back."
+                localized: "Drag a tiled window's edge or corner without a modifier. Dwindle resizes neighbouring windows while you drag; Niri refits them after you release. Moving a window by its title bar still snaps it back."
             )
 
             Picker("Resize Preview", selection: Bindable(settings.gestures).resizePreviewStyle) {

@@ -50,6 +50,7 @@ struct MouseInputState {
         var issuedUnreadableCorrection = false
         var terminalFailureRetryRequestId: AXFrameRequestId?
         var adoptionStartFrame: CGRect?
+        var dwindleResizeWorkspaceId: WorkspaceDescriptor.ID?
     }
 
     struct FocusFollowsMouseSample {
