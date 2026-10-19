@@ -63,8 +63,7 @@ extension AXEventHandler {
         let token: WindowToken
         let windowServerTitle: String?
         if let axToken = pid.map({ WindowToken(pid: $0, windowId: Int(windowId)) }),
-           controller.workspaceManager.entry(for: axToken) != nil,
-           controller.workspaceManager.managedReplacementMetadata(for: axToken) == nil
+           controller.workspaceManager.entry(for: axToken) != nil
         {
             token = axToken
             windowServerTitle = nil
@@ -79,10 +78,16 @@ extension AXEventHandler {
         }
         AXWindowService.invalidateCachedTitle(windowId: windowId)
         controller.requestWorkspaceBarRefresh()
-        if let title = windowServerTitle ?? AXWindowService.titlePreferFast(windowId: windowId) {
+        if let title = windowServerTitle ?? windowTitleProvider(windowId) {
             controller.workspaceManager.updateManagedReplacementTitle(title, for: token)
         }
-        scheduleWindowRuleReevaluationIfNeeded(targets: [.window(token)])
+        let appInfo = controller.appInfoCache.hasCachedInfo(for: token.pid)
+            ? controller.appInfoCache.info(for: token.pid) : nil
+        let bundleId = appInfo?.bundleId
+            ?? controller.workspaceManager.managedReplacementMetadata(for: token)?.bundleId
+        if controller.windowRuleEngine.needsTitleReevaluation(for: bundleId, appName: appInfo?.name) {
+            scheduleWindowRuleReevaluationIfNeeded(targets: [.window(token)])
+        }
     }
 
     private func handleCGSWindowClosed(windowId: UInt32) {
