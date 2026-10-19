@@ -169,6 +169,37 @@ final class InputTapThreadTests: XCTestCase {
     }
 
     @MainActor
+    func testCapturedDragOffMainDoesNotWaitForMainThread() throws {
+        let controller = makeController()
+        let handler = controller.mouseEventHandler
+        handler.setup()
+        defer { handler.cleanup() }
+        handler.state.capturedInteractionButton = .right
+
+        let source = try XCTUnwrap(CGEventSource(stateID: .combinedSessionState))
+        let drag = try XCTUnwrap(CGEvent(
+            mouseEventSource: source,
+            mouseType: .rightMouseDragged,
+            mouseCursorPosition: CGPoint(x: 100, y: 100),
+            mouseButton: .right
+        ))
+        let suppressed = Mutex(false)
+        let done = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) let event = drag
+        Thread.detachNewThread {
+            let result = MouseEventHandler.processTapCallback(type: .rightMouseDragged, event: event)
+            suppressed.withLock { $0 = result }
+            done.signal()
+        }
+        XCTAssertEqual(done.wait(timeout: .now() + 1), .success)
+        XCTAssertTrue(suppressed.withLock { $0 })
+
+        let drained = expectation(description: "main drained")
+        DispatchQueue.main.async { drained.fulfill() }
+        wait(for: [drained], timeout: 5)
+    }
+
+    @MainActor
     func testAuthoritativePathSuppressesTrackpadWhenGestureActiveOrLatched() throws {
         let controller = makeController()
         let handler = controller.mouseEventHandler
