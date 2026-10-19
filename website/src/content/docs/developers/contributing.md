@@ -157,6 +157,8 @@ Every Swift source and test file starts with the two-line GPL-2.0 header enforce
 
 Use focused regression tests for changed behavior. Runtime changes require the full serial `swift test` suite, and changes affecting concurrency also require `swift test --parallel`. Environment-dependent live tests remain opt-in. For motion, focus, layout, and other visible behavior, also describe the manual checks you performed.
 
+CI installs Fish and Nushell to run the native CLI completion tests. For the same coverage locally, run `brew install fish nushell` and make sure `fish` and `nu` are on your `PATH`; tests for a missing shell are skipped locally.
+
 For changes to setup, packaging, development installation, or related tooling, also run `make test-dev-tools`. This runs the Python development-tooling tests and is included in CI's **Verify** job.
 
 Website changes use the checks in [Website Development](/developers/website/): `npm run check` and `npm run build` from `website/`. Small documentation-only changes do not need app builds or Swift tests.

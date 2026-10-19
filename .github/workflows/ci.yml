@@ -115,6 +115,11 @@ jobs:
         run: ./Scripts/swift-toolchain.sh
       - name: Set up dependencies
         run: ./Scripts/dev-tools.sh setup
+      - name: Install completion test shells
+        run: |
+          brew install fish nushell
+          fish --version
+          nu --version
       - name: Verify package toolchain
         run: swift package dump-package > /dev/null
       - name: Run the serial test suite
