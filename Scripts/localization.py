@@ -292,7 +292,7 @@ def compiler_stringsdata():
     library_path = environment.get("LIBRARY_PATH")
     environment["LIBRARY_PATH"] = library_dir + (f":{library_path}" if library_path else "")
     command = [
-        "xcrun", "--toolchain", "XcodeDefault", "swift", "build",
+        str(Path(os.environ.get("SWIFTLY_HOME_DIR") or Path.home() / ".swiftly") / "bin/swift"), "build",
         "--build-system", "swiftbuild", "--arch", "arm64",
         "--configuration", "debug", "--product", "OmniWM",
         "--scratch-path", str(ROOT / ".build/localization"),

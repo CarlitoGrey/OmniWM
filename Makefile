@@ -5,6 +5,7 @@ include Scripts/dev-tools.env
 SWIFTFORMAT := $(CURDIR)/.cache/dev-tools/bin/swiftformat
 SWIFTLINT := $(CURDIR)/.cache/dev-tools/bin/swiftlint
 SWIFT_WITH_GHOSTTY = LIBRARY_PATH="$$(./Scripts/ghostty-preflight.sh print-library-dir)$${LIBRARY_PATH:+:$$LIBRARY_PATH}"
+SWIFT := $(or $(SWIFTLY_HOME_DIR),$(HOME)/.swiftly)/bin/swift
 
 setup:
 	./Scripts/dev-tools.sh setup
@@ -37,7 +38,7 @@ lint-fix: check-tool-versions
 
 build:
 	./Scripts/ghostty-preflight.sh verify
-	$(SWIFT_WITH_GHOSTTY) swift build --arch arm64
+	$(SWIFT_WITH_GHOSTTY) "$(SWIFT)" build --arch arm64
 
 localization-check: build
 	python3 Scripts/localization.py check
@@ -66,7 +67,7 @@ arc-audit:
 	./Scripts/arc-audit.sh
 
 test-skylight-live:
-	OMNIWM_RUN_SKYLIGHT_LIVE_TESTS=1 swift test --filter SkyLightNativeSpaceInventoryLiveTests/testLiveTransactionMoveIsObservedThroughWindowServerBounds
+	OMNIWM_RUN_SKYLIGHT_LIVE_TESTS=1 "$(SWIFT)" test --filter SkyLightNativeSpaceInventoryLiveTests/testLiveTransactionMoveIsObservedThroughWindowServerBounds
 
 release-check: localization-check
 
