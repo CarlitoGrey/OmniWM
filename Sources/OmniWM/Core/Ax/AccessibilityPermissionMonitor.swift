@@ -27,7 +27,7 @@ final class AccessibilityPermissionMonitor {
         }
         pollTask = Task { [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: Self.pollInterval)
+                try? await Task.sleep(for: Self.pollInterval, tolerance: Self.pollInterval)
                 self?.yield(AXIsProcessTrusted())
             }
         }

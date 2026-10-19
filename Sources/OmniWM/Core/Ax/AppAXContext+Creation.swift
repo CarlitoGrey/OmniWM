@@ -97,6 +97,7 @@ extension AppAXContext {
                 scheduleOnMainRunLoop { AppAXContextRegistry.workerLifetime.finished(callbackGeneration) }
             }
             thread.name = "OmniWM-AX-\(nsApp.bundleIdentifier ?? "pid:\(pid)")"
+            thread.qualityOfService = .userInitiated
             thread.start()
         }
     }

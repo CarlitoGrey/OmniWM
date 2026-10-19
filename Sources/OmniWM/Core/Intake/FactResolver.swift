@@ -220,6 +220,7 @@ final class FactResolver {
             CFRunLoopRun()
         }
         thread.name = "OmniWM-FactResolver"
+        thread.qualityOfService = .userInitiated
         thread.start()
         resolverThread = thread
         return thread

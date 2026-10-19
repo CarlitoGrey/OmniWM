@@ -194,6 +194,7 @@ extension ShellLayerScene {
     private static let filterClass = NSClassFromString("CAFilter") as? NSObject.Type
 
     private static let blurRadii: [CGFloat] = [0, 8, 14, 20, 28, 36, 20]
+    private static let filterInputsKey = "omniwmFilterInputs"
 
     private func applyMaterial(_ slot: Int32, _ paint: ShellLayerPaint, to layer: CALayer) {
         guard paint.material > 0 else {
@@ -207,10 +208,14 @@ extension ShellLayerScene {
         backdrops[slot] = entry
         let radius = paint.blurRadius >= 0
             ? paint.blurRadius : Self.blurRadii[min(Int(paint.material), Self.blurRadii.count - 1)]
-        entry.backdrop.filters = [
-            Self.filter("gaussianBlur", "inputRadius", radius),
-            Self.filter("colorSaturate", "inputAmount", paint.saturation)
-        ].compactMap(\.self)
+        let inputs = [radius, paint.saturation]
+        if entry.backdrop.value(forKey: Self.filterInputsKey) as? [CGFloat] != inputs {
+            entry.backdrop.setValue(inputs, forKey: Self.filterInputsKey)
+            entry.backdrop.filters = [
+                Self.filter("gaussianBlur", "inputRadius", radius),
+                Self.filter("colorSaturate", "inputAmount", paint.saturation)
+            ].compactMap(\.self)
+        }
         entry.tint.backgroundColor = paint.fill
     }
 

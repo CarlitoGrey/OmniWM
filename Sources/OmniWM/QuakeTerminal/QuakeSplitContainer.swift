@@ -188,6 +188,7 @@ private final class SplitDividerView: NSView {
         layer = CALayer()
         layer?.backgroundColor = NSColor.clear.cgColor
         visibleDividerLayer.backgroundColor = NSColor(white: 0.3, alpha: 1).cgColor
+        visibleDividerLayer.actions = ["bounds": NSNull(), "position": NSNull()]
         layer?.addSublayer(visibleDividerLayer)
     }
 

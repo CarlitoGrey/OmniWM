@@ -38,6 +38,12 @@ final class ShellBlurTests: XCTestCase {
             }
         }
         XCTAssertEqual(values(), [20, CGFloat(Float(1.8))])
+        let filters = {
+            ShellLayerScene.engineQueue.sync { scene.backdrops.values.first?.backdrop.filters as? [NSObject] }
+        }
+        let first = try XCTUnwrap(filters())
+        widget.render(ShellBarData())
+        XCTAssertTrue(zip(first, try XCTUnwrap(filters())).allSatisfy { $0 === $1 })
         widget.invoke(node.content.action)
         widget.render(ShellBarData())
         XCTAssertEqual(widget.tree().first?.paint.blurRadius, 0)
