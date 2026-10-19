@@ -895,10 +895,10 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         count: Int,
         loaded widget: String? = nil
     ) async {
-        await until {
+        let widgets = { manager.barsByMonitor[monitor.id]?.model.snapshot.shellWidgets.count }
+        await until("\(count) shell widgets on \(monitor.name), have \(String(describing: widgets()))") {
             if let widget, manager.shellHost?.widgets[widget]?.package == nil { return false }
-            guard let model = manager.barsByMonitor[monitor.id]?.model else { return true }
-            return model.snapshot.shellWidgets.count >= count
+            return (widgets() ?? 0) >= count
         }
     }
 
