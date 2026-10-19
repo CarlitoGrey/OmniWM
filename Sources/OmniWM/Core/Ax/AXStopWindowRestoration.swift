@@ -128,7 +128,7 @@ enum AXStopWindowRestoration {
 }
 
 extension AppAXContext {
-    nonisolated func restoreForStop(
+    func restoreForStop(
         _ target: StopWindowTarget,
         deadline: TimeInterval,
         operations: @escaping @Sendable (AXWindowRef) -> StopWindowOperations = StopWindowOperations.native

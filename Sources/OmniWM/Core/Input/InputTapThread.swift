@@ -19,6 +19,7 @@ struct TapFilterSnapshot: Sendable {
 final class InputTapThread: @unchecked Sendable {
     private var thread: Thread?
     private var runLoopRef: CFRunLoop?
+    private var sessionTapRef: CFMachPort?
     private let condition = NSCondition()
     private var started = false
 
@@ -34,6 +35,11 @@ final class InputTapThread: @unchecked Sendable {
         condition.lock()
         defer { condition.unlock() }
         return runLoopRef
+    }
+
+    var sessionTap: CFMachPort? {
+        get { condition.withLock { sessionTapRef } }
+        set { condition.withLock { sessionTapRef = newValue } }
     }
 
     var filterSnapshot: TapFilterSnapshot {
@@ -90,6 +96,7 @@ final class InputTapThread: @unchecked Sendable {
         let loop = runLoopRef
         started = false
         runLoopRef = nil
+        sessionTapRef = nil
         thread = nil
         condition.unlock()
 
