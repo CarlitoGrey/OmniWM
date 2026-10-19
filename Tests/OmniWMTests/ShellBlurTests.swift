@@ -38,12 +38,6 @@ final class ShellBlurTests: XCTestCase {
             }
         }
         XCTAssertEqual(values(), [20, CGFloat(Float(1.8))])
-        let filters = {
-            ShellLayerScene.engineQueue.sync { scene.backdrops.values.first?.backdrop.filters as? [NSObject] }
-        }
-        let first = try XCTUnwrap(filters())
-        widget.render(ShellBarData())
-        XCTAssertTrue(zip(first, try XCTUnwrap(filters())).allSatisfy { $0 === $1 })
         widget.invoke(node.content.action)
         widget.render(ShellBarData())
         XCTAssertEqual(widget.tree().first?.paint.blurRadius, 0)
@@ -52,6 +46,35 @@ final class ShellBlurTests: XCTestCase {
         ShellLayerScene.engineQueue.sync {
             XCTAssertNotNil(scene.backdrops.values.first?.tint.backgroundColor)
         }
+    }
+
+    func testFillOnlyRepaintKeepsBackdropFilters() throws {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency else {
+            throw XCTSkip("Reduce Transparency replaces materials with solid fills")
+        }
+        let widget = try ShellRenderedWidget(name: "blurfill", source: """
+        function render(ctx)
+            return ui.stack{ w = 100, h = 80, material = 'regular',
+                fill = ctx.state.on and '#00ff0040' or '#ff000040',
+                onClick = function(next) next.state.on = true end }
+        end
+        """)
+        widget.render(ShellBarData())
+        let node = try XCTUnwrap(widget.tree().first)
+        let scene = widget.surface.scene
+        let state = {
+            ShellLayerScene.engineQueue.sync { () -> ([NSObject], CGColor?) in
+                let entry = scene.backdrops.values.first
+                return (entry?.backdrop.filters as? [NSObject] ?? [], entry?.tint.backgroundColor)
+            }
+        }
+        let (before, beforeTint) = state()
+        XCTAssertEqual(before.count, 2)
+        widget.invoke(node.content.action)
+        widget.render(ShellBarData())
+        let (after, afterTint) = state()
+        XCTAssertNotEqual(beforeTint, afterTint)
+        XCTAssertTrue(zip(before, after).allSatisfy { $0 === $1 })
     }
 
     func testInvalidBlurAndTextureDeclarationsAreRejected() throws {
