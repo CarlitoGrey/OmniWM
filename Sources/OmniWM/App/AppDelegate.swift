@@ -159,7 +159,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         controller.workspaceBarManager.menuBarHold = menuBarHold
         controller.applyPersistedSettings(settings)
-        startSystemMotionPreferenceObservation(controller)
+        startSystemPreferenceObservation(controller)
         let cliManager = AppCLIManager()
         let updateCoordinator = UpdateCoordinator(settings: settings, runtimeState: runtimeState)
         self.cliManager = cliManager
@@ -396,13 +396,27 @@ extension AppDelegate {
         }
     }
 
-    private func startSystemMotionPreferenceObservation(_ controller: WMController) {
+    private func startSystemPreferenceObservation(_ controller: WMController) {
         controller.motionPolicy.systemReducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         _ = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil, queue: .main
         ) { [weak controller] _ in
             Task { @MainActor [weak controller] in
                 controller?.motionPolicy.systemReducesMotion = NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+            }
+        }
+        for name in [
+            Notification.Name("NSWorkspaceIconAppearanceConfigurationDidChangeNotification"),
+            Notification.Name("NSWorkspaceMenuBarAppearanceDidChangeNotification")
+        ] {
+            _ = NSWorkspace.shared.notificationCenter.addObserver(
+                forName: name, object: nil, queue: .main
+            ) { [weak controller] _ in
+                Task { @MainActor [weak controller] in
+                    guard let controller else { return }
+                    LauncherIconStore.shared.clear()
+                    controller.workspaceBarManager.refreshShellIcons()
+                }
             }
         }
     }
