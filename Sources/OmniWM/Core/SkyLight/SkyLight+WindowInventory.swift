@@ -21,14 +21,10 @@ extension SkyLight {
 
         nonisolated func read(connectionId cid: Int32) -> [UInt32: WindowServerInfo]? {
             guard !windowIds.isEmpty else { return [:] }
-            guard cid != 0,
-                  let windowCount = UInt32(exactly: windowIds.count)
-            else {
-                return nil
-            }
+            guard cid != 0 else { return nil }
 
             let windowNumbers = windowIds.map { NSNumber(value: $0) } as CFArray
-            guard let query = windowQueryWindows(cid, windowNumbers, windowCount)?.takeRetainedValue()
+            guard let query = windowQueryWindows(cid, windowNumbers, 0)?.takeRetainedValue()
             else { return nil }
             guard let iterator = windowQueryResultCopyWindows(query)?.takeRetainedValue() else { return nil }
 
@@ -189,7 +185,7 @@ extension SkyLight {
             let widNumber = CFNumberCreate(nil, .sInt32Type, &widValue)!
             let windowArray = [widNumber] as CFArray
 
-            guard let query = queries.windowQueryWindows(cid, windowArray, 1)?.takeRetainedValue() else { return nil }
+            guard let query = queries.windowQueryWindows(cid, windowArray, 0)?.takeRetainedValue() else { return nil }
             guard let iterator = queries.windowQueryResultCopyWindows(query)?.takeRetainedValue() else { return nil }
             guard queries.windowIteratorAdvance(iterator) else { return nil }
 
