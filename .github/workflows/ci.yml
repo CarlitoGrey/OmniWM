@@ -37,16 +37,11 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: |
-            .cache/dev-tools/bin
-            .cache/dev-tools/downloads
             ~/.swiftly
             ~/Library/Developer/Toolchains
-            Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: swift-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
-      - name: Set up dependencies
-        run: ./Scripts/dev-tools.sh setup
   tooling:
     name: Tooling
     runs-on: xcode-27
@@ -64,25 +59,19 @@ jobs:
         with:
           ref: ${{ inputs.pr_number != '' && format('refs/pull/{0}/merge', inputs.pr_number) || github.ref }}
           persist-credentials: false
-      - name: Install Lix
-        run: |
-          arch="$(uname -m | sed 's/arm64/aarch64/')"
-          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-          curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
-          chmod +x /tmp/lix-installer
-          /tmp/lix-installer install --no-confirm \
-            --extra-conf "experimental-features = nix-command flakes"
-          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-lix
+        with:
+          make-target: setup-tools
       - name: Put flake tools on PATH
+        run: echo "$PWD/.cache/flake-tools/bin" >> "$GITHUB_PATH"
+      - name: Check the flake
         env:
           NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-        run: |
-          tools_out="$(nix build --no-link --print-out-paths .#default)"
-          echo "${tools_out}/bin" >> "$GITHUB_PATH"
+        run: nix flake check
       - name: Verify formatting
-        run: swiftformat --lint .
+        run: make format-check
       - name: Lint
-        run: swiftlint lint
+        run: make lint
       - name: Verify generated IPC wire files
         run: python3 Scripts/generate_ipc_wire.py --check
       - name: Test development tooling
@@ -107,16 +96,14 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: |
-            .cache/dev-tools/bin
-            .cache/dev-tools/downloads
             ~/.swiftly
             ~/Library/Developer/Toolchains
-            Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: swift-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
-      - name: Set up dependencies
-        run: ./Scripts/dev-tools.sh setup
+      - uses: ./.github/actions/setup-lix
+        with:
+          make-target: setup
       - name: Verify package toolchain
         run: swift package dump-package > /dev/null
       - name: Verify localization and build
@@ -141,31 +128,16 @@ jobs:
       - uses: actions/cache@v6.1.0
         with:
           path: |
-            .cache/dev-tools/bin
-            .cache/dev-tools/downloads
             ~/.swiftly
             ~/Library/Developer/Toolchains
-            Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: swift-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
-      - name: Set up dependencies
-        run: ./Scripts/dev-tools.sh setup
-      - name: Install Lix
-        run: |
-          arch="$(uname -m | sed 's/arm64/aarch64/')"
-          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-          curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
-          chmod +x /tmp/lix-installer
-          /tmp/lix-installer install --no-confirm \
-            --extra-conf "experimental-features = nix-command flakes"
-          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+      - uses: ./.github/actions/setup-lix
+        with:
+          make-target: setup
       - name: Put flake tools on PATH
-        env:
-          NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-        run: |
-          tools_out="$(nix build --no-link --print-out-paths .#default)"
-          echo "${tools_out}/bin" >> "$GITHUB_PATH"
+        run: echo "$PWD/.cache/flake-tools/bin" >> "$GITHUB_PATH"
       - name: Check completion test shells
         run: |
           fish --version

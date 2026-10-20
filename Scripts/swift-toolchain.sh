@@ -6,9 +6,6 @@ SWIFTLY_HOME_DIR="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}"
 SWIFTLY="$SWIFTLY_HOME_DIR/bin/swiftly"
 SWIFT_ORG_TEAM_ID=V9AUD2URP3
 
-# Source of truth: flake.nix
-SWIFT_SNAPSHOT="${SWIFT_SNAPSHOT:-$(nix eval --raw "$ROOT_DIR#toolchain.swift.snapshot" 2>/dev/null || cat "$ROOT_DIR/.swift-version" 2>/dev/null || echo "main-snapshot-2026-10-11")}"
-
 if [ ! -x "$SWIFTLY" ]; then
   WORK_DIR="$(mktemp -d)"
   trap 'rm -rf "$WORK_DIR"' EXIT
@@ -23,8 +20,7 @@ if [ ! -x "$SWIFTLY" ]; then
 fi
 
 cd "$ROOT_DIR"
-"$SWIFTLY" install --assume-yes "$SWIFT_SNAPSHOT"
-"$SWIFTLY" use "$SWIFT_SNAPSHOT"
+"$SWIFTLY" install --assume-yes
 if [ -n "${GITHUB_PATH:-}" ]; then
   echo "$SWIFTLY_HOME_DIR/bin" >> "$GITHUB_PATH"
 fi

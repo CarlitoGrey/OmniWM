@@ -1,0 +1,37 @@
+name: Set up Lix
+description: Install the pinned Lix release and optionally run a make setup target from the flake.
+inputs:
+  make-target:
+    description: Make target to run after installing Lix (setup or setup-tools); empty installs Lix only.
+    required: false
+    default: ""
+runs:
+  using: composite
+  steps:
+    - name: Install Lix
+      shell: bash
+      env:
+        LIX_VERSION: 2.96.0
+        LIX_SHA256: 8926d62bbf73af935ba75b0775861c52725f8be8e6600e81e200083ea87fa448
+        LIX_INSTALLER_SHA256: 3c71fdcfeddac8fa075b626b6e0ddd9ba73af930e47b4fa027e22c7279f596ae
+      run: |
+        set -euo pipefail
+        work="$(mktemp -d)"
+        curl --fail --silent --show-error --location --output "$work/lix-installer" \
+          https://install.lix.systems/lix/lix-installer-aarch64-darwin
+        curl --fail --silent --show-error --location --output "$work/lix.tar.xz" \
+          "https://releases.lix.systems/lix/lix-$LIX_VERSION/lix-$LIX_VERSION-aarch64-darwin.tar.xz"
+        echo "$LIX_INSTALLER_SHA256  $work/lix-installer" | shasum -a 256 -c -
+        echo "$LIX_SHA256  $work/lix.tar.xz" | shasum -a 256 -c -
+        chmod +x "$work/lix-installer"
+        "$work/lix-installer" install macos --no-confirm \
+          --nix-package-url "file://$work/lix.tar.xz" \
+          --extra-conf "experimental-features = nix-command flakes"
+        echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+    - name: Build flake tools
+      if: inputs.make-target != ''
+      shell: bash
+      env:
+        MAKE_TARGET: ${{ inputs.make-target }}
+        NIX_CONFIG: access-tokens = github.com=${{ github.token }}
+      run: make "$MAKE_TARGET"

@@ -18,7 +18,7 @@ class MakeToolTests(unittest.TestCase):
                 line.split("=", 1)
                 for line in (root / "Scripts/dev-tools.env").read_text().splitlines()
             )
-            tools = root / ".cache/dev-tools/bin"
+            tools = root / ".cache/flake-tools/bin"
             tools.mkdir(parents=True)
             decoys = root / "system-tools"
             decoys.mkdir()

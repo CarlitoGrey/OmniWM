@@ -107,18 +107,16 @@ jobs:
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
           path: |
-            .cache/dev-tools/bin
-            .cache/dev-tools/downloads
             ~/.swiftly
             ~/Library/Developer/Toolchains
-            Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: swift-toolchain-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.swift-version') }}
       - name: Install the pinned Swift toolchain
         if: steps.check.outputs.should_skip != 'true'
         run: ./Scripts/swift-toolchain.sh
-      - name: Set up dependencies
+      - uses: ./.github/actions/setup-lix
         if: steps.check.outputs.should_skip != 'true'
-        run: ./Scripts/dev-tools.sh setup
+        with:
+          make-target: setup
       # Imported after dependency setup and removed before any later action step.
       - name: Import signing and notarization credentials
         if: steps.check.outputs.should_skip != 'true'
