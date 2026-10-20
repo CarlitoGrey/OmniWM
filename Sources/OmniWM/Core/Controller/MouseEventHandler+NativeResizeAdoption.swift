@@ -254,7 +254,6 @@ extension MouseEventHandler {
         else { return }
         if drag.dwindleResizeWorkspaceId == nil {
             guard !edges.isEmpty else { return }
-            controller.dwindleLayoutHandler.refreshEngineConstraints(workspaceId: workspaceId, monitor: monitor)
             guard engine.interactiveResizeBegin(
                 token: entry.token,
                 edges: edges,
@@ -263,6 +262,7 @@ extension MouseEventHandler {
                 innerGap: controller.resolvedDwindleSettings(for: monitor).innerGap,
                 edgePolicy: .exact
             ) else { return }
+            controller.dwindleLayoutHandler.refreshEngineConstraints(workspaceId: workspaceId, monitor: monitor)
             drag.dwindleResizeWorkspaceId = workspaceId
             controller.layoutRefreshController.stopDwindleAnimation(for: monitor.displayId)
             engine.cancelAnimations(in: workspaceId)

@@ -515,11 +515,11 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
     }
 
     func testNativeResizeWithoutALiveDwindleTargetLeavesTheLayoutUnchangedWhileDragging() throws {
-        let cases: [(LayoutType, Bool, (CGRect) -> CGRect)] = [
-            (.niri, true, { self.grown($0, right: 100) }),
-            (.dwindle, false, { self.grown($0, right: 100) }),
-            (.dwindle, true, { $0.offsetBy(dx: 40, dy: 0) }),
-            (.dwindle, true, { self.grown($0, left: 100) })
+        let cases: [(LayoutType, Bool, (CGRect, CGFloat) -> CGRect)] = [
+            (.niri, true, { self.grown($0, right: $1) }),
+            (.dwindle, false, { self.grown($0, right: $1) }),
+            (.dwindle, true, { $0.offsetBy(dx: $1, dy: 0) }),
+            (.dwindle, true, { self.grown($0, left: $1) })
         ]
         for (index, (layout, enabled, change)) in cases.enumerated() {
             let fixture = try makeFixture(layout, pid: pid_t(834_091 + index))
@@ -528,13 +528,18 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
             defer { unblockRefreshes(fixture, blocker: blocker) }
             let token = fixture.tokens[0]
             let before = try fixture.frames()
+            let start = try fixture.frame(token)
             try fixture.beginDrag(token)
+            let worldSeq = fixture.manager.worldSeq
 
-            fixture.updateDrag(token, at: change(try fixture.frame(token)))
+            for delta: CGFloat in [20, 60, 100, 40] {
+                fixture.updateDrag(token, at: change(start, delta))
 
-            XCTAssertEqual(try fixture.frames(), before)
-            XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
-            XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+                XCTAssertEqual(try fixture.frames(), before)
+                XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+                XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+                XCTAssertEqual(fixture.manager.worldSeq, worldSeq, "case \(index), delta \(delta)")
+            }
         }
     }
 

@@ -1,8 +1,15 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "Applies to mouse resizing and to keyboard resizing in Niri. Window Snapshot stretches a still image of each moving window and needs Screen Recording. Glass Placeholder shows the app icon on glass and needs no permission. Windows get their final size once the resize ends." : {
-
+    "Applies to modifier-based mouse resizing, trackpad resize gestures, and Niri keyboard resizing. Native edge or corner drags bypass previews; Dwindle neighbours always resize live. Window Snapshot stretches a still image and needs Screen Recording. Glass Placeholder shows app icons without capture. With either preview, windows get their final size when resizing ends." : {
+      "localizations" : {
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适用于按住修饰键的鼠标缩放、触控板缩放手势，以及 Niri 的键盘缩放。原生边缘或角落拖拽不使用预览；Dwindle 的相邻窗口始终实时缩放。窗口快照会拉伸静态图像，需要屏幕录制权限。玻璃占位框仅显示应用图标，无需录屏。使用这两种预览时，窗口会在缩放结束后应用最终尺寸。"
+          }
+        }
+      }
     },
     "Glass Placeholder" : {
 
