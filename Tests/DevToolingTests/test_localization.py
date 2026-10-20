@@ -262,14 +262,24 @@ class CompilerMetadataTests(unittest.TestCase):
         }))
         return metadata
 
-    def test_extraction_builds_with_xcode_before_discovery_and_preserves_library_path(self):
+    def test_extraction_builds_with_swiftly_before_discovery_and_preserves_library_path(self):
+        default_swift = str(Path.home() / ".swiftly/bin/swift")
+        for swiftly_home, swift in (
+            (None, default_swift),
+            ("", default_swift),
+            ("/custom swiftly", "/custom swiftly/bin/swift"),
+        ):
+            with self.subTest(swiftly_home=swiftly_home):
+                self.assert_extraction_builds_with_swiftly(swiftly_home, swift)
+
+    def assert_extraction_builds_with_swiftly(self, swiftly_home, swift):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             scratch = root / ".build/localization"
             bin_path = scratch / "out/Products/Debug"
             library = root / "Frameworks/GhosttyKit.xcframework/macos-arm64"
             command = [
-                "xcrun", "--toolchain", "XcodeDefault", "swift", "build",
+                swift, "build",
                 "--build-system", "swiftbuild", "--arch", "arm64",
                 "--configuration", "debug", "--product", "OmniWM",
                 "--scratch-path", str(scratch),
@@ -296,8 +306,12 @@ class CompilerMetadataTests(unittest.TestCase):
                 return subprocess.CompletedProcess(arguments, 0, stdout=f"{bin_path}\n")
 
             with patch.object(localization, "ROOT", root), \
-                    patch.dict("os.environ", {"LIBRARY_PATH": "/existing/libraries"}), \
+                    patch.dict("os.environ", {"LIBRARY_PATH": "/existing/libraries"}) as environment, \
                     patch.object(localization.subprocess, "run", side_effect=run):
+                if swiftly_home is None:
+                    environment.pop("SWIFTLY_HOME_DIR", None)
+                else:
+                    environment["SWIFTLY_HOME_DIR"] = swiftly_home
                 found = localization.compiler_stringsdata()
             self.assertEqual(len(calls), 3)
             self.assertEqual(found, [metadata])
