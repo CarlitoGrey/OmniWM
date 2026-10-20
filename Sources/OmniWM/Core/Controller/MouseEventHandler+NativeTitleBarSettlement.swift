@@ -65,6 +65,7 @@ extension MouseEventHandler {
         state.nativeTitleBarDragFallbackReleased = false
         var drag = MouseInputState.NativeTitleBarDrag(token: entry.token)
         if released {
+            if settleNativeCrossDisplayMoveIfNeeded(entry, observedFrame: observedFrame) { return true }
             if let pendingFrame = controller.axManager.pendingFrameWrite(for: entry.windowId) {
                 awaitNativeTitleBarDragFrameWrite(
                     pendingFrame,
@@ -93,6 +94,7 @@ extension MouseEventHandler {
             return false
         }
         let observedFrame = terminalNativeWindowFrame(for: entry)
+        if settleNativeCrossDisplayMoveIfNeeded(entry, observedFrame: observedFrame) { return true }
         if let observedFrame,
            nativeWindowFrameMatchesManagedTarget(observedFrame, entry: entry)
         {

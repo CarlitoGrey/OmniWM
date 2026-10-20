@@ -90,6 +90,7 @@ extension MouseEventHandler {
         let focusIntentToken = exactToken ?? (windowIdUnderPointer == nil
             ? geometricFocusIntentCandidate(at: location, workspaceId: wsId)
             : nil)
+        captureNativeCrossDisplayMove(for: focusIntentToken)
         if let token = focusIntentToken {
             controller.axEventHandler.noteMouseFocusIntent(token: token)
         } else {

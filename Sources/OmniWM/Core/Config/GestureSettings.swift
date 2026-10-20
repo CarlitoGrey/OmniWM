@@ -143,6 +143,13 @@ final class GestureSettings {
         }
     }
 
+    var adoptNativeMoveAcrossDisplays = GestureSettings.defaults.adoptNativeMoveAcrossDisplays ?? false {
+        didSet {
+            guard oldValue != adoptNativeMoveAcrossDisplays else { return }
+            notifyChange()
+        }
+    }
+
     var workspaceSwipeAxisLockedToVertical: Bool {
         scrollEnabled && workspaceSwipeFingerCount.rawValue == fingerCount.rawValue
     }
@@ -173,7 +180,8 @@ final class GestureSettings {
             windowGestureSensitivity: windowGestureSensitivity,
             resizePreviewStyle: resizePreviewStyle,
             dwindleGroupDragAcrossDisplays: dwindleGroupDragAcrossDisplays,
-            adoptNativeResize: adoptNativeResize
+            adoptNativeResize: adoptNativeResize,
+            adoptNativeMoveAcrossDisplays: adoptNativeMoveAcrossDisplays
         )
     }
 
@@ -206,6 +214,7 @@ final class GestureSettings {
         resizePreviewStyle = gestures.resizePreviewStyle ?? .live
         dwindleGroupDragAcrossDisplays = gestures.dwindleGroupDragAcrossDisplays ?? .group
         adoptNativeResize = gestures.adoptNativeResize ?? false
+        adoptNativeMoveAcrossDisplays = gestures.adoptNativeMoveAcrossDisplays ?? false
         isApplying = false
         if export() != previous {
             notifyChange()

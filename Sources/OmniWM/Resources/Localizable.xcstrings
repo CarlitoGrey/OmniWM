@@ -171488,6 +171488,7 @@
       }
     },
     "Drag a tiled window's edge or corner without a modifier. Dwindle resizes neighbouring windows while you drag; Niri refits them after you release. Moving a window by its title bar still snaps it back." : {
+      "extractionState" : "stale",
       "localizations" : {
         "zh-Hans" : {
           "stringUnit" : {
@@ -171621,6 +171622,15 @@
           }
         }
       }
+    },
+    "Drag a tiled window by its title bar onto another display without a modifier. Drops use the same placement rules as modifier drags. Moving within one display still snaps the window back." : {
+
+    },
+    "Drag a tiled window's edge or corner without a modifier. Dwindle resizes neighbouring windows while you drag; Niri refits them after you release." : {
+
+    },
+    "Keep Native Moves Across Displays" : {
+
     }
   },
   "version" : "1.0"

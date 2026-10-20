@@ -185,6 +185,7 @@ struct SettingsExport: Equatable {
         var resizePreviewStyle: ResizePreviewStyle? = .live
         var dwindleGroupDragAcrossDisplays: DwindleGroupDrag? = .group
         var adoptNativeResize: Bool? = false
+        var adoptNativeMoveAcrossDisplays: Bool? = false
     }
 
     struct StatusBar: Codable, Equatable {
@@ -458,7 +459,8 @@ extension SettingsExport.Gestures {
             workspaceSwipeAxis: .vertical,
             resizePreviewStyle: .live,
             dwindleGroupDragAcrossDisplays: .group,
-            adoptNativeResize: false
+            adoptNativeResize: false,
+            adoptNativeMoveAcrossDisplays: false
         )
     }
 }
