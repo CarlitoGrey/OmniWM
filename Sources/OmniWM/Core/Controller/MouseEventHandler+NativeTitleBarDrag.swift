@@ -91,7 +91,7 @@ extension MouseEventHandler {
             return
         }
 
-        let observedFrame = nativeWindowFrameProvider(entry.axRef)
+        let observedFrame = terminalNativeWindowFrame(for: entry)
         let lastAppliedFrame = controller.axManager.lastAppliedFrame(for: entry.windowId)
         let observedDisplacement = Self.nativeTitleBarWasDisplaced(
             observedFrame: observedFrame, lastAppliedFrame: lastAppliedFrame,

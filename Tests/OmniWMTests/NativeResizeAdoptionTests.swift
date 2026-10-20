@@ -388,6 +388,10 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
         try fixture.beginDrag(token)
         fixture.updateDrag(token, at: grown(start, right: 100))
         fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 180) }
+        fixture.handler.nativeWindowFrameFallbackProvider = { _ in
+            XCTFail("a readable fast frame must not use the AX fallback")
+            return nil
+        }
 
         fixture.handler.dispatchMouseUp(at: start.center)
 
@@ -398,6 +402,45 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
         fixture.updateDrag(token, at: grown(start, right: 200))
         XCTAssertEqual(try fixture.frame(token).width, start.width + 180, accuracy: 1)
         XCTAssertEqual(fixture.manager.worldSeq, worldSeq)
+    }
+
+    func testDwindleNativeResizeReleaseFallsBackToAXForTheFinalFrame() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_114)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        let finalFrame = grown(start, right: 180)
+        var fallbackReads = 0
+        fixture.handler.nativeWindowFrameFallbackProvider = { window in
+            XCTAssertEqual(window.windowId, token.windowId)
+            fallbackReads += 1
+            return finalFrame
+        }
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+        fixture.handler.nativeWindowFrameProvider = { _ in nil }
+        XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: try fixture.entry(token)))
+        XCTAssertEqual(fallbackReads, 0)
+        XCTAssertEqual(try fixture.frame(token).width, start.width + 100, accuracy: 1)
+        FrameEffectTraceContext.beginCapture(generation: 1)
+        FrameApplyTrace.shared.beginCapture()
+        defer {
+            FrameApplyTrace.shared.endCapture()
+            FrameEffectTraceContext.endCapture()
+        }
+
+        fixture.handler.dispatchMouseUp(at: finalFrame.center)
+
+        XCTAssertEqual(fallbackReads, 1)
+        XCTAssertTrue(try fixture.frame(token).approximatelyEqual(to: finalFrame, tolerance: 1))
+        for window in fixture.tokens {
+            XCTAssertEqual(frameDecisions(for: window).count, 1, FrameApplyTrace.shared.dump())
+            let target = try fixture.frame(window)
+            XCTAssertTrue(firstWriteTarget(for: window)?.approximatelyEqual(to: target, tolerance: 1) == true)
+        }
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
     }
 
     func testDwindleNativeResizeReleaseAppliesFinalFramesOnce() throws {

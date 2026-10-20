@@ -163,9 +163,9 @@ extension MouseEventHandler {
         ) == true
     }
 
-    private func terminalNativeWindowFrame(for entry: WindowState) -> CGRect? {
+    func terminalNativeWindowFrame(for entry: WindowState) -> CGRect? {
         nativeWindowFrameProvider(entry.axRef)
-            ?? (try? AXWindowService.frame(entry.axRef))
+            ?? nativeWindowFrameFallbackProvider(entry.axRef)
     }
 
     func handleNativeTitleBarDragFrameApplySucceeded(_ result: AXFrameApplyResult) {

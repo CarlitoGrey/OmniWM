@@ -35,6 +35,10 @@ final class MouseEventHandler {
         AXWindowService.framePreferFast($0)
     }
 
+    var nativeWindowFrameFallbackProvider: @MainActor (AXWindowRef) -> CGRect? = {
+        try? AXWindowService.frame($0)
+    }
+
     init(controller: WMController) {
         self.controller = controller
     }
