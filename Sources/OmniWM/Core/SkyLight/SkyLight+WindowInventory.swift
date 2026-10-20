@@ -121,6 +121,15 @@ extension SkyLight {
         return try await connection.perform { query.read(connectionId: $0) }
     }
 
+    func queryWindowInfoOffMainConnection(_ windowId: UInt32) -> WindowServerInfo? {
+        let query = windowInfoQuery([windowId])
+        let infos = MainThreadAXSpanTrace.measure(.windowServerQuery, windowId: Int(windowId), count: 1) {
+            immediateQueryConnection()?.performNow { query.read(connectionId: $0) }
+        } succeeded: { $0 != nil }
+        guard let infos else { return queryWindowInfo(windowId) }
+        return infos[windowId]
+    }
+
     func queryAllVisibleWindows() -> [WindowServerInfo] {
         let result = MainThreadAXSpanTrace.measure(.windowServerVisibleQuery) { () -> [WindowServerInfo]? in
             let cid = getMainConnectionID()

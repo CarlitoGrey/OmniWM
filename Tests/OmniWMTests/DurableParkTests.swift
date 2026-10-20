@@ -1387,8 +1387,13 @@ final class DurableParkTests: XCTestCase {
             queries.finish()
         }
         var synchronousQueries = 0
-        handler.windowInfoProvider = { _ in
+        var mainConnectionQueries = 0
+        handler.frameObservations.nativeDragQuery = { _ in
             synchronousQueries += 1
+            return nil
+        }
+        handler.windowInfoProvider = { _ in
+            mainConnectionQueries += 1
             return nil
         }
         handler.frameObservations.query = { await queries.query($0) }
@@ -1401,6 +1406,7 @@ final class DurableParkTests: XCTestCase {
         handler.handleCGSEvent(.frameChanged(windowId: windowId))
 
         XCTAssertEqual(synchronousQueries, 1)
+        XCTAssertEqual(mainConnectionQueries, 0)
         XCTAssertNil(handler.frameObservations.byWindowId[windowId])
         XCTAssertTrue(deferred.isCancelled)
         FrameApplyTrace.shared.beginCapture()
@@ -2000,6 +2006,7 @@ final class DurableParkTests: XCTestCase {
         )
         let handler = controller.axEventHandler
         handler.lifecycleQueries.query = { [weak handler] in handler?.windowInfoProvider($0) }
+        handler.frameObservations.nativeDragQuery = { [weak handler] in handler?.windowInfoProvider($0) }
         return controller
     }
 }

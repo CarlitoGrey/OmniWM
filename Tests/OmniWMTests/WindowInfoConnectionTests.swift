@@ -187,7 +187,11 @@ final class WindowInfoConnectionTests: XCTestCase {
         for id in ids {
             XCTAssertEqual(actual[id]?.pid, expected[id]?.pid)
             XCTAssertEqual(actual[id]?.level, expected[id]?.level)
+            let immediate = sky.queryWindowInfoOffMainConnection(id)
+            XCTAssertEqual(immediate?.pid, expected[id]?.pid)
+            XCTAssertEqual(immediate?.level, expected[id]?.level)
         }
+        XCTAssertNil(sky.queryWindowInfoOffMainConnection(UInt32.max))
     }
 
     func testConnectionReturnsCornerValuesParsedOffMain() async throws {
