@@ -89,7 +89,7 @@ extension AXEventHandler {
                 appPolicy: app?.activationPolicy,
                 bundleId: bundleId,
                 includeTitle: includeTitle
-            ),
+            ).facts,
             sizeConstraints: nil,
             windowServer: windowInfo
         )

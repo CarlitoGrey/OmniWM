@@ -77,12 +77,10 @@ extension AXEventHandler {
 
         let app = NSRunningApplication(processIdentifier: token.pid)
         let bundleId = resolveBundleId(token.pid) ?? app?.bundleIdentifier
-        let appFullscreen = AXWindowService.isFullscreen(axRef)
         let matchingWindowInfo = WMController.exactWindowServerInfo(windowInfo, for: token)
         let evaluation = controller.evaluateWindowDisposition(
             axRef: axRef,
             pid: token.pid,
-            appFullscreen: appFullscreen,
             windowInfo: matchingWindowInfo,
             windowServerLookupAttempted: true
         )

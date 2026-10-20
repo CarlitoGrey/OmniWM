@@ -16,6 +16,7 @@ extension AXWindowService {
         case minimizeButton
         case main
         case modal
+        case fullscreen
         case title
     }
 
@@ -24,7 +25,7 @@ extension AXWindowService {
         appPolicy: NSApplication.ActivationPolicy?,
         bundleId: String? = nil,
         includeTitle: Bool
-    ) -> AXWindowFacts {
+    ) -> (facts: AXWindowFacts, fullscreenAttribute: Bool??) {
         MainThreadAXSpanTrace.measure(.readWindowFacts, windowId: window.windowId) {
             var attributes: [CFString] = [
                 kAXRoleAttribute as CFString,
@@ -34,7 +35,8 @@ extension AXWindowService {
                 kAXZoomButtonAttribute as CFString,
                 kAXMinimizeButtonAttribute as CFString,
                 kAXMainAttribute as CFString,
-                kAXModalAttribute as CFString
+                kAXModalAttribute as CFString,
+                "AXFullScreen" as CFString
             ]
             if includeTitle {
                 attributes.append(kAXTitleAttribute as CFString)
@@ -52,13 +54,13 @@ extension AXWindowService {
                   let values,
                   CFArrayGetCount(values) > WindowTypeAttributeIndex.modal.rawValue
             else {
-                return AXWindowDecisionEvidence.unavailable(
-                    appPolicy: appPolicy,
-                    bundleId: bundleId
-                ).facts
+                return (AXWindowDecisionEvidence.unavailable(appPolicy: appPolicy, bundleId: bundleId).facts, nil)
             }
 
-            return collectedWindowFacts(values, appPolicy: appPolicy, bundleId: bundleId, includeTitle: includeTitle)
+            return (
+                collectedWindowFacts(values, appPolicy: appPolicy, bundleId: bundleId, includeTitle: includeTitle),
+                .some(AXAttributeValue.value(at: WindowTypeAttributeIndex.fullscreen.rawValue, in: values) as? Bool)
+            )
         }
     }
 
