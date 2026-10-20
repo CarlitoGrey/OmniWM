@@ -104,6 +104,8 @@ jobs:
       - uses: ./.github/actions/setup-lix
         with:
           make-target: setup
+      - name: Put flake tools on PATH
+        run: echo "$PWD/.cache/flake-tools/bin" >> "$GITHUB_PATH"
       - name: Verify package toolchain
         run: swift package dump-package > /dev/null
       - name: Verify localization and build
