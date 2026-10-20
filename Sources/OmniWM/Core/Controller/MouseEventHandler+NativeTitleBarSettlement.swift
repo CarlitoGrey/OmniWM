@@ -26,8 +26,8 @@ extension MouseEventHandler {
         case .dragging:
             drag.receivedFrameChange = true
             if drag.dwindleResizeWorkspaceId != nil
-                || controller?.settings.gestures.adoptNativeResize == true
-                && controller?.workspaceManager.activeLayoutKind(for: entry.workspaceId) == .dwindle
+                || (controller?.settings.gestures.adoptNativeResize == true
+                    && controller?.workspaceManager.activeLayoutKind(for: entry.workspaceId) == .dwindle)
             {
                 updateNativeDwindleResize(&drag, entry: entry, observedFrame: nativeWindowFrameProvider(entry.axRef))
             }

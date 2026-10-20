@@ -400,6 +400,73 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
         XCTAssertEqual(fixture.manager.worldSeq, worldSeq)
     }
 
+    func testDwindleNativeResizeReleaseAppliesFinalFramesOnce() throws {
+        for (index, finalDelta) in [CGFloat?(180), 100, nil].enumerated() {
+            let fixture = try makeFixture(.dwindle, pid: pid_t(834_110 + index))
+            let blocker = blockRefreshes(fixture)
+            defer { unblockRefreshes(fixture, blocker: blocker) }
+            let token = fixture.tokens[0]
+            let start = try fixture.frame(token)
+            try fixture.beginDrag(token)
+            fixture.updateDrag(token, at: grown(start, right: 100))
+            fixture.handler.nativeWindowFrameProvider = { _ in finalDelta.map { self.grown(start, right: $0) } }
+            FrameEffectTraceContext.beginCapture(generation: 1)
+            FrameApplyTrace.shared.beginCapture()
+            defer {
+                FrameApplyTrace.shared.endCapture()
+                FrameEffectTraceContext.endCapture()
+            }
+
+            fixture.handler.dispatchMouseUp(at: start.center)
+
+            XCTAssertEqual(try fixture.frame(token).width, start.width + (finalDelta ?? 100), accuracy: 1)
+            for window in fixture.tokens {
+                XCTAssertEqual(frameDecisions(for: window).count, 1, "case \(index): \(FrameApplyTrace.shared.dump())")
+                let target = try fixture.frame(window)
+                XCTAssertTrue(firstWriteTarget(for: window)?.approximatelyEqual(to: target, tolerance: 1) == true)
+            }
+            XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+            XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+        }
+    }
+
+    func testDwindleNativeResizeReleaseAtMinimumSizesForcesTheFinalFrame() throws {
+        let fixture = try makeFixture(.dwindle, pid: 834_113)
+        let blocker = blockRefreshes(fixture)
+        defer { unblockRefreshes(fixture, blocker: blocker) }
+        let before = try fixture.frames()
+        for (token, frame) in before {
+            fixture.manager.setCachedConstraints(
+                WindowSizeConstraints(minSize: CGSize(width: frame.width, height: 1), maxSize: .zero, isFixed: false),
+                for: token
+            )
+        }
+        let token = fixture.tokens[0]
+        let start = try fixture.frame(token)
+        try fixture.beginDrag(token)
+        fixture.updateDrag(token, at: grown(start, right: 100))
+        XCTAssertEqual(try fixture.frames(), before)
+        XCTAssertNotNil(fixture.controller.dwindleEngine?.interactiveResize)
+        fixture.handler.nativeWindowFrameProvider = { _ in self.grown(start, right: 200) }
+        FrameEffectTraceContext.beginCapture(generation: 1)
+        FrameApplyTrace.shared.beginCapture()
+        defer {
+            FrameApplyTrace.shared.endCapture()
+            FrameEffectTraceContext.endCapture()
+        }
+
+        fixture.handler.dispatchMouseUp(at: start.center)
+
+        XCTAssertEqual(try fixture.frames(), before)
+        for window in fixture.tokens {
+            XCTAssertEqual(frameDecisions(for: window).count, 1, FrameApplyTrace.shared.dump())
+        }
+        XCTAssertTrue(frameDecisions(for: token).first?.contains(" event=ledger-prepared ") == true)
+        XCTAssertEqual(firstWriteTarget(for: token), start)
+        XCTAssertNil(fixture.controller.dwindleEngine?.interactiveResize)
+        XCTAssertFalse(fixture.handler.isInteractiveGestureActive)
+    }
+
     func testDwindleNativeResizeCleansUpAtInputAndWindowLifecycleBoundaries() throws {
         let cancellations: [(MouseEventHandler, WindowToken) -> Void] = [
             { handler, _ in handler.handleInputSuppressionBegan() },
@@ -749,6 +816,12 @@ final class NativeResizeAdoptionTests: NiriInteractionTestCase {
             if tokenIndex == 1 {
                 XCTAssertEqual(target.maxX, observed.maxX, accuracy: 1, "\(layout) \(tokenIndex)")
             }
+        }
+    }
+
+    private func frameDecisions(for token: WindowToken) -> [Substring] {
+        FrameApplyTrace.shared.dump().split(separator: "\n").filter {
+            $0.contains(" win=\(token.windowId) ") && $0.contains(" event=ledger-")
         }
     }
 

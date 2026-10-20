@@ -16,7 +16,7 @@ extension MouseEventHandler {
         {
             let wasResizing = drag.dwindleResizeWorkspaceId != nil
             controller.axManager.forceApplyNextFrame(for: entry.windowId)
-            updateNativeDwindleResize(&drag, entry: entry, observedFrame: observedFrame)
+            updateNativeDwindleResize(&drag, entry: entry, observedFrame: observedFrame, renderOnChange: false)
             guard wasResizing || drag.dwindleResizeWorkspaceId != nil else { return false }
             if let workspaceId = drag.dwindleResizeWorkspaceId {
                 controller.layoutRefreshController.renderDwindleInteractiveResize(for: workspaceId)
@@ -235,7 +235,8 @@ extension MouseEventHandler {
     func updateNativeDwindleResize(
         _ drag: inout MouseInputState.NativeTitleBarDrag,
         entry: WindowState,
-        observedFrame: CGRect?
+        observedFrame: CGRect?,
+        renderOnChange: Bool = true
     ) {
         let workspaceId = entry.workspaceId
         guard let controller,
@@ -281,7 +282,7 @@ extension MouseEventHandler {
         if engine.interactiveResizeUpdate(
             currentLocation: Self.nativeResizeLocation(combinedEdges, from: start, to: observedFrame),
             edges: edges
-        ) {
+        ), renderOnChange {
             controller.layoutRefreshController.renderDwindleInteractiveResize(for: workspaceId)
         }
     }
