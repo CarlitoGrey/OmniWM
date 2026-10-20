@@ -1231,7 +1231,7 @@ initialContainerPrimarySpan = 0.5
 
 ## Building from Source
 
-Follow the [contributor quick start](CONTRIBUTING.md#quick-start) for Xcode requirements, automatic dependency setup, and a separate **OmniWM Dev** app with independent settings. The guide covers rebuilding, switching back to your normal app, and verifying a pull request.
+Follow the [contributor quick start](CONTRIBUTING.md#quick-start) for Xcode requirements, automatic dependency setup with [Lix](https://lix.systems/install/) and the repository's `flake.nix`, and a separate **OmniWM Dev** app with independent settings. The guide covers rebuilding, switching back to your normal app, and verifying a pull request.
 
 ## Community Integrations
 
