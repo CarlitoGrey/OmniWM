@@ -25,6 +25,12 @@ extension MouseEventHandler {
             return false
         case .dragging:
             drag.receivedFrameChange = true
+            if drag.dwindleResizeWorkspaceId != nil
+                || (controller?.settings.gestures.adoptNativeResize == true
+                    && controller?.workspaceManager.activeLayoutKind(for: entry.workspaceId) == .dwindle)
+            {
+                updateNativeDwindleResize(&drag, entry: entry, observedFrame: nativeWindowFrameProvider(entry.axRef))
+            }
             state.nativeTitleBarDrag = drag
             return true
         case .awaitingFrameChange:
@@ -157,9 +163,9 @@ extension MouseEventHandler {
         ) == true
     }
 
-    private func terminalNativeWindowFrame(for entry: WindowState) -> CGRect? {
+    func terminalNativeWindowFrame(for entry: WindowState) -> CGRect? {
         nativeWindowFrameProvider(entry.axRef)
-            ?? (try? AXWindowService.frame(entry.axRef))
+            ?? nativeWindowFrameFallbackProvider(entry.axRef)
     }
 
     func handleNativeTitleBarDragFrameApplySucceeded(_ result: AXFrameApplyResult) {

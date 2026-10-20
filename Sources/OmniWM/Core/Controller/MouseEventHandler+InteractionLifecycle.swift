@@ -22,6 +22,7 @@ extension MouseEventHandler {
 
     var isInteractiveGestureActive: Bool {
         state.isMoving || state.isResizing || isViewportGestureActive
+            || state.nativeTitleBarDrag?.dwindleResizeWorkspaceId != nil
     }
 
     func handleExpiredViewportGesture(
