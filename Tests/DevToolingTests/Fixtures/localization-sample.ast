@@ -1,0 +1,591 @@
+(source_file "Sample.swift"
+  (import_decl decl_context=0x7918f85008 range=[Sample.swift:1:1 - line:1:8] module="Foundation")
+  (import_decl decl_context=0x7918f85008 range=[Sample.swift:2:1 - line:2:8] module="SwiftUI")
+  (func_decl decl_context=0x7918f85008 range=[Sample.swift:4:1 - line:4:61] "caption(_:)" interface_type="(LocalizedStringKey) -> Text" access=internal result="Text" thrown_type="<null>"
+    (parameter_list range=[Sample.swift:4:13 - line:4:39]
+      (parameter "key" decl_context=0x7918feb140 interface_type="LocalizedStringKey"))
+    (brace_stmt range=[Sample.swift:4:49 - line:4:61]
+      (return_stmt implicit range=[Sample.swift:4:51 - line:4:59]
+        (call_expr type="Text" location=Sample.swift:4:51 range=[Sample.swift:4:51 - line:4:59] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(LocalizedStringKey, String?, Bundle?, StaticString?) -> Text" location=Sample.swift:4:51 range=[Sample.swift:4:51 - line:4:51] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(Text.Type) -> (LocalizedStringKey, String?, Bundle?, StaticString?) -> Text" location=Sample.swift:4:51 range=[Sample.swift:4:51 - line:4:51] decl="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="Text.Type" location=Sample.swift:4:51 range=[Sample.swift:4:51 - line:4:51] typerepr="Text"))))
+          (argument_list labels="_:tableName:bundle:comment:"
+            (argument
+              (declref_expr type="LocalizedStringKey" location=Sample.swift:4:56 range=[Sample.swift:4:56 - line:4:56] decl="Sample.(file).caption(_:).key@Sample.swift:4:16" function_ref=unapplied))
+            (argument label="tableName"
+              (default_argument_expr implicit type="String?" location=Sample.swift:4:55 range=[Sample.swift:4:55 - line:4:55] default_args_owner="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" param=1))
+            (argument label="bundle"
+              (default_argument_expr implicit type="Bundle?" location=Sample.swift:4:55 range=[Sample.swift:4:55 - line:4:55] default_args_owner="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" param=2))
+            (argument label="comment"
+              (default_argument_expr implicit type="StaticString?" location=Sample.swift:4:55 range=[Sample.swift:4:55 - line:4:55] default_args_owner="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" param=3)))))))
+  (func_decl decl_context=0x7918f85008 range=[Sample.swift:5:1 - line:5:80] "resource(_:)" interface_type="(LocalizedStringResource) -> LocalizedStringResource" access=internal result="LocalizedStringResource" thrown_type="<null>"
+    (parameter_list range=[Sample.swift:5:14 - line:5:45]
+      (parameter "key" decl_context=0x7918feb4c0 interface_type="LocalizedStringResource"))
+    (brace_stmt range=[Sample.swift:5:74 - line:5:80]
+      (return_stmt implicit range=[Sample.swift:5:76 - line:5:76]
+        (declref_expr type="LocalizedStringResource" location=Sample.swift:5:76 range=[Sample.swift:5:76 - line:5:76] decl="Sample.(file).resource(_:).key@Sample.swift:5:17" function_ref=unapplied))))
+  (struct_decl decl_context=0x7918f85008 range=[Sample.swift:7:1 - line:26:1] "Sample" interface_type="Sample.Type" access=internal non_resilient
+    (pattern_binding_decl decl_context=0x7918feb618 range=[Sample.swift:8:5 - line:8:86]
+      (pattern_entry init_context=0x7918feb7b0
+        (pattern_named type="String" "title")
+        (original_init=call_expr type="String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:86] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(String.Type) -> (String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] decl="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="String.Type" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] typerepr="String"))))
+          (argument_list labels="localized:table:bundle:locale:comment:"
+            (argument label="localized"
+              (string_literal_expr type="String.LocalizationValue" location=Sample.swift:8:35 range=[Sample.swift:8:35 - line:8:35] encoding=utf8 value="Title" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="Foundation.(file).String extension.LocalizationValue.init(stringLiteral:)"))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:8:51 range=[Sample.swift:8:51 - line:8:51]
+                (string_literal_expr type="String" location=Sample.swift:8:51 range=[Sample.swift:8:51 - line:8:51] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="bundle"
+              (default_argument_expr implicit type="Bundle?" location=Sample.swift:8:23 range=[Sample.swift:8:23 - line:8:23] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=2))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:8:23 range=[Sample.swift:8:23 - line:8:23] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=3))
+            (argument label="comment"
+              (inject_into_optional implicit type="StaticString?" location=Sample.swift:8:72 range=[Sample.swift:8:72 - line:8:72]
+                (string_literal_expr type="StaticString" location=Sample.swift:8:72 range=[Sample.swift:8:72 - line:8:72] encoding=utf8 value="Window title" builtin_initializer="Swift.(file).StaticString extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))))
+        (processed_init=call_expr type="String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:86] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(String.Type) -> (String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] decl="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="String.Type" location=Sample.swift:8:17 range=[Sample.swift:8:17 - line:8:17] typerepr="String"))))
+          (argument_list labels="localized:table:bundle:locale:comment:"
+            (argument label="localized"
+              (string_literal_expr type="String.LocalizationValue" location=Sample.swift:8:35 range=[Sample.swift:8:35 - line:8:35] encoding=utf8 value="Title" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="Foundation.(file).String extension.LocalizationValue.init(stringLiteral:)"))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:8:51 range=[Sample.swift:8:51 - line:8:51]
+                (string_literal_expr type="String" location=Sample.swift:8:51 range=[Sample.swift:8:51 - line:8:51] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="bundle"
+              (default_argument_expr implicit type="Bundle?" location=Sample.swift:8:23 range=[Sample.swift:8:23 - line:8:23] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=2))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:8:23 range=[Sample.swift:8:23 - line:8:23] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=3))
+            (argument label="comment"
+              (inject_into_optional implicit type="StaticString?" location=Sample.swift:8:72 range=[Sample.swift:8:72 - line:8:72]
+                (string_literal_expr type="StaticString" location=Sample.swift:8:72 range=[Sample.swift:8:72 - line:8:72] encoding=utf8 value="Window title" builtin_initializer="Swift.(file).StaticString extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))))))
+    (var_decl decl_context=0x7918feb618 range=[Sample.swift:8:9 - line:8:9] "title" interface_type="String" access=internal let readImpl=stored immutable
+      (has_initial_value_attr implicit)
+      (has_storage_attr implicit)
+      (accessor_decl decl_context=0x7918feb618 implicit range=[Sample.swift:8:9 - line:8:9] <anonymous @ 0x792918aaf8> interface_type="(Sample) -> () -> String" access=internal get for="title"
+        (parameter "self" decl_context=0x792918aaf0 interface_type="Sample") result="String" thrown_type="<null>"
+        (parameter_list)
+        (brace_stmt implicit range=[Sample.swift:8:9 - line:8:9]
+          (return_stmt implicit
+            (member_ref_expr implicit type="String" decl="Sample.(file).Sample.title@Sample.swift:8:9" direct_to_storage
+              (declref_expr implicit type="Sample" decl="Sample.(file).Sample.<anonymous>.self@Sample.swift:8:9" function_ref=unapplied))))))
+    (pattern_binding_decl decl_context=0x7918feb618 range=[Sample.swift:9:5 - line:9:111]
+      (pattern_entry init_context=0x7918febb48
+        (pattern_named type="LocalizedStringResource" "command")
+        (original_init=call_expr type="LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:111] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(StaticString, String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(LocalizedStringResource.Type) -> (StaticString, String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] decl="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="LocalizedStringResource.Type" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] typerepr="LocalizedStringResource"))))
+          (argument_list labels="_:defaultValue:table:locale:bundle:comment:"
+            (argument
+              (string_literal_expr type="StaticString" location=Sample.swift:9:43 range=[Sample.swift:9:43 - line:9:43] encoding=utf8 value="command.sample" builtin_initializer="Swift.(file).StaticString extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))
+            (argument label="defaultValue"
+              (interpolated_string_literal_expr type="String.LocalizationValue" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] literal_capacity=11 interpolation_count=1 builder_init="Foundation.(file).String extension.LocalizationValue.StringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Foundation.(file).String extension.LocalizationValue.init(stringInterpolation:)"
+                (tap_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:84] var="Sample.(file).Sample.pattern binding initializer.$interpolation"
+                  (opaque_value_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] 0x792918a4b0)
+                  (brace_stmt implicit range=[Sample.swift:9:76 - line:9:84]
+                    (var_decl decl_context=0x7918febb48 implicit "$interpolation" interface_type="String.LocalizationValue.StringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                      (has_storage_attr implicit))
+                    (call_expr implicit type="()" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:75] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:75] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:76]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:76] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list implicit
+                        (argument
+                          (string_literal_expr type="String" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] encoding=utf8 value="Run " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                    (call_expr type="()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:83] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(Int) -> ()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (Int) -> ()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : _FormatSpecifiable> T -> Int)]" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list
+                        (argument
+                          (integer_literal_expr type="Int" location=Sample.swift:9:82 range=[Sample.swift:9:82 - line:9:82] value="3" builtin_initializer="Swift.(file).Int.init(_builtinIntegerLiteral:)" initializer="**NULL**"))))
+                    (call_expr implicit type="()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list implicit
+                        (argument
+                          (string_literal_expr type="String" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] encoding=utf8 value=" Sample" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:9:101 range=[Sample.swift:9:101 - line:9:101]
+                (string_literal_expr type="String" location=Sample.swift:9:101 range=[Sample.swift:9:101 - line:9:101] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=3))
+            (argument label="bundle"
+              (default_argument_expr implicit type="LocalizedStringResource.BundleDescription" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=4))
+            (argument label="comment"
+              (default_argument_expr implicit type="StaticString?" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=5))))
+        (processed_init=call_expr type="LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:111] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(StaticString, String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(LocalizedStringResource.Type) -> (StaticString, String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] decl="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="LocalizedStringResource.Type" location=Sample.swift:9:19 range=[Sample.swift:9:19 - line:9:19] typerepr="LocalizedStringResource"))))
+          (argument_list labels="_:defaultValue:table:locale:bundle:comment:"
+            (argument
+              (string_literal_expr type="StaticString" location=Sample.swift:9:43 range=[Sample.swift:9:43 - line:9:43] encoding=utf8 value="command.sample" builtin_initializer="Swift.(file).StaticString extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))
+            (argument label="defaultValue"
+              (interpolated_string_literal_expr type="String.LocalizationValue" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] literal_capacity=11 interpolation_count=1 builder_init="Foundation.(file).String extension.LocalizationValue.StringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Foundation.(file).String extension.LocalizationValue.init(stringInterpolation:)"
+                (tap_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:84] var="Sample.(file).Sample.pattern binding initializer.$interpolation"
+                  (opaque_value_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] 0x792918a4b0)
+                  (brace_stmt implicit range=[Sample.swift:9:76 - line:9:84]
+                    (var_decl decl_context=0x7918febb48 implicit "$interpolation" interface_type="String.LocalizationValue.StringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                      (has_storage_attr implicit))
+                    (call_expr implicit type="()" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:75] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:75] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:76]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:76 range=[Sample.swift:9:76 - line:9:76] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list implicit
+                        (argument
+                          (string_literal_expr type="String" location=Sample.swift:9:75 range=[Sample.swift:9:75 - line:9:75] encoding=utf8 value="Run " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                    (call_expr type="()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:83] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(Int) -> ()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (Int) -> ()" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : _FormatSpecifiable> T -> Int)]" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:81 range=[Sample.swift:9:81 - line:9:81] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list
+                        (argument
+                          (integer_literal_expr type="Int" location=Sample.swift:9:82 range=[Sample.swift:9:82 - line:9:82] value="3" builtin_initializer="Swift.(file).Int.init(_builtinIntegerLiteral:)" initializer="**NULL**"))))
+                    (call_expr implicit type="()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] nothrow isolation_crossing="none"
+                      (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] nothrow isolation_crossing="none"
+                        (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                        (argument_list implicit
+                          (argument inout
+                            (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84]
+                              (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] decl="Sample.(file).Sample.pattern binding initializer.$interpolation" function_ref=unapplied)))))
+                      (argument_list implicit
+                        (argument
+                          (string_literal_expr type="String" location=Sample.swift:9:84 range=[Sample.swift:9:84 - line:9:84] encoding=utf8 value=" Sample" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:9:101 range=[Sample.swift:9:101 - line:9:101]
+                (string_literal_expr type="String" location=Sample.swift:9:101 range=[Sample.swift:9:101 - line:9:101] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=3))
+            (argument label="bundle"
+              (default_argument_expr implicit type="LocalizedStringResource.BundleDescription" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=4))
+            (argument label="comment"
+              (default_argument_expr implicit type="StaticString?" location=Sample.swift:9:42 range=[Sample.swift:9:42 - line:9:42] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)" param=5))))))
+    (var_decl decl_context=0x7918feb618 range=[Sample.swift:9:9 - line:9:9] "command" interface_type="LocalizedStringResource" access=internal let readImpl=stored immutable
+      (has_initial_value_attr implicit)
+      (has_storage_attr implicit)
+      (accessor_decl decl_context=0x7918feb618 implicit range=[Sample.swift:9:9 - line:9:9] <anonymous @ 0x792918af68> interface_type="(Sample) -> () -> LocalizedStringResource" access=internal get for="command"
+        (parameter "self" decl_context=0x792918af60 interface_type="Sample") result="LocalizedStringResource" thrown_type="<null>"
+        (parameter_list)
+        (brace_stmt implicit range=[Sample.swift:9:9 - line:9:9]
+          (return_stmt implicit
+            (member_ref_expr implicit type="LocalizedStringResource" decl="Sample.(file).Sample.command@Sample.swift:9:9" direct_to_storage
+              (declref_expr implicit type="Sample" decl="Sample.(file).Sample.<anonymous>.self@Sample.swift:9:9" function_ref=unapplied))))))
+    (pattern_binding_decl decl_context=0x7918feb618 range=[Sample.swift:10:5 - line:10:69]
+      (pattern_entry init_context=0x7918ff8400
+        (pattern_named type="LocalizedStringResource" "shared")
+        (original_init=call_expr type="LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:69] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(LocalizedStringResource.Type) -> (String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] decl="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="LocalizedStringResource.Type" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] typerepr="LocalizedStringResource"))))
+          (argument_list labels="_:table:locale:bundle:comment:"
+            (argument
+              (string_literal_expr type="String.LocalizationValue" location=Sample.swift:10:42 range=[Sample.swift:10:42 - line:10:42] encoding=utf8 value="Shared" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="Foundation.(file).String extension.LocalizationValue.init(stringLiteral:)"))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:10:59 range=[Sample.swift:10:59 - line:10:59]
+                (string_literal_expr type="String" location=Sample.swift:10:59 range=[Sample.swift:10:59 - line:10:59] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=2))
+            (argument label="bundle"
+              (default_argument_expr implicit type="LocalizedStringResource.BundleDescription" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=3))
+            (argument label="comment"
+              (default_argument_expr implicit type="StaticString?" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=4))))
+        (processed_init=call_expr type="LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:69] nothrow isolation_crossing="none"
+          (constructor_ref_call_expr type="(String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] nothrow isolation_crossing="none"
+            (declref_expr implicit type="(LocalizedStringResource.Type) -> (String.LocalizationValue, String?, Locale, LocalizedStringResource.BundleDescription, StaticString?) -> LocalizedStringResource" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] decl="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" function_ref=single apply)
+            (argument_list implicit
+              (argument
+                (type_expr type="LocalizedStringResource.Type" location=Sample.swift:10:18 range=[Sample.swift:10:18 - line:10:18] typerepr="LocalizedStringResource"))))
+          (argument_list labels="_:table:locale:bundle:comment:"
+            (argument
+              (string_literal_expr type="String.LocalizationValue" location=Sample.swift:10:42 range=[Sample.swift:10:42 - line:10:42] encoding=utf8 value="Shared" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="Foundation.(file).String extension.LocalizationValue.init(stringLiteral:)"))
+            (argument label="table"
+              (inject_into_optional implicit type="String?" location=Sample.swift:10:59 range=[Sample.swift:10:59 - line:10:59]
+                (string_literal_expr type="String" location=Sample.swift:10:59 range=[Sample.swift:10:59 - line:10:59] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+            (argument label="locale"
+              (default_argument_expr implicit type="Locale" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=2))
+            (argument label="bundle"
+              (default_argument_expr implicit type="LocalizedStringResource.BundleDescription" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=3))
+            (argument label="comment"
+              (default_argument_expr implicit type="StaticString?" location=Sample.swift:10:41 range=[Sample.swift:10:41 - line:10:41] default_args_owner="Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)" param=4))))))
+    (var_decl decl_context=0x7918feb618 range=[Sample.swift:10:9 - line:10:9] "shared" interface_type="LocalizedStringResource" access=internal let readImpl=stored immutable
+      (has_initial_value_attr implicit)
+      (has_storage_attr implicit)
+      (accessor_decl decl_context=0x7918feb618 implicit range=[Sample.swift:10:9 - line:10:9] <anonymous @ 0x792918b470> interface_type="(Sample) -> () -> LocalizedStringResource" access=internal get for="shared"
+        (parameter "self" decl_context=0x792918b468 interface_type="Sample") result="LocalizedStringResource" thrown_type="<null>"
+        (parameter_list)
+        (brace_stmt implicit range=[Sample.swift:10:9 - line:10:9]
+          (return_stmt implicit
+            (member_ref_expr implicit type="LocalizedStringResource" decl="Sample.(file).Sample.shared@Sample.swift:10:9" direct_to_storage
+              (declref_expr implicit type="Sample" decl="Sample.(file).Sample.<anonymous>.self@Sample.swift:10:9" function_ref=unapplied))))))
+    (func_decl decl_context=0x7918feb618 range=[Sample.swift:12:5 - line:23:5] "texts(count:pid:name:flag:)" interface_type="(Sample) -> (Int, pid_t, String, Bool) -> [Text]" access=internal
+      (parameter "self" decl_context=0x7918ff8ab8 interface_type="Sample") result="[Text]" thrown_type="<null>"
+      (parameter_list range=[Sample.swift:12:15 - line:12:64]
+        (parameter "count" decl_context=0x7918ff8ab8 apiName="count" interface_type="Int")
+        (parameter "pid" decl_context=0x7918ff8ab8 apiName="pid" interface_type="pid_t")
+        (parameter "name" decl_context=0x7918ff8ab8 apiName="name" interface_type="String")
+        (parameter "flag" decl_context=0x7918ff8ab8 apiName="flag" interface_type="Bool"))
+      (brace_stmt range=[Sample.swift:12:76 - line:23:5]
+        (return_stmt implicit range=[Sample.swift:13:9 - line:22:9]
+          (array_expr type="[Text]" location=Sample.swift:13:9 range=[Sample.swift:13:9 - line:22:9] initializer="Swift.(file).Array extension.init(arrayLiteral:) [with (substitution_map generic_signature=<Element where Element : Copyable, Element : Escapable> Element -> Text)]"
+            (call_expr type="Text" location=Sample.swift:14:13 range=[Sample.swift:14:13 - line:14:76] nothrow isolation_crossing="none"
+              (constructor_ref_call_expr type="(LocalizedStringKey, String?, Bundle?, StaticString?) -> Text" location=Sample.swift:14:13 range=[Sample.swift:14:13 - line:14:13] nothrow isolation_crossing="none"
+                (declref_expr implicit type="(Text.Type) -> (LocalizedStringKey, String?, Bundle?, StaticString?) -> Text" location=Sample.swift:14:13 range=[Sample.swift:14:13 - line:14:13] decl="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" function_ref=single apply)
+                (argument_list implicit
+                  (argument
+                    (type_expr type="Text.Type" location=Sample.swift:14:13 range=[Sample.swift:14:13 - line:14:13] typerepr="Text"))))
+              (argument_list labels="_:tableName:bundle:comment:"
+                (argument
+                  (string_literal_expr type="LocalizedStringKey" location=Sample.swift:14:18 range=[Sample.swift:14:18 - line:14:18] encoding=utf8 value="Header" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="SwiftUICore.(file).LocalizedStringKey.init(stringLiteral:)"))
+                (argument label="tableName"
+                  (inject_into_optional implicit type="String?" location=Sample.swift:14:39 range=[Sample.swift:14:39 - line:14:39]
+                    (string_literal_expr type="String" location=Sample.swift:14:39 range=[Sample.swift:14:39 - line:14:39] encoding=utf8 value="Commands" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))
+                (argument label="bundle"
+                  (default_argument_expr implicit type="Bundle?" location=Sample.swift:14:17 range=[Sample.swift:14:17 - line:14:17] default_args_owner="SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)" param=2))
+                (argument label="comment"
+                  (inject_into_optional implicit type="StaticString?" location=Sample.swift:14:60 range=[Sample.swift:14:60 - line:14:60]
+                    (string_literal_expr type="StaticString" location=Sample.swift:14:60 range=[Sample.swift:14:60 - line:14:60] encoding=utf8 value="Header comment" builtin_initializer="Swift.(file).StaticString extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**")))))
+            (call_expr type="Text" location=Sample.swift:15:13 range=[Sample.swift:15:13 - line:15:56] nothrow isolation_crossing="none"
+              (function_conversion_expr implicit type="@Sendable (LocalizedStringKey) -> Text" location=Sample.swift:15:13 range=[Sample.swift:15:13 - line:15:13]
+                (declref_expr type="(LocalizedStringKey) -> Text" location=Sample.swift:15:13 range=[Sample.swift:15:13 - line:15:13] decl="Sample.(file).caption@Sample.swift:4:6" function_ref=single apply))
+              (argument_list
+                (argument
+                  (interpolated_string_literal_expr type="LocalizedStringKey" location=Sample.swift:15:21 range=[Sample.swift:15:21 - line:15:21] literal_capacity=18 interpolation_count=2 builder_init="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.init(literalCapacity:interpolationCount:)" result_init="SwiftUICore.(file).LocalizedStringKey.init(stringInterpolation:)"
+                    (tap_expr implicit type="LocalizedStringKey.StringInterpolation" location=Sample.swift:15:21 range=[Sample.swift:15:21 - line:15:48] var="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation"
+                      (opaque_value_expr implicit type="LocalizedStringKey.StringInterpolation" location=Sample.swift:15:21 range=[Sample.swift:15:21 - line:15:21] 0x7928ef0890)
+                      (brace_stmt implicit range=[Sample.swift:15:22 - line:15:48]
+                        (var_decl decl_context=0x7918ff8ab8 implicit "$interpolation" interface_type="LocalizedStringKey.StringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                          (has_storage_attr implicit))
+                        (call_expr implicit type="()" location=Sample.swift:15:22 range=[Sample.swift:15:22 - line:15:21] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:15:22 range=[Sample.swift:15:22 - line:15:21] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout LocalizedStringKey.StringInterpolation) -> (String) -> ()" location=Sample.swift:15:21 range=[Sample.swift:15:21 - line:15:21] decl="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.appendLiteral" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout LocalizedStringKey.StringInterpolation" location=Sample.swift:15:22 range=[Sample.swift:15:22 - line:15:22]
+                                  (declref_expr implicit type="@lvalue LocalizedStringKey.StringInterpolation" location=Sample.swift:15:22 range=[Sample.swift:15:22 - line:15:22] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list implicit
+                            (argument
+                              (string_literal_expr type="String" location=Sample.swift:15:21 range=[Sample.swift:15:21 - line:15:21] encoding=utf8 value="Count " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                        (call_expr type="()" location=Sample.swift:15:29 range=[Sample.swift:15:29 - line:15:35] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(Int) -> ()" location=Sample.swift:15:29 range=[Sample.swift:15:29 - line:15:29] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout LocalizedStringKey.StringInterpolation) -> (Int) -> ()" location=Sample.swift:15:29 range=[Sample.swift:15:29 - line:15:29] decl="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : _FormatSpecifiable> T -> Int)]" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout LocalizedStringKey.StringInterpolation" location=Sample.swift:15:29 range=[Sample.swift:15:29 - line:15:29]
+                                  (declref_expr implicit type="@lvalue LocalizedStringKey.StringInterpolation" location=Sample.swift:15:29 range=[Sample.swift:15:29 - line:15:29] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list
+                            (argument
+                              (declref_expr type="Int" location=Sample.swift:15:30 range=[Sample.swift:15:30 - line:15:30] decl="Sample.(file).Sample.texts(count:pid:name:flag:).count@Sample.swift:12:16" function_ref=unapplied))))
+                        (call_expr implicit type="()" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout LocalizedStringKey.StringInterpolation) -> (String) -> ()" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36] decl="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.appendLiteral" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout LocalizedStringKey.StringInterpolation" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36]
+                                  (declref_expr implicit type="@lvalue LocalizedStringKey.StringInterpolation" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list implicit
+                            (argument
+                              (string_literal_expr type="String" location=Sample.swift:15:36 range=[Sample.swift:15:36 - line:15:36] encoding=utf8 value=" for " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                        (call_expr type="()" location=Sample.swift:15:42 range=[Sample.swift:15:42 - line:15:47] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:15:42 range=[Sample.swift:15:42 - line:15:42] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout LocalizedStringKey.StringInterpolation) -> (String) -> ()" location=Sample.swift:15:42 range=[Sample.swift:15:42 - line:15:42] decl="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.appendInterpolation" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout LocalizedStringKey.StringInterpolation" location=Sample.swift:15:42 range=[Sample.swift:15:42 - line:15:42]
+                                  (declref_expr implicit type="@lvalue LocalizedStringKey.StringInterpolation" location=Sample.swift:15:42 range=[Sample.swift:15:42 - line:15:42] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list
+                            (argument
+                              (declref_expr type="String" location=Sample.swift:15:43 range=[Sample.swift:15:43 - line:15:43] decl="Sample.(file).Sample.texts(count:pid:name:flag:).name@Sample.swift:12:40" function_ref=unapplied))))
+                        (call_expr implicit type="()" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout LocalizedStringKey.StringInterpolation) -> (String) -> ()" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48] decl="SwiftUICore.(file).LocalizedStringKey.StringInterpolation.appendLiteral" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout LocalizedStringKey.StringInterpolation" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48]
+                                  (declref_expr implicit type="@lvalue LocalizedStringKey.StringInterpolation" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list implicit
+                            (argument
+                              (string_literal_expr type="String" location=Sample.swift:15:48 range=[Sample.swift:15:48 - line:15:48] encoding=utf8 value=" at 50%" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))))
+            (call_expr type="Text" location=Sample.swift:16:13 range=[Sample.swift:16:13 - line:16:40] nothrow isolation_crossing="none"
+              (function_conversion_expr implicit type="@Sendable (LocalizedStringKey) -> Text" location=Sample.swift:16:13 range=[Sample.swift:16:13 - line:16:13]
+                (declref_expr type="(LocalizedStringKey) -> Text" location=Sample.swift:16:13 range=[Sample.swift:16:13 - line:16:13] decl="Sample.(file).caption@Sample.swift:4:6" function_ref=single apply))
+              (argument_list
+                (argument
+                  (ternary_expr type="LocalizedStringKey" location=Sample.swift:16:26 range=[Sample.swift:16:21 - line:16:35]
+                    (declref_expr type="Bool" location=Sample.swift:16:21 range=[Sample.swift:16:21 - line:16:21] decl="Sample.(file).Sample.texts(count:pid:name:flag:).flag@Sample.swift:12:54" function_ref=unapplied)
+                    (string_literal_expr type="LocalizedStringKey" location=Sample.swift:16:28 range=[Sample.swift:16:28 - line:16:28] encoding=utf8 value="On" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="SwiftUICore.(file).LocalizedStringKey.init(stringLiteral:)")
+                    (string_literal_expr type="LocalizedStringKey" location=Sample.swift:16:35 range=[Sample.swift:16:35 - line:16:35] encoding=utf8 value="Off" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="SwiftUICore.(file).LocalizedStringKey.init(stringLiteral:)")))))
+            (call_expr type="Text" location=Sample.swift:17:13 range=[Sample.swift:17:13 - line:17:26] nothrow isolation_crossing="none"
+              (function_conversion_expr implicit type="@Sendable (LocalizedStringKey) -> Text" location=Sample.swift:17:13 range=[Sample.swift:17:13 - line:17:13]
+                (declref_expr type="(LocalizedStringKey) -> Text" location=Sample.swift:17:13 range=[Sample.swift:17:13 - line:17:13] decl="Sample.(file).caption@Sample.swift:4:6" function_ref=single apply))
+              (argument_list
+                (argument
+                  (string_literal_expr type="LocalizedStringKey" location=Sample.swift:17:21 range=[Sample.swift:17:21 - line:17:21] encoding=utf8 value="50%" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="SwiftUICore.(file).LocalizedStringKey.init(stringLiteral:)"))))
+            (call_expr type="Text" location=Sample.swift:18:13 range=[Sample.swift:18:13 - line:18:53] nothrow isolation_crossing="none"
+              (constructor_ref_call_expr type="(String) -> Text" location=Sample.swift:18:13 range=[Sample.swift:18:13 - line:18:13] nothrow isolation_crossing="none"
+                (declref_expr implicit type="(Text.Type) -> (String) -> Text" location=Sample.swift:18:13 range=[Sample.swift:18:13 - line:18:13] decl="SwiftUICore.(file).Text.init(_:) [with (substitution_map generic_signature=<S where S : StringProtocol> S -> String)]" function_ref=single apply)
+                (argument_list implicit
+                  (argument
+                    (type_expr type="Text.Type" location=Sample.swift:18:13 range=[Sample.swift:18:13 - line:18:13] typerepr="Text"))))
+              (argument_list
+                (argument
+                  (call_expr type="String" location=Sample.swift:18:18 range=[Sample.swift:18:18 - line:18:52] nothrow isolation_crossing="none"
+                    (constructor_ref_call_expr type="(String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:18:18 range=[Sample.swift:18:18 - line:18:18] nothrow isolation_crossing="none"
+                      (declref_expr implicit type="(String.Type) -> (String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:18:18 range=[Sample.swift:18:18 - line:18:18] decl="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" function_ref=single apply)
+                      (argument_list implicit
+                        (argument
+                          (type_expr type="String.Type" location=Sample.swift:18:18 range=[Sample.swift:18:18 - line:18:18] typerepr="String"))))
+                    (argument_list labels="localized:table:bundle:locale:comment:"
+                      (argument label="localized"
+                        (interpolated_string_literal_expr type="String.LocalizationValue" location=Sample.swift:18:36 range=[Sample.swift:18:36 - line:18:36] literal_capacity=8 interpolation_count=1 builder_init="Foundation.(file).String extension.LocalizationValue.StringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Foundation.(file).String extension.LocalizationValue.init(stringInterpolation:)"
+                          (tap_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:18:36 range=[Sample.swift:18:36 - line:18:51] var="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation"
+                            (opaque_value_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:18:36 range=[Sample.swift:18:36 - line:18:36] 0x7928ef0fb8)
+                            (brace_stmt implicit range=[Sample.swift:18:37 - line:18:51]
+                              (var_decl decl_context=0x7918ff8ab8 implicit "$interpolation" interface_type="String.LocalizationValue.StringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                                (has_storage_attr implicit))
+                              (call_expr implicit type="()" location=Sample.swift:18:37 range=[Sample.swift:18:37 - line:18:36] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:18:37 range=[Sample.swift:18:37 - line:18:36] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:18:36 range=[Sample.swift:18:36 - line:18:36] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:18:37 range=[Sample.swift:18:37 - line:18:37]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:18:37 range=[Sample.swift:18:37 - line:18:37] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list implicit
+                                  (argument
+                                    (string_literal_expr type="String" location=Sample.swift:18:36 range=[Sample.swift:18:36 - line:18:36] encoding=utf8 value="Process " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                              (call_expr type="()" location=Sample.swift:18:46 range=[Sample.swift:18:46 - line:18:50] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(pid_t) -> ()" location=Sample.swift:18:46 range=[Sample.swift:18:46 - line:18:46] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (pid_t) -> ()" location=Sample.swift:18:46 range=[Sample.swift:18:46 - line:18:46] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : _FormatSpecifiable> T -> pid_t)]" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:18:46 range=[Sample.swift:18:46 - line:18:46]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:18:46 range=[Sample.swift:18:46 - line:18:46] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list
+                                  (argument
+                                    (declref_expr type="pid_t" location=Sample.swift:18:47 range=[Sample.swift:18:47 - line:18:47] decl="Sample.(file).Sample.texts(count:pid:name:flag:).pid@Sample.swift:12:28" function_ref=unapplied))))
+                              (call_expr implicit type="()" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list implicit
+                                  (argument
+                                    (string_literal_expr type="String" location=Sample.swift:18:51 range=[Sample.swift:18:51 - line:18:51] encoding=utf8 value="" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))
+                      (argument label="table"
+                        (default_argument_expr implicit type="String?" location=Sample.swift:18:24 range=[Sample.swift:18:24 - line:18:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=1))
+                      (argument label="bundle"
+                        (default_argument_expr implicit type="Bundle?" location=Sample.swift:18:24 range=[Sample.swift:18:24 - line:18:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=2))
+                      (argument label="locale"
+                        (default_argument_expr implicit type="Locale" location=Sample.swift:18:24 range=[Sample.swift:18:24 - line:18:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=3))
+                      (argument label="comment"
+                        (default_argument_expr implicit type="StaticString?" location=Sample.swift:18:24 range=[Sample.swift:18:24 - line:18:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=4)))))))
+            (call_expr type="Text" location=Sample.swift:19:13 range=[Sample.swift:19:13 - line:19:72] nothrow isolation_crossing="none"
+              (constructor_ref_call_expr type="(String) -> Text" location=Sample.swift:19:13 range=[Sample.swift:19:13 - line:19:13] nothrow isolation_crossing="none"
+                (declref_expr implicit type="(Text.Type) -> (String) -> Text" location=Sample.swift:19:13 range=[Sample.swift:19:13 - line:19:13] decl="SwiftUICore.(file).Text.init(_:) [with (substitution_map generic_signature=<S where S : StringProtocol> S -> String)]" function_ref=single apply)
+                (argument_list implicit
+                  (argument
+                    (type_expr type="Text.Type" location=Sample.swift:19:13 range=[Sample.swift:19:13 - line:19:13] typerepr="Text"))))
+              (argument_list
+                (argument
+                  (call_expr type="String" location=Sample.swift:19:18 range=[Sample.swift:19:18 - line:19:71] nothrow isolation_crossing="none"
+                    (constructor_ref_call_expr type="(String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:19:18 range=[Sample.swift:19:18 - line:19:18] nothrow isolation_crossing="none"
+                      (declref_expr implicit type="(String.Type) -> (String.LocalizationValue, String?, Bundle?, Locale, StaticString?) -> String" location=Sample.swift:19:18 range=[Sample.swift:19:18 - line:19:18] decl="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" function_ref=single apply)
+                      (argument_list implicit
+                        (argument
+                          (type_expr type="String.Type" location=Sample.swift:19:18 range=[Sample.swift:19:18 - line:19:18] typerepr="String"))))
+                    (argument_list labels="localized:table:bundle:locale:comment:"
+                      (argument label="localized"
+                        (interpolated_string_literal_expr type="String.LocalizationValue" location=Sample.swift:19:36 range=[Sample.swift:19:36 - line:19:36] literal_capacity=6 interpolation_count=1 builder_init="Foundation.(file).String extension.LocalizationValue.StringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Foundation.(file).String extension.LocalizationValue.init(stringInterpolation:)"
+                          (tap_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:19:36 range=[Sample.swift:19:36 - line:19:70] var="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation"
+                            (opaque_value_expr implicit type="String.LocalizationValue.StringInterpolation" location=Sample.swift:19:36 range=[Sample.swift:19:36 - line:19:36] 0x7928ef19c0)
+                            (brace_stmt implicit range=[Sample.swift:19:37 - line:19:70]
+                              (var_decl decl_context=0x7918ff8ab8 implicit "$interpolation" interface_type="String.LocalizationValue.StringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                                (has_storage_attr implicit))
+                              (call_expr implicit type="()" location=Sample.swift:19:37 range=[Sample.swift:19:37 - line:19:36] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:19:37 range=[Sample.swift:19:37 - line:19:36] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:19:36 range=[Sample.swift:19:36 - line:19:36] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:19:37 range=[Sample.swift:19:37 - line:19:37]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:19:37 range=[Sample.swift:19:37 - line:19:37] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list implicit
+                                  (argument
+                                    (string_literal_expr type="String" location=Sample.swift:19:36 range=[Sample.swift:19:36 - line:19:36] encoding=utf8 value="Ratio " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                              (call_expr type="()" location=Sample.swift:19:44 range=[Sample.swift:19:44 - line:19:69] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(Int, String) -> ()" location=Sample.swift:19:44 range=[Sample.swift:19:44 - line:19:44] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (Int, String) -> ()" location=Sample.swift:19:44 range=[Sample.swift:19:44 - line:19:44] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendInterpolation(_:specifier:) [with (substitution_map generic_signature=<T where T : _FormatSpecifiable> T -> Int)]" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:19:44 range=[Sample.swift:19:44 - line:19:44]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:19:44 range=[Sample.swift:19:44 - line:19:44] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list labels="_:specifier:"
+                                  (argument
+                                    (declref_expr type="Int" location=Sample.swift:19:45 range=[Sample.swift:19:45 - line:19:45] decl="Sample.(file).Sample.texts(count:pid:name:flag:).count@Sample.swift:12:16" function_ref=unapplied))
+                                  (argument label="specifier"
+                                    (string_literal_expr type="String" location=Sample.swift:19:63 range=[Sample.swift:19:63 - line:19:63] encoding=utf8 value="%lld" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                              (call_expr implicit type="()" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70] nothrow isolation_crossing="none"
+                                (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70] nothrow isolation_crossing="none"
+                                  (declref_expr implicit type="(inout String.LocalizationValue.StringInterpolation) -> (String) -> ()" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70] decl="Foundation.(file).String extension.LocalizationValue.StringInterpolation.appendLiteral" function_ref=single apply)
+                                  (argument_list implicit
+                                    (argument inout
+                                      (inout_expr implicit type="inout String.LocalizationValue.StringInterpolation" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70]
+                                        (declref_expr implicit type="@lvalue String.LocalizationValue.StringInterpolation" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                                (argument_list implicit
+                                  (argument
+                                    (string_literal_expr type="String" location=Sample.swift:19:70 range=[Sample.swift:19:70 - line:19:70] encoding=utf8 value="" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))
+                      (argument label="table"
+                        (default_argument_expr implicit type="String?" location=Sample.swift:19:24 range=[Sample.swift:19:24 - line:19:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=1))
+                      (argument label="bundle"
+                        (default_argument_expr implicit type="Bundle?" location=Sample.swift:19:24 range=[Sample.swift:19:24 - line:19:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=2))
+                      (argument label="locale"
+                        (default_argument_expr implicit type="Locale" location=Sample.swift:19:24 range=[Sample.swift:19:24 - line:19:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=3))
+                      (argument label="comment"
+                        (default_argument_expr implicit type="StaticString?" location=Sample.swift:19:24 range=[Sample.swift:19:24 - line:19:24] default_args_owner="Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)" param=4)))))))
+            (call_expr type="Text" location=Sample.swift:20:13 range=[Sample.swift:20:13 - line:20:65] nothrow isolation_crossing="none"
+              (constructor_ref_call_expr type="(String) -> Text" location=Sample.swift:20:13 range=[Sample.swift:20:13 - line:20:13] nothrow isolation_crossing="none"
+                (declref_expr implicit type="(Text.Type) -> (String) -> Text" location=Sample.swift:20:13 range=[Sample.swift:20:13 - line:20:13] decl="SwiftUICore.(file).Text.init(_:) [with (substitution_map generic_signature=<S where S : StringProtocol> S -> String)]" function_ref=single apply)
+                (argument_list implicit
+                  (argument
+                    (type_expr type="Text.Type" location=Sample.swift:20:13 range=[Sample.swift:20:13 - line:20:13] typerepr="Text"))))
+              (argument_list
+                (argument
+                  (call_expr type="String" location=Sample.swift:20:18 range=[Sample.swift:20:18 - line:20:64] nothrow isolation_crossing="none"
+                    (constructor_ref_call_expr type="(LocalizedStringResource) -> String" location=Sample.swift:20:18 range=[Sample.swift:20:18 - line:20:18] nothrow isolation_crossing="none"
+                      (declref_expr implicit type="(String.Type) -> (LocalizedStringResource) -> String" location=Sample.swift:20:18 range=[Sample.swift:20:18 - line:20:18] decl="Foundation.(file).String extension.init(localized:)" function_ref=single apply)
+                      (argument_list implicit
+                        (argument
+                          (type_expr type="String.Type" location=Sample.swift:20:18 range=[Sample.swift:20:18 - line:20:18] typerepr="String"))))
+                    (argument_list labels="localized:"
+                      (argument label="localized"
+                        (call_expr type="LocalizedStringResource" location=Sample.swift:20:36 range=[Sample.swift:20:36 - line:20:63] nothrow isolation_crossing="none"
+                          (function_conversion_expr implicit type="@Sendable (LocalizedStringResource) -> LocalizedStringResource" location=Sample.swift:20:36 range=[Sample.swift:20:36 - line:20:36]
+                            (declref_expr type="(LocalizedStringResource) -> LocalizedStringResource" location=Sample.swift:20:36 range=[Sample.swift:20:36 - line:20:36] decl="Sample.(file).resource@Sample.swift:5:6" function_ref=single apply))
+                          (argument_list
+                            (argument
+                              (string_literal_expr type="LocalizedStringResource" location=Sample.swift:20:45 range=[Sample.swift:20:45 - line:20:45] encoding=utf8 value="Wrapped resource" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="Foundation.(file).LocalizedStringResource.init(stringLiteral:)"))))))))))
+            (call_expr type="Text" location=Sample.swift:21:13 range=[Sample.swift:21:13 - line:21:52] nothrow isolation_crossing="none"
+              (constructor_ref_call_expr type="(String) -> Text" location=Sample.swift:21:13 range=[Sample.swift:21:13 - line:21:13] nothrow isolation_crossing="none"
+                (declref_expr implicit type="(Text.Type) -> (String) -> Text" location=Sample.swift:21:13 range=[Sample.swift:21:13 - line:21:13] decl="SwiftUICore.(file).Text.init(verbatim:)" function_ref=single apply)
+                (argument_list implicit
+                  (argument
+                    (type_expr type="Text.Type" location=Sample.swift:21:13 range=[Sample.swift:21:13 - line:21:13] typerepr="Text"))))
+              (argument_list labels="verbatim:"
+                (argument label="verbatim"
+                  (interpolated_string_literal_expr type="String" location=Sample.swift:21:28 range=[Sample.swift:21:28 - line:21:28] literal_capacity=14 interpolation_count=1 builder_init="Swift.(file).DefaultStringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Swift.(file).String extension.init(stringInterpolation:)"
+                    (tap_expr implicit type="DefaultStringInterpolation" location=Sample.swift:21:28 range=[Sample.swift:21:28 - line:21:51] var="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation"
+                      (opaque_value_expr implicit type="DefaultStringInterpolation" location=Sample.swift:21:28 range=[Sample.swift:21:28 - line:21:28] 0x7928ef2540)
+                      (brace_stmt implicit range=[Sample.swift:21:29 - line:21:51]
+                        (var_decl decl_context=0x7918ff8ab8 implicit "$interpolation" interface_type="DefaultStringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                          (has_storage_attr implicit))
+                        (call_expr implicit type="()" location=Sample.swift:21:29 range=[Sample.swift:21:29 - line:21:28] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:21:29 range=[Sample.swift:21:29 - line:21:28] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout DefaultStringInterpolation) -> (String) -> ()" location=Sample.swift:21:28 range=[Sample.swift:21:28 - line:21:28] decl="Swift.(file).DefaultStringInterpolation.appendLiteral" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:21:29 range=[Sample.swift:21:29 - line:21:29]
+                                  (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:21:29 range=[Sample.swift:21:29 - line:21:29] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list implicit
+                            (argument
+                              (string_literal_expr type="String" location=Sample.swift:21:28 range=[Sample.swift:21:28 - line:21:28] encoding=utf8 value="Not localized " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                        (call_expr type="()" location=Sample.swift:21:44 range=[Sample.swift:21:44 - line:21:50] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(Int) -> ()" location=Sample.swift:21:44 range=[Sample.swift:21:44 - line:21:44] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout DefaultStringInterpolation) -> (Int) -> ()" location=Sample.swift:21:44 range=[Sample.swift:21:44 - line:21:44] decl="Swift.(file).DefaultStringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : CustomStringConvertible> T -> Int)]" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:21:44 range=[Sample.swift:21:44 - line:21:44]
+                                  (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:21:44 range=[Sample.swift:21:44 - line:21:44] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list
+                            (argument
+                              (declref_expr type="Int" location=Sample.swift:21:45 range=[Sample.swift:21:45 - line:21:45] decl="Sample.(file).Sample.texts(count:pid:name:flag:).count@Sample.swift:12:16" function_ref=unapplied))))
+                        (call_expr implicit type="()" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51] nothrow isolation_crossing="none"
+                          (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51] nothrow isolation_crossing="none"
+                            (declref_expr implicit type="(inout DefaultStringInterpolation) -> (String) -> ()" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51] decl="Swift.(file).DefaultStringInterpolation.appendLiteral" function_ref=single apply)
+                            (argument_list implicit
+                              (argument inout
+                                (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51]
+                                  (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51] decl="Sample.(file).Sample.texts(count:pid:name:flag:).$interpolation" function_ref=unapplied)))))
+                          (argument_list implicit
+                            (argument
+                              (string_literal_expr type="String" location=Sample.swift:21:51 range=[Sample.swift:21:51 - line:21:51] encoding=utf8 value="" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))))))))
+    (func_decl decl_context=0x7918feb618 range=[Sample.swift:25:5 - line:25:64] "plain(_:)" interface_type="(Sample) -> (String) -> String" access=internal
+      (parameter "self" decl_context=0x7918ffb330 interface_type="Sample") result="String" thrown_type="<null>"
+      (parameter_list range=[Sample.swift:25:15 - line:25:31]
+        (parameter "value" decl_context=0x7918ffb330 interface_type="String"))
+      (brace_stmt range=[Sample.swift:25:43 - line:25:64]
+        (return_stmt implicit range=[Sample.swift:25:45 - line:25:45]
+          (interpolated_string_literal_expr type="String" location=Sample.swift:25:45 range=[Sample.swift:25:45 - line:25:45] literal_capacity=7 interpolation_count=1 builder_init="Swift.(file).DefaultStringInterpolation.init(literalCapacity:interpolationCount:)" result_init="Swift.(file).String extension.init(stringInterpolation:)"
+            (tap_expr implicit type="DefaultStringInterpolation" location=Sample.swift:25:45 range=[Sample.swift:25:45 - line:25:60] var="Sample.(file).Sample.plain(_:).$interpolation"
+              (opaque_value_expr implicit type="DefaultStringInterpolation" location=Sample.swift:25:45 range=[Sample.swift:25:45 - line:25:45] 0x7928ef42b8)
+              (brace_stmt implicit range=[Sample.swift:25:46 - line:25:60]
+                (var_decl decl_context=0x7918ffb330 implicit "$interpolation" interface_type="DefaultStringInterpolation" access=private readImpl=stored writeImpl=stored readWriteImpl=stored
+                  (has_storage_attr implicit))
+                (call_expr implicit type="()" location=Sample.swift:25:46 range=[Sample.swift:25:46 - line:25:45] nothrow isolation_crossing="none"
+                  (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:25:46 range=[Sample.swift:25:46 - line:25:45] nothrow isolation_crossing="none"
+                    (declref_expr implicit type="(inout DefaultStringInterpolation) -> (String) -> ()" location=Sample.swift:25:45 range=[Sample.swift:25:45 - line:25:45] decl="Swift.(file).DefaultStringInterpolation.appendLiteral" function_ref=single apply)
+                    (argument_list implicit
+                      (argument inout
+                        (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:25:46 range=[Sample.swift:25:46 - line:25:46]
+                          (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:25:46 range=[Sample.swift:25:46 - line:25:46] decl="Sample.(file).Sample.plain(_:).$interpolation" function_ref=unapplied)))))
+                  (argument_list implicit
+                    (argument
+                      (string_literal_expr type="String" location=Sample.swift:25:45 range=[Sample.swift:25:45 - line:25:45] encoding=utf8 value="Plain " builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))
+                (call_expr type="()" location=Sample.swift:25:53 range=[Sample.swift:25:53 - line:25:59] nothrow isolation_crossing="none"
+                  (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:25:53 range=[Sample.swift:25:53 - line:25:53] nothrow isolation_crossing="none"
+                    (declref_expr implicit type="(inout DefaultStringInterpolation) -> (String) -> ()" location=Sample.swift:25:53 range=[Sample.swift:25:53 - line:25:53] decl="Swift.(file).DefaultStringInterpolation.appendInterpolation [with (substitution_map generic_signature=<T where T : CustomStringConvertible, T : TextOutputStreamable> T -> String)]" function_ref=single apply)
+                    (argument_list implicit
+                      (argument inout
+                        (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:25:53 range=[Sample.swift:25:53 - line:25:53]
+                          (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:25:53 range=[Sample.swift:25:53 - line:25:53] decl="Sample.(file).Sample.plain(_:).$interpolation" function_ref=unapplied)))))
+                  (argument_list
+                    (argument
+                      (declref_expr type="String" location=Sample.swift:25:54 range=[Sample.swift:25:54 - line:25:54] decl="Sample.(file).Sample.plain(_:).value@Sample.swift:25:18" function_ref=unapplied))))
+                (call_expr implicit type="()" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60] nothrow isolation_crossing="none"
+                  (dot_syntax_call_expr implicit type="(String) -> ()" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60] nothrow isolation_crossing="none"
+                    (declref_expr implicit type="(inout DefaultStringInterpolation) -> (String) -> ()" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60] decl="Swift.(file).DefaultStringInterpolation.appendLiteral" function_ref=single apply)
+                    (argument_list implicit
+                      (argument inout
+                        (inout_expr implicit type="inout DefaultStringInterpolation" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60]
+                          (declref_expr implicit type="@lvalue DefaultStringInterpolation" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60] decl="Sample.(file).Sample.plain(_:).$interpolation" function_ref=unapplied)))))
+                  (argument_list implicit
+                    (argument
+                      (string_literal_expr type="String" location=Sample.swift:25:60 range=[Sample.swift:25:60 - line:25:60] encoding=utf8 value="" builtin_initializer="Swift.(file).String extension.init(_builtinStringLiteral:utf8CodeUnitCount:isASCII:)" initializer="**NULL**"))))))))))
+    (constructor_decl decl_context=0x7918feb618 implicit range=[Sample.swift:7:8 - line:7:8] "init()" interface_type="(Sample.Type) -> () -> Sample" access=internal designated
+      (parameter "self" decl_context=0x791174f960 interface_type="Sample" inout) thrown_type="<null>"
+      (parameter_list)
+      (brace_stmt implicit range=[Sample.swift:7:8 - line:7:8]
+        (return_stmt implicit range=[Sample.swift:7:8 - line:7:8])))))
