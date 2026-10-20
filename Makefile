@@ -1,17 +1,27 @@
-.PHONY: setup doctor format format-check lint lint-fix build localization-check localization-sync run dev-install use-dev use-release test-dev-tools energy-profile arc-audit test-skylight-live release-check verify check check-tool-versions check-swiftformat-version check-swiftlint-version
+.PHONY: setup setup-tools doctor format format-check lint lint-fix build localization-check localization-sync run dev-install use-dev use-release test-dev-tools energy-profile arc-audit test-skylight-live release-check verify check check-tool-versions check-swiftformat-version check-swiftlint-version
 
 include Scripts/dev-tools.env
 
-SWIFTFORMAT := $(CURDIR)/.cache/dev-tools/bin/swiftformat
-SWIFTLINT := $(CURDIR)/.cache/dev-tools/bin/swiftlint
+NIX_BUILD := nix --extra-experimental-features "nix-command flakes" build
+GHOSTTYKIT := Frameworks/GhosttyKit.xcframework
+SWIFTFORMAT := $(CURDIR)/.cache/flake-tools/bin/swiftformat
+SWIFTLINT := $(CURDIR)/.cache/flake-tools/bin/swiftlint
 SWIFT_WITH_GHOSTTY = LIBRARY_PATH="$$(./Scripts/ghostty-preflight.sh print-library-dir)$${LIBRARY_PATH:+:$$LIBRARY_PATH}"
 SWIFT := $(or $(SWIFTLY_HOME_DIR),$(HOME)/.swiftly)/bin/swift
 
-setup:
-	./Scripts/dev-tools.sh setup
+setup: setup-tools
+	@if [ -e "$(GHOSTTYKIT)" ] && ! readlink "$(GHOSTTYKIT)" | grep -q '^/nix/store/'; then \
+		./Scripts/ghostty-preflight.sh verify || { echo "error: $(GHOSTTYKIT) does not match this checkout. It was preserved; move it aside before make setup." >&2; exit 1; }; \
+	else \
+		mkdir -p Frameworks && $(NIX_BUILD) .#ghosttykit -o "$(GHOSTTYKIT)"; \
+	fi
+	./Scripts/ghostty-preflight.sh verify
+
+setup-tools:
+	$(NIX_BUILD) .#default -o .cache/flake-tools
 
 doctor:
-	./Scripts/dev-tools.sh doctor
+	./Scripts/doctor.sh
 
 check-swiftformat-version:
 	@actual="$$("$(SWIFTFORMAT)" --version 2>/dev/null || true)"; if [ "$$actual" != "$(SWIFTFORMAT_VERSION)" ]; then echo "error: SwiftFormat $(SWIFTFORMAT_VERSION) required; found $${actual:-missing}" >&2; exit 1; fi

@@ -46,9 +46,9 @@ Use a descriptive branch name in place of `my-change`. Each contribution should 
 make setup
 ```
 
-This downloads the pinned, prebuilt GhosttyKit into `Frameworks/GhosttyKit.xcframework` and checks its checksum. **You do not need to compile GhosttyKit.** It also installs the pinned SwiftFormat and SwiftLint tools into the repository's ignored local tool cache; no manual Homebrew installation is required. Valid existing dependencies are reused.
+Setup needs [Lix](https://lix.systems/install/) (or another Nix with flakes). It builds the repository's `flake.nix`: the pinned, prebuilt GhosttyKit is linked at `Frameworks/GhosttyKit.xcframework` and checked against its checksum, and the pinned SwiftFormat, SwiftLint, Python, Fish and Nushell are linked at `.cache/flake-tools`. **You do not need to compile GhosttyKit**, and no Homebrew installation is required. `nix develop` opens a shell with the same tools on `PATH`.
 
-Tool versions and download checksums are recorded in [Scripts/dev-tools.env](https://github.com/OmniNull/OmniWM/blob/main/Scripts/dev-tools.env); Ghostty's internal archive pin remains in [Scripts/build-metadata.env](https://github.com/OmniNull/OmniWM/blob/main/Scripts/build-metadata.env). Setup preserves an existing framework that does not match the pin and explains the mismatch instead of overwriting it. Setup does not launch OmniWM or change privacy permissions, login items, or CLI links.
+Tool versions and download checksums are recorded in [Scripts/dev-tools.env](https://github.com/OmniNull/OmniWM/blob/main/Scripts/dev-tools.env), which the flake reads; other packages are pinned by `flake.lock`. Ghostty's internal archive pin remains in [Scripts/build-metadata.env](https://github.com/OmniNull/OmniWM/blob/main/Scripts/build-metadata.env). Setup preserves an existing framework that does not match the pin and explains the mismatch instead of overwriting it. Setup does not launch OmniWM or change privacy permissions, login items, or CLI links.
 
 ### 4. Optionally Create a Signing Certificate
 
@@ -157,13 +157,13 @@ Every Swift source and test file starts with the two-line GPL-2.0 header enforce
 
 Use focused regression tests for changed behavior. Runtime changes require the full serial `swift test` suite, and changes affecting concurrency also require `swift test --parallel`. Environment-dependent live tests remain opt-in. For motion, focus, layout, and other visible behavior, also describe the manual checks you performed.
 
-CI installs Fish and Nushell to run the native CLI completion tests. For the same coverage locally, run `brew install fish nushell` and make sure `fish` and `nu` are on your `PATH`; tests for a missing shell are skipped locally.
+CI takes Fish and Nushell from the flake to run the native CLI completion tests. For the same coverage locally, run `swift test` inside `nix develop`; tests for a missing shell are skipped.
 
-For changes to setup, packaging, development installation, or related tooling, also run `make test-dev-tools`. This runs the Python development-tooling tests and is included in CI's **Verify** job.
+For changes to setup, packaging, development installation, or related tooling, also run `make test-dev-tools`. This runs the Python development-tooling tests and is included in CI's **Tooling** job.
 
 Website changes use the checks in [Website Development](/developers/website/): `npm run check` and `npm run build` from `website/`. Small documentation-only changes do not need app builds or Swift tests.
 
-GitHub's **OmniWM CI** workflow reports **Verify** (`make verify`) and **Tests** (the serial Swift suite) separately. Tests are initially advisory while the hosted environment is established; a failing test still needs an explanation. On a first contribution, a maintainer may need to [approve the workflow run](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks) before checks start. A pending approval does not mean you did something wrong.
+GitHub's **OmniWM CI** workflow reports **Tooling** (flake check, formatting, lint, generated IPC files and `make test-dev-tools`), **Verify** (localization and build) and **Tests** (the serial Swift suite) separately. Tests are initially advisory while the hosted environment is established; a failing test still needs an explanation. On a first contribution, a maintainer may need to [approve the workflow run](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks) before checks start. A pending approval does not mean you did something wrong.
 
 ## Troubleshooting
 
