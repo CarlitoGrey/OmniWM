@@ -42,7 +42,7 @@ jobs:
             ~/.swiftly
             ~/Library/Developer/Toolchains
             Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
       - name: Set up dependencies
@@ -64,11 +64,20 @@ jobs:
         with:
           ref: ${{ inputs.pr_number != '' && format('refs/pull/{0}/merge', inputs.pr_number) || github.ref }}
           persist-credentials: false
-      - uses: canidae-solutions/lix-quick-install-action@v5.0.0
-        with:
-          lix_conf: experimental-features = nix-command flakes
+      - name: Install Lix
+        run: |
+          arch="$(uname -m | sed 's/arm64/aarch64/')"
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
+          chmod +x /tmp/lix-installer
+          /tmp/lix-installer install --no-confirm \
+            --extra-conf "experimental-features = nix-command flakes" \
+            --extra-conf "extra-access-tokens = github.com=${{ github.token }}"
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Put flake tools on PATH
-        run: echo "$(nix build --no-link --print-out-paths .#default)/bin" >> "$GITHUB_PATH"
+        run: |
+          tools_out="$(nix build --no-link --print-out-paths .#default)"
+          echo "${tools_out}/bin" >> "$GITHUB_PATH"
       - name: Verify formatting
         run: swiftformat --lint .
       - name: Lint
@@ -102,7 +111,7 @@ jobs:
             ~/.swiftly
             ~/Library/Developer/Toolchains
             Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
       - name: Set up dependencies
@@ -136,16 +145,25 @@ jobs:
             ~/.swiftly
             ~/Library/Developer/Toolchains
             Frameworks/GhosttyKit.xcframework
-          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
+          key: dev-deps-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('flake.nix', 'Scripts/dev-tools.env', 'Scripts/build-metadata.env', '.swift-version') }}
       - name: Install the pinned Swift toolchain
         run: ./Scripts/swift-toolchain.sh
       - name: Set up dependencies
         run: ./Scripts/dev-tools.sh setup
-      - uses: canidae-solutions/lix-quick-install-action@v5.0.0
-        with:
-          lix_conf: experimental-features = nix-command flakes
+      - name: Install Lix
+        run: |
+          arch="$(uname -m | sed 's/arm64/aarch64/')"
+          os="$(uname -s | tr '[:upper:]' '[:lower:]')"
+          curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
+          chmod +x /tmp/lix-installer
+          /tmp/lix-installer install --no-confirm \
+            --extra-conf "experimental-features = nix-command flakes" \
+            --extra-conf "extra-access-tokens = github.com=${{ github.token }}"
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Put flake tools on PATH
-        run: echo "$(nix build --no-link --print-out-paths .#default)/bin" >> "$GITHUB_PATH"
+        run: |
+          tools_out="$(nix build --no-link --print-out-paths .#default)"
+          echo "${tools_out}/bin" >> "$GITHUB_PATH"
       - name: Check completion test shells
         run: |
           fish --version
