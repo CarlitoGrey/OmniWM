@@ -141,7 +141,9 @@ jobs:
       - name: Install translation build tools
         env:
           NIX_CONFIG: access-tokens = github.com=${{ github.token }}
-        run: echo "$(nix build --no-link --print-out-paths .#gettext)/bin" >> "$GITHUB_PATH"
+        run: |
+          gettext_out="$(nix build --no-link --print-out-paths .#gettext)"
+          echo "${gettext_out}/bin" >> "$GITHUB_PATH"
       - name: Install Metal Toolchain
         run: xcodebuild -downloadComponent metalToolchain
       - name: Build the current upstream main revision
