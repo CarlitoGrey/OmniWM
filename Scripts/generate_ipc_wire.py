@@ -1,10 +1,11 @@
 import argparse
 import json
-import tempfile
-from ipc_wire_models import read_models
 import pathlib
 import re
+import shutil
 import subprocess
+import tempfile
+from ipc_wire_models import read_models
 root = pathlib.Path(__file__).resolve().parents[1]
 models = root / 'Sources/OmniWMIPC'
 schemas = read_models(models)
@@ -216,7 +217,8 @@ def save_generated():
             name = f'IPCJSONWriter+Models{index:02}.swift'
             path = directory / name
             path.write_text(header + 'extension IPCJSONWriter {\n' + '\n\n'.join(functions) + '\n}\n')
-        subprocess.run([str(root / '.cache/dev-tools/bin/swiftformat'), str(directory), '--config', str(root / '.swiftformat')], cwd=root, check=True, capture_output=True)
+        swiftformat = shutil.which('swiftformat') or str(root / '.cache/dev-tools/bin/swiftformat')
+        subprocess.run([swiftformat, str(directory), '--config', str(root / '.swiftformat')], cwd=root, check=True, capture_output=True)
         expected = {path.name: path.read_text() for path in sorted(directory.glob('*.swift'))}
     existing = {path.name: path for path in models.glob('IPCJSONWriter+Models*.swift')}
     failures = []
