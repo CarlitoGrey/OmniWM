@@ -7,7 +7,7 @@ SWIFTLY="$SWIFTLY_HOME_DIR/bin/swiftly"
 SWIFT_ORG_TEAM_ID=V9AUD2URP3
 
 # Source of truth: flake.nix
-SWIFT_SNAPSHOT="${SWIFT_SNAPSHOT:-$(nix eval --raw .#toolchain.swift.snapshot 2>/dev/null || cat "$ROOT_DIR/.swift-version" 2>/dev/null || echo "main-snapshot-2026-10-11")}"
+SWIFT_SNAPSHOT="${SWIFT_SNAPSHOT:-$(nix eval --raw "$ROOT_DIR#toolchain.swift.snapshot" 2>/dev/null || cat "$ROOT_DIR/.swift-version" 2>/dev/null || echo "main-snapshot-2026-10-11")}"
 
 if [ ! -x "$SWIFTLY" ]; then
   WORK_DIR="$(mktemp -d)"

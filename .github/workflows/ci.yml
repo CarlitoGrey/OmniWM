@@ -71,10 +71,11 @@ jobs:
           curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
           chmod +x /tmp/lix-installer
           /tmp/lix-installer install --no-confirm \
-            --extra-conf "experimental-features = nix-command flakes" \
-            --extra-conf "extra-access-tokens = github.com=${{ github.token }}"
+            --extra-conf "experimental-features = nix-command flakes"
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Put flake tools on PATH
+        env:
+          NIX_CONFIG: access-tokens = github.com=${{ github.token }}
         run: |
           tools_out="$(nix build --no-link --print-out-paths .#default)"
           echo "${tools_out}/bin" >> "$GITHUB_PATH"
@@ -157,10 +158,11 @@ jobs:
           curl -sSf -L -o /tmp/lix-installer "https://install.lix.systems/lix/lix-installer-${arch}-${os}"
           chmod +x /tmp/lix-installer
           /tmp/lix-installer install --no-confirm \
-            --extra-conf "experimental-features = nix-command flakes" \
-            --extra-conf "extra-access-tokens = github.com=${{ github.token }}"
+            --extra-conf "experimental-features = nix-command flakes"
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
       - name: Put flake tools on PATH
+        env:
+          NIX_CONFIG: access-tokens = github.com=${{ github.token }}
         run: |
           tools_out="$(nix build --no-link --print-out-paths .#default)"
           echo "${tools_out}/bin" >> "$GITHUB_PATH"
