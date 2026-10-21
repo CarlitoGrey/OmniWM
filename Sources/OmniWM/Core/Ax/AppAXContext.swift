@@ -22,8 +22,8 @@ final class AppAXContext {
 
     private let axApp: ThreadGuardedValue<AXUIElement>
     private let windows: ThreadGuardedValue<[Int: AXUIElement]>
-    private nonisolated(unsafe) var thread: Thread?
-    nonisolated var axThread: Thread? {
+    private var thread: Thread?
+    var axThread: Thread? {
         thread
     }
 
@@ -49,7 +49,7 @@ final class AppAXContext {
         )
     }
 
-    nonisolated init(
+    init(
         _ nsApp: NSRunningApplication,
         pid: pid_t,
         _ axApp: ThreadGuardedValue<AXUIElement>,

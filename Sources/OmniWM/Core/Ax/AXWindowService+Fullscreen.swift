@@ -22,21 +22,25 @@ extension AXWindowService {
         isFullscreen(window, subrole: subrole(window))
     }
 
-    static func isFullscreen(_ window: AXWindowRef, subrole: String?) -> Bool {
+    static func isFullscreen(
+        _ window: AXWindowRef,
+        subrole: String?,
+        fullscreenAttribute: Bool? = nil,
+        fullscreenAttributeWasRead: Bool = false
+    ) -> Bool {
         MainThreadAXSpanTrace.measure(.readFullscreen, windowId: window.windowId) {
             if subrole == "AXFullScreenWindow" {
                 return true
             }
 
-            var value: CFTypeRef?
-            let fullScreenAttribute = "AXFullScreen" as CFString
-            let result = AXUIElementCopyAttributeValue(
-                window.element,
-                fullScreenAttribute,
-                &value
-            )
-            if result == .success, let boolValue = value as? Bool {
-                return boolValue
+            var resolvedFullscreenAttribute = fullscreenAttribute
+            if !fullscreenAttributeWasRead {
+                var value: CFTypeRef?
+                let result = AXUIElementCopyAttributeValue(window.element, "AXFullScreen" as CFString, &value)
+                resolvedFullscreenAttribute = result == .success ? value as? Bool : nil
+            }
+            if let resolvedFullscreenAttribute {
+                return resolvedFullscreenAttribute
             }
 
             if let frame = try? frame(window) {

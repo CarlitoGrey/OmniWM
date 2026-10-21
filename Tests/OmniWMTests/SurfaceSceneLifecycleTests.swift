@@ -156,6 +156,26 @@ final class SurfaceSceneLifecycleTests: XCTestCase {
         XCTAssertEqual(scene.runtimeSnapshot().reverseEntries, 0)
     }
 
+    func testWindowReusingADeallocatedRegistrationAddressIsNotContained() throws {
+        let scene = SurfaceScene()
+        var stale = Set<ObjectIdentifier>()
+        autoreleasepool {
+            for index in 0 ..< 200 {
+                let window = NSPanel()
+                stale.insert(ObjectIdentifier(window))
+                scene.register(window: window, node: node(id: "leaked-\(index)", window: window))
+                window.close()
+            }
+        }
+        let candidates = (0 ..< 200).map { _ in NSPanel() }
+        defer { candidates.forEach { $0.close() } }
+        let reused = try XCTUnwrap(
+            candidates.first { stale.contains(ObjectIdentifier($0)) },
+            "allocator did not reuse a released window address"
+        )
+        XCTAssertFalse(scene.contains(window: reused))
+    }
+
     private func node(id: String, window: NSWindow) -> SurfaceScene.SurfaceNode {
         SurfaceScene.SurfaceNode(
             id: id,

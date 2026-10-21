@@ -286,6 +286,40 @@ final class InputTapThreadTests: XCTestCase {
         XCTAssertEqual(handler.performanceSnapshot()?.cgEvents, 0)
     }
 
+    func testSessionTapPublicationIsClearedByStop() throws {
+        let thread = InputTapThread()
+        _ = thread.startAndGetRunLoop()
+        let port = try XCTUnwrap(CFMachPortCreate(kCFAllocatorDefault, { _, _, _, _ in }, nil, nil))
+        thread.sessionTap = port
+        XCTAssertTrue(thread.sessionTap === port)
+        thread.stop()
+        XCTAssertNil(thread.sessionTap)
+    }
+
+    @MainActor
+    func testSessionTapIsPublishedToTheInputThreadUntilCleanup() {
+        let handler = makeController().mouseEventHandler
+        handler.setup()
+        XCTAssertTrue(handler.inputTapThread.sessionTap === handler.state.eventTap)
+        handler.cleanup()
+        XCTAssertNil(handler.inputTapThread.sessionTap)
+    }
+
+    func testSessionTapCallbackReturnsEventsOffTheMainThread() {
+        let returned = Mutex<[Bool]>([])
+        let done = expectation(description: "Session tap callback returned off the main thread")
+        Thread.detachNewThread {
+            for type in [CGEventType.tapDisabledByUserInput, .tapDisabledByTimeout, .null] {
+                guard let event = CGEvent(source: nil) else { continue }
+                let result = MouseEventHandler.sessionTapCallback(OpaquePointer(bitPattern: 1)!, type, event, nil)
+                returned.withLock { $0.append(result?.takeUnretainedValue() === event) }
+            }
+            done.fulfill()
+        }
+        wait(for: [done], timeout: 5)
+        XCTAssertEqual(returned.withLock { $0 }, [true, true, true])
+    }
+
     @MainActor
     private func makeController() -> WMController {
         InputControllerTestSupport.controller(for: self)

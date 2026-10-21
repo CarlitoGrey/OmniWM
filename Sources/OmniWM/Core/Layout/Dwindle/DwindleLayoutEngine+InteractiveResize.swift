@@ -15,12 +15,12 @@ struct DwindleInteractiveResize {
 
     let token: WindowToken
     let workspaceId: WorkspaceDescriptor.ID
-    let edges: ResizeEdge
+    var edges: ResizeEdge
     let startMouseLocation: CGPoint
     let innerGap: CGFloat
 
-    let horizontal: Axis?
-    let vertical: Axis?
+    var horizontal: Axis?
+    var vertical: Axis?
 
     var didChange = false
 }
@@ -70,11 +70,22 @@ extension DwindleLayoutEngine {
         return true
     }
 
-    func interactiveResizeUpdate(currentLocation: CGPoint) -> Bool {
-        guard let resize = interactiveResize else { return false }
+    func interactiveResizeUpdate(currentLocation: CGPoint, edges: ResizeEdge? = nil) -> Bool {
+        guard var resize = interactiveResize else { return false }
         guard let leaf = findNode(for: resize.token, in: resize.workspaceId), leaf.isLeaf else {
             clearInteractiveResize()
             return false
+        }
+
+        if let edges {
+            resize.horizontal = resize.horizontal ?? resolveControllingSplit(
+                from: leaf, edges: edges, axis: .horizontal, policy: .exact, workspaceId: resize.workspaceId
+            )?.axis
+            resize.vertical = resize.vertical ?? resolveControllingSplit(
+                from: leaf, edges: edges, axis: .vertical, policy: .exact, workspaceId: resize.workspaceId
+            )?.axis
+            resize.edges.formUnion(edges)
+            interactiveResize = resize
         }
 
         var changed = false

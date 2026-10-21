@@ -93,6 +93,7 @@ final class WindowAdmissionPolicyTests: XCTestCase {
             admissionHints: admissionHints
         )
         controller.axEventHandler.windowInfoProvider = { _ in nil }
+        controller.axEventHandler.windowInfoBatchProvider = { _ in nil }
 
         let evaluation = controller.evaluateWindowDisposition(
             axRef: axRef,

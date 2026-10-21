@@ -65,8 +65,16 @@ final class EventInterpreterCallbackGenerationTests: XCTestCase {
             ),
             for: token
         )
-        controller.axEventHandler.windowInfoProvider = { id in
-            WindowServerInfo(id: id, pid: pid, level: 0, frame: frame, title: "Renamed")
+        var windowServerQueries = 0
+        var titleReads = 0
+        controller.axEventHandler.windowInfoProvider = { _ in
+            windowServerQueries += 1
+            return nil
+        }
+        controller.axEventHandler.windowTitleProvider = { id in
+            XCTAssertEqual(id, UInt32(windowId))
+            titleReads += 1
+            return "Renamed"
         }
         let interpreter = EventInterpreter(
             controller: controller,
@@ -81,6 +89,8 @@ final class EventInterpreterCallbackGenerationTests: XCTestCase {
             callbackGeneration: currentGeneration - 1
         ))))
         XCTAssertEqual(controller.workspaceManager.managedReplacementMetadata(for: token)?.title, "Original")
+        XCTAssertEqual(windowServerQueries, 0)
+        XCTAssertEqual(titleReads, 0)
 
         interpreter.handleIntakeEvent(stamped(.axWindow(.titleChanged(
             pid: pid,
@@ -88,6 +98,147 @@ final class EventInterpreterCallbackGenerationTests: XCTestCase {
             callbackGeneration: currentGeneration
         ))))
         XCTAssertEqual(controller.workspaceManager.managedReplacementMetadata(for: token)?.title, "Renamed")
+        XCTAssertEqual(windowServerQueries, 0)
+        XCTAssertEqual(titleReads, 1)
+    }
+
+    @MainActor
+    func testTitleCallbackForTrackedWindowSkipsWindowServerQuery() throws {
+        let pid: pid_t = 701_005
+        let windowId = 801_005
+        let currentGeneration: UInt64 = 42
+        let controller = WindowAdmissionTestSupport.controller()
+        defer { stop(controller) }
+        let workspaceId = try XCTUnwrap(
+            controller.workspaceManager.workspaceId(for: "1", createIfMissing: true)
+        )
+        let token = WindowToken(pid: pid, windowId: windowId)
+        _ = WindowAdmissionTestSupport.track(token, in: workspaceId, controller: controller)
+        var windowServerQueries = 0
+        controller.axEventHandler.windowInfoProvider = { id in
+            windowServerQueries += 1
+            return WindowServerInfo(id: id, pid: pid, level: 0, frame: .zero, title: nil)
+        }
+        let interpreter = EventInterpreter(
+            controller: controller,
+            callbackGenerationProvider: { candidatePID in
+                candidatePID == pid ? currentGeneration : nil
+            }
+        )
+
+        interpreter.handleIntakeEvent(stamped(.axWindow(.titleChanged(
+            pid: pid,
+            windowId: UInt32(windowId),
+            callbackGeneration: currentGeneration
+        ))))
+        XCTAssertEqual(windowServerQueries, 0)
+
+        controller.axEventHandler.handleWindowTitleChanged(windowId: UInt32(windowId))
+        XCTAssertEqual(windowServerQueries, 1)
+    }
+
+    @MainActor
+    func testTitleCallbackWithUntrackedAXTokenKeepsWindowServerIdentityCheck() throws {
+        let pid: pid_t = 701_006
+        let windowId = 801_006
+        let currentGeneration: UInt64 = 52
+        let controller = WindowAdmissionTestSupport.controller()
+        defer { stop(controller) }
+        let workspaceId = try XCTUnwrap(
+            controller.workspaceManager.workspaceId(for: "1", createIfMissing: true)
+        )
+        let token = WindowToken(pid: pid, windowId: windowId)
+        _ = WindowAdmissionTestSupport.track(token, in: workspaceId, controller: controller)
+        var windowServerQueries = 0
+        var titleReads = 0
+        controller.axEventHandler.windowInfoProvider = { id in
+            windowServerQueries += 1
+            return WindowServerInfo(id: id, pid: pid, level: 0, frame: .zero, title: nil)
+        }
+        controller.axEventHandler.windowTitleProvider = { _ in
+            titleReads += 1
+            return "Renamed"
+        }
+        let interpreter = EventInterpreter(
+            controller: controller,
+            callbackGenerationProvider: { _ in currentGeneration }
+        )
+
+        interpreter.handleIntakeEvent(stamped(.axWindow(.titleChanged(
+            pid: pid + 1,
+            windowId: UInt32(windowId),
+            callbackGeneration: currentGeneration
+        ))))
+        XCTAssertEqual(windowServerQueries, 1)
+        XCTAssertEqual(titleReads, 1)
+
+        controller.axEventHandler.windowInfoProvider = { id in
+            windowServerQueries += 1
+            return WindowServerInfo(id: id, pid: pid + 2, level: 0, frame: .zero, title: nil)
+        }
+        interpreter.handleIntakeEvent(stamped(.axWindow(.titleChanged(
+            pid: pid + 1,
+            windowId: UInt32(windowId),
+            callbackGeneration: currentGeneration
+        ))))
+        XCTAssertEqual(windowServerQueries, 2)
+        XCTAssertEqual(titleReads, 1)
+    }
+
+    @MainActor
+    func testTitleCallbackSchedulesOnlyForAppsNeedingTitleReevaluation() throws {
+        let pid: pid_t = 701_007
+        let windowId = 801_007
+        let currentGeneration: UInt64 = 62
+        let bundleId = "com.omniwm.tests.titlegate"
+        let controller = WindowAdmissionTestSupport.controller()
+        let handler = controller.axEventHandler
+        defer {
+            handler.ruleReevaluation.reset()
+            stop(controller)
+        }
+        let workspaceId = try XCTUnwrap(
+            controller.workspaceManager.workspaceId(for: "1", createIfMissing: true)
+        )
+        let token = WindowToken(pid: pid, windowId: windowId)
+        _ = WindowAdmissionTestSupport.track(token, in: workspaceId, controller: controller)
+        _ = controller.workspaceManager.setManagedReplacementMetadata(
+            ManagedReplacementMetadata(
+                bundleId: bundleId,
+                workspaceId: workspaceId,
+                mode: .tiling,
+                role: nil,
+                subrole: nil,
+                title: "Original",
+                windowLevel: 0,
+                parentWindowId: nil,
+                frame: .zero
+            ),
+            for: token
+        )
+        handler.windowInfoProvider = { _ in
+            XCTFail("Managed AX title events must not query WindowServer identity")
+            return nil
+        }
+        handler.windowTitleProvider = { _ in "Renamed" }
+        let interpreter = EventInterpreter(
+            controller: controller,
+            callbackGenerationProvider: { _ in currentGeneration }
+        )
+        let event = stamped(.axWindow(.titleChanged(
+            pid: pid, windowId: UInt32(windowId), callbackGeneration: currentGeneration
+        )))
+        controller.windowRuleEngine.rebuild(rules: [AppRule(bundleId: bundleId, minWidth: 400)])
+
+        interpreter.handleIntakeEvent(event)
+        XCTAssertTrue(handler.ruleReevaluation.pendingWindowRuleReevaluationTargets.isEmpty)
+        XCTAssertEqual(controller.workspaceManager.managedReplacementMetadata(for: token)?.title, "Renamed")
+
+        controller.windowRuleEngine.rebuild(rules: [AppRule(
+            bundleId: bundleId, titleSubstring: "Renamed", minWidth: 400
+        )])
+        interpreter.handleIntakeEvent(event)
+        XCTAssertEqual(handler.ruleReevaluation.pendingWindowRuleReevaluationTargets, [.window(token)])
     }
 
     @MainActor

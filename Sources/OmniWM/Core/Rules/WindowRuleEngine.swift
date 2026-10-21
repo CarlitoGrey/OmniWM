@@ -45,6 +45,22 @@ final class WindowRuleEngine {
         hasDynamicReevaluationRules
     }
 
+    func needsTitleReevaluation(for bundleId: String?, appName: String? = nil) -> Bool {
+        guard let bundleId, !bundleId.isEmpty else { return true }
+        if eligibilityPolicy.requiresPictureInPictureTitle(for: bundleId) {
+            return true
+        }
+        let canMatchApp: (CompiledWindowRule) -> Bool = { candidate in
+            candidate.requiresDynamicReevaluation
+                && candidate.matchesApp(
+                    bundleId: bundleId,
+                    appName: appName ?? candidate.rule.appNameSubstring
+                )
+        }
+        return builtInRules.contains(where: canMatchApp)
+            || compiledUserRules.contains(where: canMatchApp)
+    }
+
     func requiresTitle(for bundleId: String?, appName: String? = nil) -> Bool {
         eligibilityPolicy.requiresPictureInPictureTitle(for: bundleId)
             || titleRules.contains { $0.matchesApp(bundleId: bundleId, appName: appName) }

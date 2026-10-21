@@ -58,17 +58,36 @@ extension AXEventHandler {
         }
     }
 
-    func handleWindowTitleChanged(windowId: UInt32) {
-        guard let controller,
-              case let .exact(token, windowInfo) = resolveWindowServerIdentity(windowId),
-              controller.workspaceManager.entry(for: token) != nil
-        else {
-            return
+    func handleWindowTitleChanged(windowId: UInt32, pid: pid_t? = nil) {
+        guard let controller else { return }
+        let token: WindowToken
+        let windowServerTitle: String?
+        if let axToken = pid.map({ WindowToken(pid: $0, windowId: Int(windowId)) }),
+           controller.workspaceManager.entry(for: axToken) != nil
+        {
+            token = axToken
+            windowServerTitle = nil
+        } else {
+            guard case let .exact(resolvedToken, windowInfo) = resolveWindowServerIdentity(windowId),
+                  controller.workspaceManager.entry(for: resolvedToken) != nil
+            else {
+                return
+            }
+            token = resolvedToken
+            windowServerTitle = windowInfo.title
         }
         AXWindowService.invalidateCachedTitle(windowId: windowId)
         controller.requestWorkspaceBarRefresh()
-        updateManagedReplacementTitle(windowInfo: windowInfo, token: token)
-        scheduleWindowRuleReevaluationIfNeeded(targets: [.window(token)])
+        if let title = windowServerTitle ?? windowTitleProvider(windowId) {
+            controller.workspaceManager.updateManagedReplacementTitle(title, for: token)
+        }
+        let appInfo = controller.appInfoCache.hasCachedInfo(for: token.pid)
+            ? controller.appInfoCache.info(for: token.pid) : nil
+        let bundleId = appInfo?.bundleId
+            ?? controller.workspaceManager.managedReplacementMetadata(for: token)?.bundleId
+        if controller.windowRuleEngine.needsTitleReevaluation(for: bundleId, appName: appInfo?.name) {
+            scheduleWindowRuleReevaluationIfNeeded(targets: [.window(token)])
+        }
     }
 
     private func handleCGSWindowClosed(windowId: UInt32) {

@@ -190,7 +190,7 @@ final class BorderWindow {
             appliedTargetLevel = level
             if let layerPanel {
                 layerPanel.level = NSWindow.Level(rawValue: Int(level))
-                if !isVisible {
+                if !isVisible, !layerPanel.isVisible {
                     layerPanel.orderFront(nil)
                 }
                 operations.orderWindow(wid, targetWid, .below)
@@ -303,7 +303,7 @@ final class BorderWindow {
         invalidateDeferredLevel(target: nil)
         guard wid != 0 else { return }
         BorderOpMetricsRecorder.shared.noteHide()
-        layerPanel?.orderOut(nil)
+        operations.orderWindow(wid, 0, .out)
         isVisible = false
         lastOrderedTargetToken = nil
         pendingTargetLevelRetryToken = nil

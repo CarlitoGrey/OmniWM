@@ -164,8 +164,8 @@ final class SurfaceScene {
     }
 
     func contains(window: NSWindow?) -> Bool {
-        guard let window else { return false }
-        return windowIDByObject[ObjectIdentifier(window)] != nil
+        guard let window, let id = windowIDByObject[ObjectIdentifier(window)] else { return false }
+        return nodesByID[id]?.window === window
     }
 
     func contains(windowNumber: Int) -> Bool {

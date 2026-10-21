@@ -4,7 +4,9 @@ import json
 import os
 import plistlib
 import re
+import shlex
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -53,6 +55,32 @@ PLURAL_CATEGORIES = {
     "sv": {"one", "other"},
     "uk": {"one", "few", "many", "other"},
     "zh-Hans": {"other"},
+}
+
+LOCALIZED_SOURCES = ("Sources/OmniWM", "Sources/OmniWMApp")
+LOCALIZED_MODULES = ("OmniWM", "OmniWMApp")
+LOCALIZED_TYPES = ("LocalizedStringKey", "LocalizedStringResource", "String.LocalizationValue")
+LOCALIZATION_INITIALIZERS = {
+    "Foundation.(file).String extension.init(localized:table:bundle:locale:comment:)": ("localized", None, "table"),
+    "Foundation.(file).LocalizedStringResource.init(_:table:locale:bundle:comment:)": ("", None, "table"),
+    "Foundation.(file).LocalizedStringResource.init(_:defaultValue:table:locale:bundle:comment:)": ("", "defaultValue", "table"),
+    "SwiftUICore.(file).Text extension.init(_:tableName:bundle:comment:)": ("", None, "tableName"),
+}
+LOCALIZATION_LABELS = {"defaultValue", "table", "tableName", "comment"}
+INTERPOLATION_SPECIFIERS = {
+    "Int": "%lld", "Int64": "%lld", "ClosedRange<Int>.Element": "%lld", "Int32": "%d", "pid_t": "%d",
+}
+FORMAT_SPECIFIABLE = "generic_signature=<T where T : _FormatSpecifiable> T -> "
+AST_TOKEN = re.compile(r'(?:(\w+)=)?("(?:[^"\\]|\\.)*"|\[[^\]]*\]|[^\s()"]+)')
+AST_ESCAPE = re.compile(r"\\(u\{([0-9A-Fa-f]+)\}|.)", re.DOTALL)
+AST_ESCAPES = {"n": "\n", "t": "\t", "r": "\r", "0": "\0", '"': '"', "'": "'", "\\": "\\"}
+DUMP_DROPPED_FLAGS = {
+    "-c", "-incremental", "-save-temps", "-emit-dependencies", "-emit-module", "-serialize-diagnostics",
+    "-emit-objc-header", "-emit-const-values", "-experimental-emit-module-separately",
+}
+DUMP_DROPPED_OPTIONS = {
+    "-output-file-map", "-emit-module-path", "-index-store-path", "-emit-objc-header-path",
+    "-const-gather-protocols-list", "-dependency-scan-serialize-diagnostics-path",
 }
 
 
@@ -283,6 +311,263 @@ def validate_locale_completeness(catalog_dir, languages):
         raise ValueError("locale completeness failed:\n" + "\n".join(problems))
 
 
+def swiftly_bin():
+    return Path(os.environ.get("SWIFTLY_HOME_DIR") or Path.home() / ".swiftly") / "bin"
+
+
+def decode_task_store(data):
+    sized = {0xC4: (1, False), 0xC5: (2, False), 0xC6: (4, False), 0xD9: (1, True), 0xDA: (2, True), 0xDB: (4, True)}
+    containers = {0xDC: (2, False), 0xDD: (4, False), 0xDE: (2, True), 0xDF: (4, True)}
+
+    def items(index, count, is_map):
+        values = []
+        for _ in range(count * 2 if is_map else count):
+            value, index = read(index)
+            values.append(value)
+        return (dict(zip(values[::2], values[1::2])) if is_map else values), index
+
+    def read(index):
+        byte = data[index]
+        if byte <= 0x7F:
+            return byte, index + 1
+        if byte == 0xE0:
+            return data[index + 1], index + 2
+        if byte <= 0x9F:
+            return items(index + 1, byte & 0x0F, byte <= 0x8F)
+        if byte <= 0xBF:
+            end = index + 1 + (byte & 0x1F)
+            return data[index + 1:end].decode(), end
+        if byte == 0xC0:
+            return None, index + 1
+        if byte in (0xC2, 0xC3):
+            return byte == 0xC3, index + 1
+        if byte in sized:
+            width, text = sized[byte]
+            start = index + 1 + width
+            end = start + int.from_bytes(data[index + 1:start], "big")
+            return (data[start:end].decode() if text else bytes(data[start:end])), end
+        if byte in (0xCA, 0xCB):
+            end = index + (5 if byte == 0xCA else 9)
+            return struct.unpack(">f" if byte == 0xCA else ">d", data[index + 1:end])[0], end
+        if 0xCC <= byte <= 0xD3:
+            end = index + 1 + (1 << ((byte - 0xCC) % 4))
+            return int.from_bytes(data[index + 1:end], "big", signed=byte >= 0xD0), end
+        if byte in containers:
+            width, is_map = containers[byte]
+            start = index + 1 + width
+            return items(start, int.from_bytes(data[index + 1:start], "big"), is_map)
+        raise ValueError(f"unsupported Swift Build task store byte 0x{byte:02x} at offset {index}")
+
+    value, end = read(0)
+    if end != len(data):
+        raise ValueError(f"Swift Build task store has {len(data) - end} unread bytes")
+    return value
+
+
+def driver_arguments(scratch, module):
+    stores = sorted(
+        (scratch / "out/Intermediates.noindex/XCBuildData").glob("*.xcbuilddata/task-store.msgpack"),
+        key=lambda path: path.parent.stat().st_mtime,
+    )
+    if not stores:
+        raise ValueError(f"no Swift Build task store in {scratch}")
+    matches = []
+    for task in decode_task_store(stores[-1].read_bytes()):
+        if len(task) != 25 or not isinstance(task[4], list) or task[4][:1] != ["SwiftDriver Compilation"]:
+            continue
+        arguments = [value.decode() if isinstance(value, bytes) else value for _, value in task[6]]
+        if "-module-name" in arguments and arguments[arguments.index("-module-name") + 1] == module:
+            matches.append((arguments, task[9]))
+    if len(matches) != 1:
+        raise ValueError(f"expected one Swift compilation of {module} in {stores[-1]}, found {len(matches)}")
+    arguments, directory = matches[0]
+    if arguments[1:2] != ["--"] or not arguments[2].endswith("/swiftc"):
+        raise ValueError(f"unexpected Swift compilation command for {module}: {arguments[:3]}")
+    return arguments[2:], directory
+
+
+def dump_syntax_trees(arguments, directory, output, environment):
+    options = iter(arguments[1:])
+    kept = []
+    for option in options:
+        if option in DUMP_DROPPED_OPTIONS:
+            next(options)
+        elif option not in DUMP_DROPPED_FLAGS:
+            kept.append(option)
+    file_list = next((option[1:] for option in kept if option.startswith("@") and option.endswith(".SwiftFileList")), None)
+    if file_list is None:
+        raise ValueError("Swift compilation command has no source file list")
+    output.mkdir(parents=True)
+    dumps = {source: output / f"{index}.ast" for index, source in enumerate(shlex.split(Path(file_list).read_text()))}
+    output_map = output / "output-file-map.json"
+    output_map.write_text(json.dumps({source: {"ast-dump": str(dump)} for source, dump in dumps.items()}))
+    subprocess.run([arguments[0], *kept, "-dump-ast", "-output-file-map", str(output_map)], cwd=directory, check=True, env=environment)
+    return {Path(source).resolve(): dump for source, dump in dumps.items()}
+
+
+class SyntaxNode:
+    __slots__ = ("kind", "role", "text", "children")
+
+    def __init__(self, text):
+        self.role, _, self.kind = text[1:].split(" ", 1)[0].rstrip(")").rpartition("=")
+        self.text = text
+        self.children = []
+
+    def attribute(self, name):
+        for match in AST_TOKEN.finditer(self.text):
+            if match.group(1) == name:
+                value = match.group(2)
+                return unescape_ast(value[1:-1]) if value.startswith('"') else value
+        return None
+
+
+def unescape_ast(text):
+    def replace(match):
+        if match.group(2):
+            return chr(int(match.group(2), 16))
+        if match.group(1) not in AST_ESCAPES:
+            raise ValueError(f"unsupported escape \\{match.group(1)} in compiler AST string {text!r}")
+        return AST_ESCAPES[match.group(1)]
+    return AST_ESCAPE.sub(replace, text)
+
+
+def parse_syntax_tree(text):
+    roots = []
+    stack = []
+    for line in text.split("\n"):
+        stripped = line.lstrip(" ")
+        if not stripped.startswith("("):
+            if stripped.strip(" )"):
+                raise ValueError(f"unexpected compiler AST line: {line[:120]!r}")
+            continue
+        node = SyntaxNode(stripped)
+        depth = len(line) - len(stripped)
+        while stack and stack[-1][0] >= depth:
+            stack.pop()
+        (stack[-1][1].children if stack else roots).append(node)
+        stack.append((depth, node))
+    return roots
+
+
+def walk(nodes):
+    for node in nodes:
+        if node.role != "original_init":
+            yield node
+            yield from walk(node.children)
+
+
+def unwrap(node):
+    while node.kind in ("inject_into_optional", "paren_expr") and node.children:
+        node = node.children[0]
+    return node
+
+
+def is_localized(node):
+    return node.kind in ("string_literal_expr", "interpolated_string_literal_expr") and node.attribute("type") in LOCALIZED_TYPES
+
+
+def source_location(node):
+    _, line, column = node.attribute("location").rsplit(":", 2)
+    return int(line), int(column)
+
+
+def call_parts(call):
+    arguments = next((child for child in call.children[1:] if child.kind == "argument_list"), None)
+    return (call.children[0] if call.children else None), arguments
+
+
+def declaration(node):
+    return next((child.attribute("decl") for child in walk([node]) if child.kind == "declref_expr" and child.attribute("decl")), None)
+
+
+def literal_value(node):
+    node = unwrap(node)
+    if node.kind == "default_argument_expr":
+        return None
+    if node.kind != "string_literal_expr":
+        raise ValueError(f"expected a string literal, found {node.kind} at {node.attribute('location')}")
+    return node.attribute("value")
+
+
+def interpolation_specifier(call):
+    function, arguments = call_parts(call)
+    reference = next(node for node in walk([function]) if node.kind == "declref_expr")
+    decl = reference.attribute("decl")
+    if "appendInterpolation(_:specifier:)" in decl:
+        return literal_value(next(argument for argument in arguments.children if argument.attribute("label") == "specifier").children[0])
+    if FORMAT_SPECIFIABLE in decl:
+        spelled = decl.split(FORMAT_SPECIFIABLE, 1)[1].removesuffix(")]")
+        if spelled not in INTERPOLATION_SPECIFIERS:
+            raise ValueError(f"no format specifier for interpolated {spelled}; add it to INTERPOLATION_SPECIFIERS")
+        return INTERPOLATION_SPECIFIERS[spelled]
+    if reference.attribute("type").endswith("StringInterpolation) -> (String) -> ()"):
+        return "%@"
+    raise ValueError(f"unsupported localized interpolation {decl} of type {reference.attribute('type')}")
+
+
+def localized_text(literal):
+    if literal.kind == "string_literal_expr":
+        return literal.attribute("value")
+    if literal.kind != "interpolated_string_literal_expr":
+        raise ValueError(f"expected a localized literal, found {literal.kind} at {literal.attribute('location')}")
+    body = next(node for node in walk(literal.children) if node.kind == "brace_stmt")
+    parts = []
+    for call in body.children:
+        if call.kind != "call_expr":
+            continue
+        function, arguments = call_parts(call)
+        if declaration(function).endswith(".appendLiteral"):
+            parts.append(literal_value(arguments.children[0].children[0]).replace("%", "%%"))
+        else:
+            parts.append(interpolation_specifier(call))
+    return "".join(parts)
+
+
+def localized_strings(dump):
+    text = dump.read_bytes().decode()
+    if not any(name in text for name in LOCALIZED_TYPES):
+        return {}
+    roots = parse_syntax_tree(text)
+    entries = {}
+    consumed = set()
+    for call in walk(roots):
+        function, arguments = call_parts(call) if call.kind == "call_expr" else (None, None)
+        if function is None or function.kind != "constructor_ref_call_expr" or arguments is None:
+            continue
+        labeled = {
+            argument.attribute("label") or "": unwrap(argument.children[0])
+            for argument in arguments.children if argument.kind == "argument" and argument.children
+        }
+        roles = LOCALIZATION_INITIALIZERS.get(declaration(function))
+        if roles is None:
+            if LOCALIZATION_LABELS & labeled.keys() and any(map(is_localized, labeled.values())):
+                raise ValueError(f"unsupported localization initializer {declaration(function)}")
+            continue
+        key_label, value_label, table_label = roles
+        key = labeled[key_label]
+        value = labeled[value_label] if value_label else None
+        if value is None and not is_localized(key):
+            continue
+        line, column = source_location(key)
+        consumed.update(source_location(node) for node in (key, value) if node is not None)
+        table = literal_value(labeled[table_label]) if table_label in labeled else None
+        comment = literal_value(labeled["comment"]) if "comment" in labeled else None
+        entry = {"comment": comment or "", "key": localized_text(key), "location": {"startingColumn": column, "startingLine": line}}
+        if value is not None:
+            entry["value"] = localized_text(value)
+        entries[(table or "Localizable", line, column)] = entry
+    for literal in walk(roots):
+        if is_localized(literal) and source_location(literal) not in consumed:
+            line, column = source_location(literal)
+            entries.setdefault(("Localizable", line, column), {
+                "comment": "", "key": localized_text(literal), "location": {"startingColumn": column, "startingLine": line},
+            })
+    tables = {}
+    for (table, _, _), entry in sorted(entries.items()):
+        tables.setdefault(table, []).append(entry)
+    return tables
+
+
 def compiler_stringsdata():
     library_dir = subprocess.run(
         [str(ROOT / "Scripts/ghostty-preflight.sh"), "print-library-dir"],
@@ -291,37 +576,29 @@ def compiler_stringsdata():
     environment = os.environ.copy()
     library_path = environment.get("LIBRARY_PATH")
     environment["LIBRARY_PATH"] = library_dir + (f":{library_path}" if library_path else "")
-    command = [
-        "xcrun", "--toolchain", "XcodeDefault", "swift", "build",
+    scratch = ROOT / ".build/localization"
+    subprocess.run([
+        str(swiftly_bin() / "swift"), "build",
         "--build-system", "swiftbuild", "--arch", "arm64",
         "--configuration", "debug", "--product", "OmniWM",
-        "--scratch-path", str(ROOT / ".build/localization"),
-    ]
-    subprocess.run(command, cwd=ROOT, check=True, env=environment)
-    result = subprocess.run(
-        [*command, "--show-bin-path"],
-        cwd=ROOT, check=True, capture_output=True, text=True, env=environment,
-    )
-    bin_path = Path(result.stdout.strip())
-    intermediates = bin_path.parent.parent / "Intermediates.noindex"
-    sources = (ROOT / "Sources/OmniWM", ROOT / "Sources/OmniWMApp")
-    found = {}
-    for path in intermediates.rglob("*.stringsdata"):
-        if bin_path.name not in path.parts or "Objects-normal" not in path.parts or "arm64" not in path.parts:
-            continue
-        if any("-testable-" in part for part in path.parts):
-            continue
-        data = json.loads(path.read_text())
-        source = Path(data.get("source", "")).resolve()
-        if not source.is_file() or not any(source.is_relative_to(root) for root in sources):
-            continue
-        old = found.get(source)
-        if old and old[1] != data:
-            raise ValueError(f"conflicting compiler strings metadata for {source}")
-        found[source] = (path, data)
-    if not found:
-        raise ValueError("Xcode localization build produced no OmniWM compiler .stringsdata")
-    return [entry[0] for entry in found.values()]
+        "--scratch-path", str(scratch),
+    ], cwd=ROOT, check=True, env=environment)
+    output = scratch / "strings"
+    shutil.rmtree(output, ignore_errors=True)
+    sources = tuple(ROOT / path for path in LOCALIZED_SOURCES)
+    stringsdata = []
+    for module in LOCALIZED_MODULES:
+        arguments, directory = driver_arguments(scratch, module)
+        for source, dump in dump_syntax_trees(arguments, directory, output / module, environment).items():
+            tables = localized_strings(dump) if any(source.is_relative_to(root) for root in sources) else {}
+            if tables:
+                path = output / f"{len(stringsdata)}-{source.stem}.stringsdata"
+                path.write_text(json.dumps({"source": str(source), "tables": tables, "version": 1}, ensure_ascii=False))
+                stringsdata.append(path)
+        shutil.rmtree(output / module)
+    if not stringsdata:
+        raise ValueError("compiler AST produced no OmniWM localized strings")
+    return stringsdata
 
 
 def synchronize(catalog_dir, stringsdata):

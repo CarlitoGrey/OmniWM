@@ -33,8 +33,16 @@ extension WMController {
         if let evaluation = windowDispositionEvaluationForTests?(token) {
             return evaluation
         }
-        let baseFacts = collectDispositionRuleFacts(for: token, axRef: axRef, admissionGeometry: admissionGeometry)
-        let fullscreen = appFullscreen ?? AXWindowService.isFullscreen(axRef)
+        let collected = collectDispositionRuleFacts(for: token, axRef: axRef, admissionGeometry: admissionGeometry)
+        let baseFacts = collected.facts
+        let fullscreen = appFullscreen ?? collected.fullscreenAttribute.map {
+            AXWindowService.isFullscreen(
+                axRef,
+                subrole: baseFacts.ax.subrole,
+                fullscreenAttribute: $0,
+                fullscreenAttributeWasRead: true
+            )
+        } ?? AXWindowService.isFullscreen(axRef)
         let lookupAttempted = windowServerLookupAttempted || windowInfo != nil
         var resolvedWindowInfo = Self.exactWindowServerInfo(windowInfo, for: token)
 
@@ -177,7 +185,7 @@ extension WMController {
         for token: WindowToken,
         axRef: AXWindowRef,
         admissionGeometry: WindowAdmissionGeometryEvidence?
-    ) -> WindowRuleFacts {
+    ) -> (facts: WindowRuleFacts, fullscreenAttribute: Bool??) {
         let pid = token.pid
         let sizeConstraints = evaluateSizeConstraints(
             for: token,
@@ -185,19 +193,23 @@ extension WMController {
             admissionGeometry: admissionGeometry
         )
         let appInfo = resolvedAppInfo(for: pid)
-        return WindowRuleFacts(
-            appName: appInfo?.name,
-            ax: AXWindowService.collectWindowFacts(
-                axRef,
-                appPolicy: appInfo?.activationPolicy,
-                bundleId: appInfo?.bundleId,
-                includeTitle: windowRuleEngine.requiresTitle(
-                    for: appInfo?.bundleId,
-                    appName: appInfo?.name
-                )
+        let collected = AXWindowService.collectWindowFacts(
+            axRef,
+            appPolicy: appInfo?.activationPolicy,
+            bundleId: appInfo?.bundleId,
+            includeTitle: windowRuleEngine.requiresTitle(
+                for: appInfo?.bundleId,
+                appName: appInfo?.name
+            )
+        )
+        return (
+            WindowRuleFacts(
+                appName: appInfo?.name,
+                ax: collected.facts,
+                sizeConstraints: sizeConstraints,
+                windowServer: nil
             ),
-            sizeConstraints: sizeConstraints,
-            windowServer: nil
+            collected.fullscreenAttribute
         )
     }
 }
