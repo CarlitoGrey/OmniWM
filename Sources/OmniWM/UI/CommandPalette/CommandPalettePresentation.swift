@@ -90,6 +90,15 @@ enum CommandPalettePresentation {
         }
     }
 
+    private static let modeDigitByKeyCode: [UInt16: String] = [
+        UInt16(kVK_ANSI_1): "1", UInt16(kVK_ANSI_Keypad1): "1",
+        UInt16(kVK_ANSI_2): "2", UInt16(kVK_ANSI_Keypad2): "2",
+        UInt16(kVK_ANSI_3): "3", UInt16(kVK_ANSI_Keypad3): "3",
+        UInt16(kVK_ANSI_4): "4", UInt16(kVK_ANSI_Keypad4): "4",
+        UInt16(kVK_ANSI_5): "5", UInt16(kVK_ANSI_Keypad5): "5",
+        UInt16(kVK_ANSI_6): "6", UInt16(kVK_ANSI_Keypad6): "6"
+    ]
+
     static func modeNavigationTarget(
         currentMode: CommandPaletteMode,
         isMenuModeAvailable: Bool,
@@ -98,7 +107,7 @@ enum CommandPalettePresentation {
         charactersIgnoringModifiers: String?
     ) -> CommandPaletteMode? {
         if relevantModifiers == .command {
-            switch charactersIgnoringModifiers {
+            switch modeDigitByKeyCode[keyCode] ?? charactersIgnoringModifiers {
             case "1":
                 return .windows
             case "2":

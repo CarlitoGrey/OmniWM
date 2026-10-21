@@ -586,6 +586,21 @@ final class OverviewBehaviorTests: XCTestCase {
         XCTAssertEqual(fixture.controller.settings.overview.zoom, 1.1, accuracy: 0.0001)
     }
 
+    func testCommandWClosesSelectionByTypedLetterOnNonQwertyLayouts() {
+        func action(_ keyCode: Int, _ characters: String) -> OverviewInputHandler.KeyHandlingResult {
+            OverviewInputHandler.keyHandlingResult(
+                keyCode: UInt16(keyCode),
+                modifierFlags: .command,
+                charactersIgnoringModifiers: characters,
+                searchQuery: ""
+            )
+        }
+
+        XCTAssertEqual(action(kVK_ANSI_Z, "w").action, .closeSelection)
+        XCTAssertNotEqual(action(kVK_ANSI_W, "z").action, .closeSelection)
+        XCTAssertEqual(action(kVK_ANSI_W, "ц").action, .closeSelection)
+    }
+
     func testCommandWClosesSelectionWithoutRepeating() {
         let commandW = OverviewInputHandler.keyHandlingResult(
             keyCode: UInt16(kVK_ANSI_W),
