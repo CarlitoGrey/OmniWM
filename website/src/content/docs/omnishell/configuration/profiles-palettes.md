@@ -83,7 +83,7 @@ A theme in `themes/<name>.toml` sets palette roles under `[light]` and `[dark]` 
 
 ### Wallpaper palette
 
-`theme = "wallpaper"` makes the palette from the main display's wallpaper, Material 3 style, and `scheme` picks how: `tonalSpot` (the default), `content`, `vibrant`, `expressive`, `fidelity`, `fruitSalad`, `rainbow`, `neutral` or `monochrome`; **Settings > Styles > Palette** and `omniwmctl shell theme wallpaper <scheme>` set both. OmniWM writes it to `themes/wallpaper.toml` and makes it again when the wallpaper, the Space or the displays change.
+`theme = "wallpaper"` makes the palette from the main display's wallpaper, Material 3 style, and `scheme` picks how: `tonalSpot` (the default), `content`, `vibrant`, `expressive`, `fidelity`, `fruitSalad`, `rainbow`, `neutral` or `monochrome`; **Settings > Styles > Palette** and `omniwmctl shell theme wallpaper <scheme>` set both. OmniWM writes it to `themes/wallpaper.toml` and makes it again when the wallpaper, the Space or the displays change. Live wallpaper apps that draw at the desktop level, like [Pixeldish](https://github.com/dappermint/pixeldish), are read from what they show on screen, so the palette follows them on the next Space or display change.
 
 ### Palette roles and bar fill
 
