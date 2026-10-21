@@ -89,7 +89,9 @@ final class TabRailView: NSView {
     }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let sizeChanged = frame.size != newSize
         super.setFrameSize(newSize)
+        guard sizeChanged else { return }
         iconView?.frame = bounds
         updateTrackView(rebuildLayout: true)
         if !suppressAccessibilityGeometryUpdates {

@@ -187,17 +187,19 @@ final class SkyLight {
         return scopedTransaction
     }
 
-    func withTransaction(_ ops: (CFTypeRef) -> Void) {
+    @discardableResult
+    func withTransaction(_ ops: (CFTypeRef) -> Void) -> Bool {
         if let transaction = activeScopedTransaction() {
             ops(transaction)
-            return
+            return true
         }
         guard let transaction = transactions.transactionCreate(getMainConnectionID())?.takeRetainedValue() else {
             FallbackFiringRecorder.shared.note(.skylight, "transactionCreateNil")
-            return
+            return false
         }
         ops(transaction)
         commit(transaction)
+        return true
     }
 
     enum TransactionSubmissionResult: Equatable, Sendable {

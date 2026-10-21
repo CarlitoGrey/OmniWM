@@ -10,6 +10,7 @@ final class TabRailWindow: NSPanel {
     private let surfaceID: String
     private let surfaceCoordinator = SurfaceCoordinator.shared
     private var lastFrame: CGRect?
+    private var windowServerPlacement: (appKitFrame: CGRect, frame: CGRect)?
     private var lastActiveWindowId: Int?
     private var currentInfo: TabRailInfo?
     private var style: TabRailStyle = .compact
@@ -88,9 +89,20 @@ final class TabRailWindow: NSPanel {
         false
     }
 
+    var appliedFrame: CGRect {
+        guard let windowServerPlacement, windowServerPlacement.appKitFrame == frame else { return frame }
+        return windowServerPlacement.frame
+    }
+
+    override func convertToScreen(_ rect: NSRect) -> NSRect {
+        let origin = appliedFrame.origin
+        return rect.offsetBy(dx: origin.x, dy: origin.y)
+    }
+
     func update(info: TabRailInfo, forceOrdering: Bool, style: TabRailStyle = .compact) {
         let frame = Self.railFrame(for: info.visibleTileFrame, tabCount: info.tabCount, style: style)
-        if self.style != style || frame != lastFrame || frame != self.frame || !isVisible {
+        let placedFrame = appliedFrame
+        if self.style != style || frame != lastFrame || frame != placedFrame || !isVisible {
             dismissHover()
         }
         self.style = style
@@ -106,10 +118,12 @@ final class TabRailWindow: NSPanel {
             return
         }
 
-        let accessibilityGeometryChanged = animationGeometryNeedsAccessibilityRefresh || self.frame != frame
-        if lastFrame != frame || self.frame != frame {
-            setFrame(frame, display: false)
-            railView.frame = CGRect(origin: .zero, size: frame.size)
+        let accessibilityGeometryChanged = animationGeometryNeedsAccessibilityRefresh || placedFrame != frame
+        let settledFrame = Self.appKitPlacement(of: frame)
+        if lastFrame != frame || placedFrame != settledFrame {
+            if !canKeepWindowServerPlacement(at: settledFrame) || !moveInWindowServer(to: settledFrame) {
+                setFrameReconcilingWindowServer(frame)
+            }
             lastFrame = frame
         }
         railView.update(tabs: info.normalizedTabs, activeVisualIndex: clampedActiveVisualIndex, style: style)
@@ -147,19 +161,13 @@ final class TabRailWindow: NSPanel {
             lastFrame = nil
             return
         }
-        guard frame != lastFrame || frame != self.frame else { return }
+        guard frame != lastFrame || frame != appliedFrame else { return }
 
         dismissHover()
         animationGeometryNeedsAccessibilityRefresh = true
-        if frame.size == self.frame.size {
-            SkyLight.shared.transactionMove(
-                UInt32(windowNumber),
-                origin: ScreenCoordinateSpace.toWindowServer(rect: frame).origin
-            )
-        } else {
+        if frame.size != self.frame.size || !moveInWindowServer(to: frame) {
             railView.performWithoutAccessibilityGeometryUpdates {
-                setFrame(frame, display: false)
-                railView.frame = CGRect(origin: .zero, size: frame.size)
+                setFrameReconcilingWindowServer(frame)
                 railView.needsDisplay = true
             }
         }
@@ -173,6 +181,38 @@ final class TabRailWindow: NSPanel {
         }
     }
 
+    private func canKeepWindowServerPlacement(at target: CGRect) -> Bool {
+        windowServerPlacement?.appKitFrame == frame
+            && target.size == frame.size
+            && screen?.frame.contains(target.center) == true
+    }
+
+    private func moveInWindowServer(to target: CGRect) -> Bool {
+        guard SkyLight.shared.transactionMove(
+            UInt32(windowNumber),
+            origin: ScreenCoordinateSpace.toWindowServer(rect: target).origin
+        ) else { return false }
+        windowServerPlacement = (frame, target)
+        return true
+    }
+
+    private func setFrameReconcilingWindowServer(_ target: CGRect) {
+        let previousAppliedFrame = appliedFrame
+        let windowServerOriginDiverged = previousAppliedFrame != frame
+        setFrame(target, display: false)
+        railView.frame = CGRect(origin: .zero, size: target.size)
+        if windowServerOriginDiverged, !moveInWindowServer(to: Self.appKitPlacement(of: target)) {
+            setFrame(previousAppliedFrame, display: false)
+            setFrame(target, display: false)
+            railView.frame = CGRect(origin: .zero, size: target.size)
+        }
+        windowServerPlacement = nil
+    }
+
+    private static func appKitPlacement(of frame: CGRect) -> CGRect {
+        CGRect(origin: CGPoint(x: frame.minX.rounded(.down), y: frame.minY.rounded(.down)), size: frame.size)
+    }
+
     private func dismissHover() {
         railView.invalidateHover()
         hoverCard.hide()
@@ -184,14 +224,14 @@ final class TabRailWindow: NSPanel {
             return
         }
         let screenFrame = screen?.visibleFrame
-            ?? NSScreen.screens.first(where: { $0.frame.intersects(frame) })?.visibleFrame
+            ?? NSScreen.screens.first(where: { $0.frame.intersects(appliedFrame) })?.visibleFrame
             ?? NSScreen.main?.visibleFrame
         guard let screenFrame else {
             hoverCard.hide()
             return
         }
         let cardFrame = TabRailHoverCardPlacement.frame(
-            railFrame: lastFrame ?? frame,
+            railFrame: lastFrame ?? appliedFrame,
             itemRect: itemRect,
             cardSize: TabRailMetrics.hoverCardSize,
             visibleFrame: screenFrame,

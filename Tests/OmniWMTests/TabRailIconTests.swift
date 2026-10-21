@@ -111,6 +111,29 @@ final class TabRailIconTests: XCTestCase {
         XCTAssertEqual(icons.rows.map(ObjectIdentifier.init), rows)
     }
 
+    func testSameSizeFrameKeepsHoverAndAccessibilityAcrossHiddenReshow() throws {
+        let manager = TabRailManager(motionPolicy: MotionPolicy(animationsEnabled: false))
+        defer { manager.removeAll() }
+        let info = makeInfo(count: 5, height: 84)
+        manager.updateRails([info], style: .appIcons)
+        let (window, view, icons) = try views(manager, info)
+        let children = try XCTUnwrap(view.accessibilityChildren() as? [NSAccessibilityElement])
+        try showHover(window, view, icons)
+        view.frame = CGRect(origin: .zero, size: view.frame.size)
+        XCTAssertTrue(window.hoverCard.isVisible)
+        manager.applyAnimationGeometry([.init(key: info.key, tileFrame: info.tileFrame, visibleTileFrame: .null)])
+        XCTAssertFalse(window.isVisible)
+        manager.updateRails([info], style: .appIcons)
+        XCTAssertTrue(window.isVisible)
+        XCTAssertEqual(
+            (view.accessibilityChildren() as? [NSAccessibilityElement])?.map(ObjectIdentifier.init),
+            children.map(ObjectIdentifier.init)
+        )
+        for item in icons.railLayout(in: view).items where !item.hitRect.isEmpty {
+            XCTAssertEqual(children[item.visualIndex].accessibilityFrame(), window.convertToScreen(item.hitRect))
+        }
+    }
+
     func testWheelInputScrollsOnlyTheRailAndClampsAtItsEnds() throws {
         let manager = TabRailManager(motionPolicy: MotionPolicy(animationsEnabled: false))
         defer { manager.removeAll() }

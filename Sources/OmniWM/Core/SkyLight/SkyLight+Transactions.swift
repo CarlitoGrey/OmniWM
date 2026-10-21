@@ -43,7 +43,8 @@ extension SkyLight {
         return rect
     }
 
-    func transactionMove(_ wid: UInt32, origin: CGPoint) {
+    @discardableResult
+    func transactionMove(_ wid: UInt32, origin: CGPoint) -> Bool {
         withTransaction { transaction in
             transactions.transactionMoveWindowWithGroup(transaction, wid, origin)
         }
