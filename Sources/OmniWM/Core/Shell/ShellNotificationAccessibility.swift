@@ -99,7 +99,7 @@ extension ShellNotificationAccessibility {
                 let target = try individual()
                 switch request.operation {
                 case .dismiss:
-                    try dismiss(target)
+                    try dismiss()
                 case let .reply(text, title, sendTitle):
                     try reply(target, text: text, title: title, sendTitle: sendTitle)
                 }
@@ -383,15 +383,16 @@ extension ShellNotificationAccessibility.Session {
         return result
     }
 
-    func dismiss(_ target: AXUIElement) throws {
-        try expand(target)
+    func dismiss() throws {
         enter("dismiss")
         let current = try exactTarget()
-        let buttons = try controls(current, role: kAXButtonRole, identifier: "xmark")
-        trace("native.dismiss.controls", fields: "matches=\(buttons.count)")
-        guard buttons.count == 1 else { throw ShellNotificationAccessibility.ActionFailure(outcome: .unsupported) }
+        let names = try actions(current)
+        let close = names.filter { $0.hasPrefix("Name:Close\n") }
+        trace("native.dismiss.controls", fields: "matches=\(close.count)")
+        guard close.count <= 1 else { throw ShellNotificationAccessibility.ActionFailure(outcome: .ambiguous) }
+        guard let close = close.first else { throw ShellNotificationAccessibility.ActionFailure(outcome: .unsupported) }
         try check()
-        let result = AXUIElementPerformAction(buttons[0], kAXPressAction as CFString)
+        let result = AXUIElementPerformAction(current, close as CFString)
         trace("native.dismiss.press", fields: "ax=\(result.rawValue)")
         if result != .success { throw ShellNotificationAccessibility.ActionFailure(outcome: .failed) }
     }
