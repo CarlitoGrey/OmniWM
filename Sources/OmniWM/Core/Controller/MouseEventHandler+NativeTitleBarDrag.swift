@@ -85,7 +85,7 @@ extension MouseEventHandler {
         state.awaitsNativeTitleBarDragTarget = false
         state.nativeTitleBarDragFallbackToken = nil
         state.nativeTitleBarDragFallbackReleased = false
-        guard let drag = state.nativeTitleBarDrag else { return }
+        guard var drag = state.nativeTitleBarDrag else { return }
         switch drag.phase {
         case .armed,
              .dragging:
@@ -109,6 +109,8 @@ extension MouseEventHandler {
             return
         }
 
+        drag.pendingExcludedCorrection = excludedFrameWrite
+        state.nativeTitleBarDrag = drag
         let observedFrame = terminalNativeWindowFrame(for: entry)
         let lastAppliedFrame = controller.axManager.lastAppliedFrame(for: entry.windowId)
         let observedDisplacement = Self.nativeTitleBarWasDisplaced(
@@ -222,6 +224,7 @@ extension MouseEventHandler {
             return
         }
         if drag.phase == .awaitingFrameChange,
+           !drag.pendingExcludedCorrection,
            controller.axManager.pendingFrameWrite(for: entry.windowId) == nil,
            let lastAppliedFrame = controller.axManager.lastAppliedFrame(for: entry.windowId),
            let observedFrame = nativeWindowFrameProvider(entry.axRef),

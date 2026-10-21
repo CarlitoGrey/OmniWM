@@ -967,6 +967,59 @@ final class CrossDisplayDragTests: XCTestCase {
         XCTAssertNil(fixture.handler.state.nativeTitleBarDrag)
     }
 
+    func testDeferredNativeMoveRetainsExcludedFrameCorrectionAtNextInput() throws {
+        for layout in [LayoutType.niri, .dwindle] {
+            for (unreadable, receivesFrameEvent) in [(false, false), (false, true), (true, false), (true, true)] {
+                for excluded in [false, true] {
+                    let fixture = try makeNativeFixture([layout, .niri])
+                    let moved = addWindow(1, to: fixture.source, fixture)
+                    let resident = addWindow(2, to: fixture.target, fixture)
+                    let start = try beginNativeDrag(moved, fixture)
+                    let entry = try XCTUnwrap(fixture.manager.entry(for: moved))
+                    let refresh = fixture.controller.layoutRefreshController
+                    refresh.layoutState.activeRefresh = .init(
+                        kind: .immediateRelayout, reason: .layoutCommand, affectedWorkspaceIds: [fixture.source]
+                    )
+                    defer { refresh.resetState() }
+                    if excluded {
+                        fixture.controller.axManager.applyFramesParallel([.init(
+                            pid: moved.pid, window: entry.axRef, frame: start.offsetBy(dx: 30, dy: 0)
+                        )])
+                    }
+                    XCTAssertNil(fixture.controller.axManager.pendingFrameWrite(for: moved.windowId))
+                    XCTAssertEqual(fixture.controller.axManager.lastAppliedFrame(for: moved.windowId), start)
+                    if unreadable {
+                        fixture.handler.nativeWindowFrameProvider = { _ in nil }
+                    }
+
+                    fixture.handler.dispatchMouseUp(at: try XCTUnwrap(fixture.frame(resident)).center)
+
+                    XCTAssertEqual(fixture.handler.state.nativeTitleBarDrag?.phase, .awaitingFrameChange)
+                    XCTAssertNil(refresh.layoutState.pendingRefresh)
+                    fixture.handler.nativeWindowFrameProvider = { _ in start }
+                    if receivesFrameEvent {
+                        XCTAssertTrue(fixture.handler.handleNativeTitleBarDragFrameChanged(for: entry))
+                    }
+                    fixture.handler.retireNativeTitleBarDragAtInputBoundary()
+
+                    if excluded {
+                        XCTAssertEqual(refresh.layoutState.pendingRefresh?.kind, .immediateRelayout)
+                        XCTAssertEqual(refresh.layoutState.pendingRefresh?.reason, .interactiveGesture)
+                        XCTAssertEqual(refresh.layoutState.pendingRefresh?.affectedWorkspaceIds, [fixture.source])
+                        XCTAssertNil(fixture.controller.axManager.lastAppliedFrame(for: moved.windowId))
+                    } else {
+                        XCTAssertNil(refresh.layoutState.pendingRefresh)
+                        XCTAssertEqual(fixture.controller.axManager.lastAppliedFrame(for: moved.windowId), start)
+                    }
+                    XCTAssertEqual(fixture.manager.workspace(for: moved), fixture.source)
+                    XCTAssertEqual(fixture.manager.workspace(for: resident), fixture.target)
+                    XCTAssertNil(fixture.handler.state.nativeTitleBarDrag)
+                    XCTAssertNil(fixture.handler.state.nativeCrossDisplayMove)
+                }
+            }
+        }
+    }
+
     func testContentDragDoesNotAdoptManagedFramesAcrossDisplays() throws {
         for layout in [LayoutType.niri, .dwindle] {
             for delayed in [false, true] {
