@@ -173,7 +173,11 @@ final class InputTapThreadTests: XCTestCase {
         let controller = makeController()
         let handler = controller.mouseEventHandler
         handler.setup()
-        defer { handler.cleanup() }
+        handler.beginPerformanceCapture()
+        defer {
+            _ = handler.endPerformanceCapture()
+            handler.cleanup()
+        }
         handler.state.capturedInteractionButton = .right
 
         let source = try XCTUnwrap(CGEventSource(stateID: .combinedSessionState))
@@ -197,6 +201,7 @@ final class InputTapThreadTests: XCTestCase {
         let drained = expectation(description: "main drained")
         DispatchQueue.main.async { drained.fulfill() }
         wait(for: [drained], timeout: 5)
+        XCTAssertEqual(handler.performanceSnapshot()?.cgEvents, 1)
     }
 
     @MainActor

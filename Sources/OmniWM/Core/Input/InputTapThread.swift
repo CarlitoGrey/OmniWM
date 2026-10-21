@@ -337,7 +337,7 @@ final class InputTapThread: @unchecked Sendable {
 }
 
 extension InputTapThread {
-    nonisolated func forwardCapturedDrag(
+    private nonisolated func forwardCapturedDrag(
         _ event: CGEvent,
         type: CGEventType,
         location: CGPoint,
