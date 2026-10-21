@@ -11,6 +11,7 @@ struct IPCWindowQueryProjection {
     private let sessionToken: String
     private let selectors: IPCQuerySelectors
     private let fields: Set<String>?
+    private let sort: IPCQuerySort?
     private let focusedToken: WindowToken?
     private let visibleWorkspaceIds: Set<WorkspaceDescriptor.ID>
     private let windowOrderedInProvider: (UInt32) -> Bool?
@@ -25,6 +26,7 @@ struct IPCWindowQueryProjection {
         self.sessionToken = sessionToken
         selectors = request.selectors
         fields = IPCQuerySelection.requestedFieldSet(from: request)
+        sort = request.sort
         focusedToken = controller.workspaceManager.nativeManagedFocusToken
         visibleWorkspaceIds = controller.workspaceManager.visibleWorkspaceIds()
         self.windowOrderedInProvider = windowOrderedInProvider
@@ -32,7 +34,9 @@ struct IPCWindowQueryProjection {
 
     func result() -> IPCWindowsQueryResult {
         let includesColumnIndex = IPCQuerySelection.include("column-index", in: fields)
-        let windows = IPCQuerySelection.orderedWorkspaces(controller: controller).flatMap { workspace in
+        let includesFocusRank = IPCQuerySelection.include("focus-rank", in: fields)
+        let focusRankByToken = includesFocusRank || sort == .mru ? focusRanks() : [:]
+        let ranked = IPCQuerySelection.orderedWorkspaces(controller: controller).flatMap { workspace in
             let topology = controller.workspaceManager.layoutTopology(for: workspace.id)
             let columnIndexByToken = includesColumnIndex
                 ? controller.niriLayoutHandler.columnSummary(for: workspace.id)?.columnIndexByToken
@@ -45,21 +49,37 @@ struct IPCWindowQueryProjection {
                 matchesWindowQuery(entry)
             }
             .map { entry in
-                windowSnapshot(
+                let focusRank = focusRankByToken[entry.token]
+                return (focusRank, windowSnapshot(
                     from: entry,
                     isFullscreen: topology.isFullscreen(entry.token),
-                    columnIndex: columnIndexByToken?[entry.token]
-                )
+                    columnIndex: columnIndexByToken?[entry.token],
+                    focusRank: includesFocusRank ? focusRank : nil
+                ))
             }
         }
 
-        return IPCWindowsQueryResult(windows: windows)
+        let ordered = switch sort {
+        case .mru:
+            ranked.enumerated().sorted { lhs, rhs in
+                (lhs.element.0 ?? .max, lhs.offset) < (rhs.element.0 ?? .max, rhs.offset)
+            }.map(\.element.1)
+        case nil:
+            ranked.map(\.1)
+        }
+        return IPCWindowsQueryResult(windows: ordered)
+    }
+
+    private func focusRanks() -> [WindowToken: Int] {
+        let history = controller.workspaceManager.focusSessionSnapshot.windowFocusHistory
+        return Dictionary(history.enumerated().map { ($1, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
     private func windowSnapshot(
         from entry: WindowState,
         isFullscreen: Bool,
-        columnIndex: Int?
+        columnIndex: Int?,
+        focusRank: Int?
     ) -> IPCWindowQuerySnapshot {
         let workspaceDescriptor = controller.workspaceManager.descriptor(for: entry.workspaceId)
         let monitor = controller.workspaceManager.monitor(for: entry.workspaceId)
@@ -107,7 +127,8 @@ struct IPCWindowQueryProjection {
                         && controller.workspaceManager.isInactiveTabMember(entry.token, in: entry.workspaceId)
                 )
             } : nil,
-            columnIndex: columnIndex
+            columnIndex: columnIndex,
+            focusRank: focusRank
         )
     }
 

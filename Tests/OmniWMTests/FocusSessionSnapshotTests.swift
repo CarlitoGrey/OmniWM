@@ -24,15 +24,15 @@ final class FocusSessionSnapshotTests: XCTestCase {
         XCTAssertEqual(focus.windowFocusHistory, [tiled, floating])
     }
 
-    func testWindowRecencyIsBoundedAndRekeyingPreservesOrderWithoutDuplicates() {
+    func testWindowRecencyIsUnboundedAndRekeyingPreservesOrderWithoutDuplicates() {
         var focus = FocusSessionSnapshot()
         let tokens = (1 ... 33).map { WindowToken(pid: 1, windowId: $0) }
         for token in tokens { focus.recordWindowFocus(token) }
-        XCTAssertEqual(focus.windowFocusHistory, Array(tokens.dropFirst().reversed()))
+        XCTAssertEqual(focus.windowFocusHistory, Array(tokens.reversed()))
         XCTAssertTrue(focus.replaceRememberedFocus(from: tokens[32], to: tokens[31]))
-        XCTAssertEqual(focus.windowFocusHistory, Array(tokens[1 ... 31].reversed()))
+        XCTAssertEqual(focus.windowFocusHistory, Array(tokens[0 ... 31].reversed()))
         XCTAssertTrue(focus.clearRememberedFocus(tokens[31], workspaceId: nil))
-        XCTAssertEqual(focus.windowFocusHistory, Array(tokens[1 ... 30].reversed()))
+        XCTAssertEqual(focus.windowFocusHistory, Array(tokens[0 ... 30].reversed()))
     }
 
     func testSelectedManagedWindowRemainsIndependentFromNativeFocusOwner() {

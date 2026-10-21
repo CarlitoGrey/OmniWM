@@ -50,4 +50,12 @@ final class IPCQueryValidationTests: XCTestCase {
         XCTAssertNil(IPCQuerySelection.validate(current, sessionToken: "current"))
         XCTAssertEqual(IPCQuerySelection.validate(malformed, sessionToken: "current"), .invalidArguments)
     }
+
+    func testSortIsAcceptedOnlyForWindowsQueries() {
+        XCTAssertNil(IPCQuerySelection.validate(IPCQueryRequest(name: .windows, sort: .mru), sessionToken: "current"))
+        XCTAssertEqual(
+            IPCQuerySelection.validate(IPCQueryRequest(name: .workspaces, sort: .mru), sessionToken: "current"),
+            .invalidArguments
+        )
+    }
 }

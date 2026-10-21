@@ -284,7 +284,8 @@ enum CLIParser {
         lines += ruleLines.map { "  omniwmctl \($0)" }
         lines += captureLines.map { "  omniwmctl \($0)" }
         lines += [
-            "  omniwmctl query <\(queryNames)> [selectors...] [--fields <csv>] [--format <json|ndjson|table|tsv|text>]"
+            "  omniwmctl query <\(queryNames)> [selectors...] [--fields <csv>] [--format <json|ndjson|table|tsv|text>]",
+            "  omniwmctl query windows [selectors...] --sort <\(IPCQuerySort.allCases.map(\.rawValue).joined(separator: "|"))>"
         ]
         lines += workspaceLines.map { "  omniwmctl \($0)" }
         lines += windowLines.map { "  omniwmctl \($0)" }

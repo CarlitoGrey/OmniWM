@@ -166,7 +166,9 @@ enum CLICompletionCatalog {
     static var queryFlagsByName: [String: [String]] {
         var map: [String: [String]] = [:]
         for descriptor in IPCAutomationManifest.queryDescriptors {
-            let flags = sortedUnique(selectorFlags(for: descriptor) + (descriptor.fields.isEmpty ? [] : ["--fields"]))
+            let fieldFlags = descriptor.fields.isEmpty ? [] : ["--fields"]
+            let sortFlags = descriptor.name == .windows ? ["--sort"] : []
+            let flags = sortedUnique(selectorFlags(for: descriptor) + fieldFlags + sortFlags)
             map[descriptor.name.rawValue] = flags
         }
         return map
@@ -184,12 +186,13 @@ enum CLICompletionCatalog {
         let selectors = IPCQuerySelectorName.allCases.filter(\.expectsValue).map(\.flag)
         let ruleOptions = IPCAutomationManifest.ruleActionDescriptors.flatMap(\.options)
             .filter { $0.valuePlaceholder != nil }.map(\.flag)
-        return sortedUnique(["--format", "--fields", windowGatherReachFlag] + selectors + ruleOptions)
+        return sortedUnique(["--format", "--fields", "--sort", windowGatherReachFlag] + selectors + ruleOptions)
     }
 
     static var flagValuesByName: [String: [String]] {
         var values = [
             "--format": CLIOutputFormat.allCases.map(\.rawValue),
+            "--sort": IPCQuerySort.allCases.map(\.rawValue),
             windowGatherReachFlag: windowGatherReaches
         ]
         for option in IPCAutomationManifest.ruleDefinitionOptionDescriptors {

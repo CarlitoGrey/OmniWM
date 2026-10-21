@@ -42,7 +42,7 @@ Use `--fields` with a comma-separated list to limit returned fields.
 
 Field tokens are part of the CLI contract. Returned JSON still uses the payload schema's field names, so the selected token may not be byte-for-byte identical to the JSON key. For example, `window-counts` selects the workspace payload's `counts` field.
 
-**Window fields:** `id`, `pid`, `window-id`, `workspace`, `display`, `app`, `title`, `frame`, `mode`, `layout-reason`, `manual-override`, `is-focused`, `is-fullscreen`, `is-visible`, `is-app-hidden`, `is-scratchpad`, `scratchpad-index`, `hidden-reason`, `column-index`
+**Window fields:** `id`, `pid`, `window-id`, `workspace`, `display`, `app`, `title`, `frame`, `mode`, `layout-reason`, `manual-override`, `is-focused`, `is-fullscreen`, `is-visible`, `is-app-hidden`, `is-scratchpad`, `scratchpad-index`, `hidden-reason`, `column-index`, `focus-rank`
 
 `window-id` returns the JSON field `windowId`, the raw CGWindowID of the window. It is stable for the window's lifetime but not session-scoped; keep using `id` for `window` actions.
 
@@ -64,6 +64,14 @@ Workspace and scratchpad hiding retain their reasons. For other layout hiding, a
 `is-fullscreen` returns the JSON field `isFullscreen`: true while the window is in OmniWM's own fullscreen (`toggle-fullscreen`) in its workspace's active layout. Native macOS Full Screen is reported separately by `layout-reason`. The `focused-window` query always includes `isFullscreen` for the focused window.
 
 `column-index` returns the JSON field `columnIndex`: the one-based Niri column that holds the window, numbered like `focus-column` and `move-column-to-index`. Inactive tabs share their column's index; floating windows, Dwindle windows, and windows excluded from the layout, such as minimized windows, omit it.
+
+`focus-rank` returns the JSON field `focusRank`: the window's position in OmniWM's focus history, where `0` is the most recently focused managed window. The history covers tiled, floating, and scratchpad windows, records every focus change OmniWM observes (commands, clicks, ⌘⇥, apps raising their own windows), drops closed windows, and starts empty when OmniWM launches. Ranks are global, so a filtered result can skip numbers. Windows not focused since launch omit `focusRank`. Unreleased: available when building from `main`.
+
+## Sorting Windows
+
+`query windows --sort mru` returns windows most recently focused first. Windows without a `focus-rank` follow in the default order (workspace, then layout). Without `--sort`, windows keep the default order. `--sort` is accepted only by the `windows` query. Unreleased: available when building from `main`.
+
+Ranks are read when the query runs. A focus change alone does not emit `windows-changed`, so a `focusRank` in an event payload can be out of date; run `query windows --sort mru` when you need the current order.
 
 **Workspace fields:** `id`, `raw-name`, `display-name`, `number`, `layout`, `display`, `is-focused`, `is-visible`, `is-current`, `window-counts`, `focused-window-id`, `columns`
 
@@ -113,6 +121,9 @@ omniwmctl query focused-window --format table
 
 # List visible floating windows, only return id and title
 omniwmctl query windows --visible --floating --fields id,title
+
+# Safari windows, most recently focused first
+omniwmctl query windows --bundle-id com.apple.Safari --sort mru --fields id,focus-rank,title
 
 # Get the active workspace on the current interaction monitor
 omniwmctl query workspaces --current
