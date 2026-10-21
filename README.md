@@ -1086,6 +1086,7 @@ A visual indicator showing your workspaces:
 - Optionally hide the bar on a monitor while that monitor shows a macOS native fullscreen window, and bring it back on exit (`Hide in Native Fullscreen`); reserved tiled layout space is left untouched so windows do not shuffle around the fullscreen session
 - Exclude individual apps or choose alternate app icons across all monitors in Settings
 - When building from `main`, the bar is drawn by Luau widgets in `~/.config/omniwm/shell/` that you can restyle or replace, with the Wayline, Nocturne, Celestial and System styles and twelve colour themes bundled; see [OmniShell](https://omniwm.app/features/luau-shell/)
+- Add **Notifications** from **Bar Widgets** to browse retained macOS notifications. Its Details view includes participants, attachments, action definitions and native metadata, also available to widgets through `ctx.data.notifications`. The feed reads Notification Center's database on changes; native persistence can delay updates by several seconds. The widget shows storage-access errors and links to Full Disk Access settings. Reply and dismiss definitions are metadata; the widget does not execute those native actions.
 - The editable effects library includes native motion presets, Metal lighting and reveal masks. Add **Effects Lab** from **Bar Widgets** to explore them with blur and glass materials; see [Effects library](https://omniwm.app/omnishell/reference/effects-shaders/).
 
 Workspace-bar appearance controls are optional and also support per-monitor overrides:

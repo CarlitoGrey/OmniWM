@@ -50,6 +50,7 @@ enum ShellDataKey: String, CaseIterable, Sendable {
     case reminders
     case badges
     case menuApp
+    case notifications
 
     private static let order = allCases
     static let table = order.map(\.rawValue).joined(separator: "\n")
@@ -119,6 +120,7 @@ struct ShellWidgetData: Equatable, Sendable {
     var media: ShellMedia?
     var calendar: ShellCalendar?
     var reminders: ShellReminders?
+    var notifications: ShellNotificationsData?
     var badges: [String: String] = [:]
     var power: ShellPower?
     var inputSource: ShellInputSource?
@@ -157,6 +159,7 @@ extension ShellWidgetData {
             | Self.changed(.media, when: media != previous.media)
             | Self.changed(.calendar, when: calendar != previous.calendar)
             | Self.changed(.reminders, when: reminders != previous.reminders)
+            | Self.changed(.notifications, when: notifications != previous.notifications)
             | Self.changed(.badges, when: badges != previous.badges)
             | Self.changed(.power, when: power != previous.power)
             | Self.changed(.inputSource, when: inputSource != previous.inputSource)

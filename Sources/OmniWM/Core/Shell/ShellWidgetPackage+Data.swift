@@ -159,6 +159,12 @@ extension ShellWidgetPackage {
         _ next: borrowing ShellWidgetData,
         _ changed: UInt64
     ) {
+        if changed & ShellDataKey.notifications.bit != 0 {
+            setValue(instance, .notifications) { writer in
+                guard let notifications = next.notifications else { return writer.null() }
+                notifications.write(into: &writer)
+            }
+        }
         if changed & ShellDataKey.weather.bit != 0 {
             setValue(instance, .weather) { writer in
                 guard let weather = next.weather else { return writer.null() }

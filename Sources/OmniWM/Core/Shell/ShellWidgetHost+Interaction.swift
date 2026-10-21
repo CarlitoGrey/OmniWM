@@ -120,6 +120,14 @@ extension ShellWidgetHost {
         case let .media(command): resources.media?.perform(command)
         case let .calendar(command): resources.calendar?.perform(command)
         case let .reminders(command): resources.calendar?.perform(command)
+        case let .notifications(command):
+            switch command {
+            case .refresh: resources.notifications.refresh()
+            case let .open(bundle):
+                if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) {
+                    NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
+                }
+            }
         case let .inputSource(command): resources.devices.inputSource.perform(command)
         case let .wifi(command): resources.devices.wifi.perform(command)
         case let .bluetooth(command): resources.devices.bluetooth.perform(command)

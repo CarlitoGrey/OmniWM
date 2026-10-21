@@ -228,6 +228,58 @@ export type Calendar = {
     month: CalendarMonth?,
 }
 
+export type NotificationAction = {
+    id: string,
+    title: string,
+    options: number,
+    textInputButtonTitle: string?,
+    textInputPlaceholder: string?,
+    metadata: any,
+}
+
+export type NotificationAttachment = {
+    id: string,
+    type: string,
+    path: string?,
+    available: boolean,
+    image: string?,
+    metadata: any,
+}
+
+export type NotificationItem = {
+    id: string,
+    bundle: string,
+    title: string,
+    subtitle: string,
+    body: string,
+    date: number?,
+    requestId: string?,
+    thread: string?,
+    category: string?,
+    attachments: { NotificationAttachment },
+    actions: { NotificationAction },
+    userInfo: any,
+    communication: any,
+    metadata: any,
+}
+
+export type Notifications = {
+    state: "loading" | "ready" | "empty" | "accessDenied" | "unavailable" | "queryError" | "malformed" | "incomplete",
+    complete: boolean,
+    items: { NotificationItem },
+    apps: { {
+        bundle: string,
+        name: string?,
+        columns: any,
+        categories: any,
+        categoryMetadata: any,
+        delivered: any,
+        displayed: any,
+        requests: any,
+    } },
+    error: string?,
+}
+
 export type Reminder = {
     id: string,
     title: string,
@@ -431,6 +483,7 @@ export type Data = {
     reminders: Reminders?,
     badges: { [string]: string },
     menuApp: { pid: number, name: string, bundle: string }?,
+    notifications: Notifications?,
 }
 
 export type Format = {

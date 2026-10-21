@@ -14,6 +14,7 @@ final class ShellResources {
     let media: MediaController?
     let calendar: CalendarController?
     let devices = ShellDevices()
+    let notifications = ShellNotificationsController()
     var resourceImages: ShellResourceImages?
     private let iconOverride: @MainActor (String) -> NSImage?
     private let windowIcon: @MainActor (String) -> NSImage?

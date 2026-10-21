@@ -1,0 +1,240 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
+
+import Foundation
+@testable import OmniWM
+import SQLite3
+import XCTest
+
+final class ShellNotificationStoreTests: XCTestCase {
+    func testRichRecordPreservesExactTextArchivesActionsAndBinaryMetadata() throws {
+        let payload = try fixture("rich-base")
+        let root = try XCTUnwrap(PropertyListSerialization.propertyList(from: payload, format: nil) as? [String: Any])
+        let request = try XCTUnwrap(root["req"] as? [String: Any])
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        try database { url, db in
+            try insert(payload, uuid: guid, into: db)
+            try sql("INSERT INTO delivered VALUES (1,\(blob(guid)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertEqual(result.state, "ready")
+            XCTAssertTrue(result.complete)
+            let item = try XCTUnwrap(result.items.first?.fields)
+            XCTAssertEqual(item["body"]?.string, request["body"] as? String)
+            XCTAssertEqual(item["title"]?.string, request["titl"] as? String)
+            XCTAssertEqual(item["id"]?.string, ShellNotificationMetadata.guid(guid))
+            XCTAssertEqual(item["requestId"]?.string, "probe.rich.r1.base")
+            XCTAssertEqual(item["attachments"]?.values?.count, 3)
+            XCTAssertEqual(item["actions"]?.values?.count, 4)
+            XCTAssertEqual(
+                item["actions"]?.values?.first?.fields?["textInputButtonTitle"]?.string,
+                "Send synthetic reply"
+            )
+            XCTAssertEqual(item["userInfo"]?.fields?["nested"]?.fields?["integer"], .number(424242))
+            XCTAssertEqual(item["userInfo"]?.fields?["nested"]?.fields?["flag"], .bool(true))
+            XCTAssertEqual(ShellNotificationMetadata.data(item["metadata"]?.fields?["rawPayload"]), payload)
+            XCTAssertEqual(item["metadata"]?.fields?["columns"]?.fields?["uuid"]?.fields?["type"]?.string, "data")
+            XCTAssertEqual(result.apps.first?.fields?["columns"]?.fields?["extra"]?.string, "preserved")
+            var writer = ShellValueWriter()
+            result.write(into: &writer)
+            XCTAssertLessThan(writer.bytes.count, 4 << 20)
+            XCTAssertNoThrow(try ShellServiceValue.decode(writer.bytes))
+        }
+    }
+
+    func testCommunicationGraphIsResolvedWithoutClassInstantiation() throws {
+        let decoded = try ShellNotificationMetadata.decode(fixture("rich-communication"))
+        let context = ShellNotificationMetadata.unwrapped(decoded.value.fields?["req"]?.fields?["uncc"])
+        XCTAssertTrue(decoded.complete)
+        XCTAssertEqual(context.fields?["archivedClass"]?.string, "_UNNotificationCommunicationContext")
+        XCTAssertEqual(context.fields?["sender"]?.fields?["handle"]?.string, "sender@example.invalid")
+        XCTAssertEqual(
+            context.fields?["recipients"]?.values?.first?.fields?["handle"]?.string,
+            "recipient@example.invalid"
+        )
+        XCTAssertEqual(context.fields?["identifier"]?.string, "rich.conversation.r2")
+    }
+
+    func testPayloadGUIDWinsOverDifferentColumnUUIDAndReportsIncomplete() throws {
+        let payload = try fixture("rich-base")
+        let root = try XCTUnwrap(PropertyListSerialization.propertyList(from: payload, format: nil) as? [String: Any])
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        try database { url, db in
+            try insert(payload, uuid: Data(repeating: 7, count: 16), into: db)
+            try sql("INSERT INTO delivered VALUES (1,\(blob(guid)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertEqual(result.state, "incomplete")
+            XCTAssertFalse(result.complete)
+            XCTAssertEqual(result.items.first?.fields?["id"]?.string, ShellNotificationMetadata.guid(guid))
+        }
+    }
+
+    func testMalformedNonmemberDoesNotEraseRetainedNotification() throws {
+        let payload = try fixture("rich-base")
+        let root = try XCTUnwrap(PropertyListSerialization.propertyList(from: payload, format: nil) as? [String: Any])
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        try database { url, db in
+            try insert(payload, uuid: guid, into: db)
+            try insert(Data([1, 2, 3]), uuid: Data(repeating: 4, count: 16), into: db)
+            try sql("INSERT INTO delivered VALUES (1,\(blob(guid)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertEqual(result.state, "ready")
+            XCTAssertTrue(result.complete)
+            XCTAssertEqual(result.items.count, 1)
+        }
+    }
+
+    func testNullEmptyMembershipMalformedAndMissingStorageAreDistinct() throws {
+        try database { url, db in
+            try sql("INSERT INTO delivered VALUES (1,NULL)", db)
+            XCTAssertEqual(ShellNotificationStore.read(at: url).state, "empty")
+            try sql("UPDATE delivered SET list=X'010203'", db)
+            let malformed = ShellNotificationStore.read(at: url)
+            XCTAssertEqual(malformed.state, "malformed")
+            XCTAssertFalse(malformed.complete)
+        }
+        let missing = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        XCTAssertEqual(ShellNotificationStore.read(at: missing).state, "unavailable")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: missing.path))
+    }
+
+    func testMalformedRetainedRecordKeepsValidPartialItems() throws {
+        let payload = try fixture("rich-base")
+        let root = try XCTUnwrap(PropertyListSerialization.propertyList(from: payload, format: nil) as? [String: Any])
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        let corrupt = Data(repeating: 3, count: 16)
+        try database { url, db in
+            try insert(payload, uuid: guid, into: db)
+            try insert(Data([1, 2, 3]), uuid: corrupt, into: db)
+            try sql("INSERT INTO delivered VALUES(1,\(blob(guid + corrupt)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertEqual(result.state, "malformed")
+            XCTAssertFalse(result.complete)
+            XCTAssertEqual(result.items.count, 1)
+        }
+    }
+
+    func testLargeIntegersDatesOpaqueBytesAndOrdinaryUIDKeysStayTyped() throws {
+        let object: [String: Any] = [
+            "integer": NSNumber(value: Int64.max),
+            "date": Date(timeIntervalSince1970: 123),
+            "opaque": Data([0, 255, 1]),
+            "dictionary": ["OmniWMUID": 3],
+            "cfDictionary": ["CF$UID": 4],
+            "sentinel": ["OmniWMNotificationUID": 5]
+        ]
+        let data = try PropertyListSerialization.data(fromPropertyList: object, format: .binary, options: 0)
+        let decoded = try ShellNotificationMetadata.decode(data)
+        XCTAssertEqual(decoded.value.fields?["integer"]?.fields?["value"]?.string, String(Int64.max))
+        XCTAssertEqual(decoded.value.fields?["date"]?.fields?["unixSeconds"], .number(123))
+        XCTAssertEqual(ShellNotificationMetadata.data(decoded.value.fields?["opaque"]), Data([0, 255, 1]))
+        XCTAssertEqual(decoded.value.fields?["dictionary"]?.fields?["OmniWMUID"], .number(3))
+        XCTAssertEqual(decoded.value.fields?["cfDictionary"]?.fields?["CF$UID"], .number(4))
+        XCTAssertEqual(decoded.value.fields?["sentinel"]?.fields?["OmniWMNotificationUID"], .number(5))
+    }
+
+    func testNestedPropertyListsCannotResetDepthBudget() throws {
+        var value = try PropertyListSerialization.data(
+            fromPropertyList: ["leaf": "retained"],
+            format: .binary,
+            options: 0
+        )
+        for _ in 0 ..< 60 { value = try PropertyListSerialization.data(
+            fromPropertyList: ["nested": value],
+            format: .binary,
+            options: 0
+        ) }
+        let decoded = try ShellNotificationMetadata.decode(value)
+        XCTAssertFalse(decoded.complete)
+        XCTAssertEqual(ShellNotificationMetadata.data(decoded.value.fields?["nested"])?.isEmpty, false)
+    }
+
+    func testTwentyLevelUserInfoRemainsStructuredInDatabaseSnapshot() throws {
+        var root = try XCTUnwrap(PropertyListSerialization
+            .propertyList(from: fixture("rich-base"), format: nil) as? [String: Any])
+        var request = try XCTUnwrap(root["req"] as? [String: Any])
+        var nested: [String: Any] = ["leaf": "deeply preserved"]
+        for _ in 0 ..< 20 { nested = ["next": nested] }
+        request["usda"] = try PropertyListSerialization.data(fromPropertyList: nested, format: .binary, options: 0)
+        root["req"] = request
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        let payload = try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0)
+        try database { url, db in
+            try insert(payload, uuid: guid, into: db)
+            try sql("INSERT INTO delivered VALUES(1,\(blob(guid)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertTrue(result.complete)
+            var value = result.items.first?.fields?["userInfo"]
+            for _ in 0 ..< 20 { value = value?.fields?["next"] }
+            XCTAssertEqual(value?.fields?["leaf"]?.string, "deeply preserved")
+        }
+    }
+
+    func testUnsupportedTextShapeIsExplicitlyIncompleteWithRawValuePreserved() throws {
+        var root = try XCTUnwrap(PropertyListSerialization
+            .propertyList(from: fixture("rich-base"), format: nil) as? [String: Any])
+        var request = try XCTUnwrap(root["req"] as? [String: Any])
+        request["titl"] = ["unresolved localization", "argument"]
+        root["req"] = request
+        let guid = try XCTUnwrap(root["uuid"] as? Data)
+        let payload = try PropertyListSerialization.data(fromPropertyList: root, format: .binary, options: 0)
+        try database { url, db in
+            try insert(payload, uuid: guid, into: db)
+            try sql("INSERT INTO delivered VALUES(1,\(blob(guid)))", db)
+            let result = ShellNotificationStore.read(at: url)
+            XCTAssertFalse(result.complete)
+            XCTAssertEqual(result.state, "incomplete")
+            XCTAssertEqual(result.items.first?.fields?["title"]?.string, "")
+            XCTAssertEqual(
+                result.items.first?.fields?["metadata"]?.fields?["payload"]?.fields?["req"]?.fields?["titl"]?.values?
+                    .count,
+                2
+            )
+        }
+    }
+
+    func testDataLikeUserDictionaryNeedsMatchingBinaryLengthTag() throws {
+        let value: [String: Any] = ["type": "data", "bytes": "ordinary user text", "byteLength": 999]
+        let bytes = try PropertyListSerialization.data(fromPropertyList: value, format: .binary, options: 0)
+        let decoded = try ShellNotificationMetadata.decode(bytes)
+        XCTAssertEqual(decoded.value.fields?["bytes"]?.string, "ordinary user text")
+        XCTAssertNil(ShellNotificationMetadata.data(decoded.value))
+    }
+
+    private func fixture(_ name: String) throws -> Data {
+        let root = try XCTUnwrap(Bundle.module.resourceURL)
+        return try Data(contentsOf: root.appendingPathComponent("Fixtures/Notifications/\(name).bplist"))
+    }
+
+    private func database(_ body: (URL, OpaquePointer) throws -> Void) throws {
+        let directory = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("db")
+        var handle: OpaquePointer?
+        XCTAssertEqual(sqlite3_open(url.path, &handle), SQLITE_OK)
+        let db = try XCTUnwrap(handle)
+        defer { sqlite3_close(db) }
+        try sql(
+            "CREATE TABLE app(app_id INTEGER PRIMARY KEY,identifier TEXT,badge INTEGER,extra TEXT); CREATE TABLE categories(app_id INTEGER PRIMARY KEY,categories BLOB); CREATE TABLE delivered(app_id INTEGER PRIMARY KEY,list BLOB); CREATE TABLE displayed(app_id INTEGER PRIMARY KEY,list BLOB); CREATE TABLE requests(app_id INTEGER PRIMARY KEY,list BLOB); CREATE TABLE record(rec_id INTEGER PRIMARY KEY,app_id INTEGER,uuid BLOB,data BLOB,request_date REAL,request_last_date REAL,delivered_date REAL,presented INTEGER,style INTEGER,snooze_fire_date REAL); INSERT INTO app VALUES(1,'com.omniwm.NotificationRouteFixture',37,'preserved'); INSERT INTO displayed VALUES(1,NULL); INSERT INTO requests VALUES(1,NULL);",
+            db
+        )
+        try sql("INSERT INTO categories VALUES(1,\(blob(try fixture("categories"))))", db)
+        try body(url, db)
+    }
+
+    private func insert(_ payload: Data, uuid: Data, into database: OpaquePointer) throws {
+        try sql(
+            "INSERT INTO record(app_id,uuid,data,presented,style) VALUES(1,\(blob(uuid)),\(blob(payload)),0,1)",
+            database
+        )
+    }
+
+    private func blob(_ data: Data) -> String {
+        "X'" + data.map { String(format: "%02x", $0) }.joined() + "'"
+    }
+
+    private func sql(_ text: String, _ database: OpaquePointer) throws {
+        let status = sqlite3_exec(database, text, nil, nil, nil)
+        guard status == SQLITE_OK else { throw NSError(domain: "ShellNotificationStoreTests", code: Int(status)) }
+    }
+}

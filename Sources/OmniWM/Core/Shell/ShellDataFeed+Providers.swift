@@ -67,6 +67,7 @@ extension ShellDataFeed {
         showLyrics(!paused && demands(.lyrics))
         listenToCalendar(!paused && demands(.calendar))
         listenToReminders(!paused && demands(.reminders))
+        listenToNotifications(started && !paused && demands(.notifications))
         listenToBadges()
         devices.map(listenToDevices)
         updateBattery()
@@ -88,6 +89,23 @@ extension ShellDataFeed {
             publish()
         }
         data.calendar = calendar.calendar
+    }
+
+    func listenToNotifications(_ listening: Bool) {
+        guard let notifications else { return }
+        guard listening else {
+            notifications.onChange = nil
+            notifications.setListening(false)
+            data.notifications = nil
+            return
+        }
+        notifications.onChange = { [weak self] value in
+            guard let self, data.notifications != value else { return }
+            data.notifications = value
+            publish()
+        }
+        notifications.setListening(true)
+        data.notifications = notifications.current
     }
 
     func listenToReminders(_ listening: Bool) {

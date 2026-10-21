@@ -87,6 +87,7 @@ final class ShellDataFeed {
     let lyrics: LyricsController
     let calendar: CalendarController?
     let devices: ShellDevices?
+    let notifications: ShellNotificationsController?
 
     init(
         loadWeather: @escaping @Sendable (ShellWeatherLocation) async throws -> ShellWeatherReading =
@@ -96,6 +97,7 @@ final class ShellDataFeed {
         lyrics: LyricsController = LyricsController(),
         calendar: CalendarController? = nil,
         devices: ShellDevices? = nil,
+        notifications: ShellNotificationsController? = nil,
         onBadgesDemandChange: @escaping @MainActor (Bool) -> Void = { _ in },
         deliver: @escaping @MainActor (ShellWidgetData) -> Void
     ) {
@@ -107,6 +109,7 @@ final class ShellDataFeed {
         self.lyrics = lyrics
         self.calendar = calendar
         self.devices = devices
+        self.notifications = notifications
         clockFormatter = DateFormatter()
         clockFormatter.timeStyle = .short
         clockFormatter.dateStyle = .none
@@ -161,6 +164,7 @@ final class ShellDataFeed {
         guard !started else { return }
         started = true
         listenToBadges()
+        listenToNotifications(!paused && demands(.notifications))
         sampleBattery()
         refresh()
         deliver(data)
@@ -177,6 +181,7 @@ final class ShellDataFeed {
         showLyrics(false)
         listenToCalendar(false)
         listenToReminders(false)
+        listenToNotifications(false)
         devices.map(stopDevices)
         weatherTask?.cancel()
         weatherTask = nil

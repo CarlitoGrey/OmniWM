@@ -3800,7 +3800,8 @@ omni_status omni_instance_set_value(omni_instance *instance, const char *key, co
     try {
         lua_getref(P, instance->dataRef);
         ValueReader reader{value, value + length};
-        if (!pushValue(P, reader, 0) || reader.remaining() != 0) {
+        int depthLimit = std::strcmp(key, "notifications") == 0 ? maximumDepth : maximumValueDepth;
+        if (!pushValue(P, reader, 0, false, depthLimit) || reader.remaining() != 0) {
             lua_settop(P, 0);
             return OMNI_ERR_INTERNAL;
         }

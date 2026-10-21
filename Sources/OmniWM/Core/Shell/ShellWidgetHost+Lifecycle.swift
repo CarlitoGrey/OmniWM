@@ -363,6 +363,7 @@ extension ShellWidgetHost {
                 media: resources.media,
                 calendar: resources.calendar,
                 devices: resources.devices,
+                notifications: resources.notifications,
                 onBadgesDemandChange: { [weak self] in self?.onBadgesDemandChange?($0) },
                 deliver: { [weak self] data in
                     self?.broadcast(data)

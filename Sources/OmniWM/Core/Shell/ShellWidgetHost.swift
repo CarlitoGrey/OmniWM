@@ -65,6 +65,7 @@ enum ShellSettingsPane: String, Sendable {
     case inputSource = "input-source"
     case wifi
     case bluetooth
+    case notifications
 
     var url: URL? {
         let pane = switch self {
@@ -72,6 +73,7 @@ enum ShellSettingsPane: String, Sendable {
         case .inputSource: "com.apple.Keyboard-Settings.extension"
         case .wifi: "com.apple.wifi-settings-extension"
         case .bluetooth: "com.apple.BluetoothSettings"
+        case .notifications: "com.apple.settings.PrivacySecurity.extension?Privacy_AllFiles"
         }
         return URL(string: "x-apple.systempreferences:\(pane)")
     }
@@ -83,6 +85,7 @@ enum ShellAction: Equatable, Sendable {
     case media(ShellMediaCommand)
     case calendar(ShellCalendarCommand)
     case reminders(ShellRemindersCommand)
+    case notifications(ShellNotificationsCommand)
     case inputSource(ShellInputSourceCommand)
     case wifi(ShellWiFiCommand)
     case bluetooth(ShellBluetoothCommand)
@@ -95,6 +98,7 @@ enum ShellAction: Equatable, Sendable {
         "media": { ShellMediaCommand(words: $0).map(ShellAction.media) },
         "calendar": { ShellCalendarCommand(words: $0).map(ShellAction.calendar) },
         "reminders": { ShellRemindersCommand(words: $0).map(ShellAction.reminders) },
+        "notifications": { ShellNotificationsCommand(words: $0).map(ShellAction.notifications) },
         "input-source": { ShellInputSourceCommand(words: $0).map(ShellAction.inputSource) },
         "wifi": { ShellWiFiCommand(words: $0).map(ShellAction.wifi) },
         "bluetooth": { ShellBluetoothCommand(words: $0).map(ShellAction.bluetooth) },
