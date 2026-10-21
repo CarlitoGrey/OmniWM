@@ -37,11 +37,11 @@ extension SkyLight {
         guard windowFrame != frame, windowFrame.width > 0 else { return image }
         let scale = CGFloat(image.width) / windowFrame.width
         let rect = CGRect(
-            x: (frame.minX - windowFrame.minX) * scale,
-            y: (frame.minY - windowFrame.minY) * scale,
-            width: frame.width * scale,
-            height: frame.height * scale
-        ).integral
+            x: ((frame.minX - windowFrame.minX) * scale).rounded(),
+            y: ((frame.minY - windowFrame.minY) * scale).rounded(),
+            width: (frame.width * scale).rounded(),
+            height: (frame.height * scale).rounded()
+        )
         return image.cropping(to: rect)
     }
 
