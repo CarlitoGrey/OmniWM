@@ -64,8 +64,38 @@ final class WorkspaceSwipeBackdropTests: XCTestCase {
             window(3, level: 0, frame: frame),
             window(4, level: desktop - 1, frame: frame)
         ]
-        XCTAssertEqual(SkyLight.wallpaperWindowId(in: windows, frame: frame), 4)
-        XCTAssertNil(SkyLight.wallpaperWindowId(in: Array(windows.prefix(3)), frame: frame))
+        XCTAssertEqual(SkyLight.wallpaperWindow(in: windows, frame: frame)?.id, 4)
+        XCTAssertNil(SkyLight.wallpaperWindow(in: Array(windows.prefix(3)), frame: frame))
+    }
+
+    func testLiveWallpaperAboveTheDesktopIsPreferredAndCropped() throws {
+        let frame = CGRect(x: 0, y: 0, width: 4, height: 3)
+        let live = frame.insetBy(dx: -1, dy: -1)
+        let desktop = CGWindowLevelForKey(.desktopWindow)
+        let icons = CGWindowLevelForKey(.desktopIconWindow)
+        let windows = [
+            window(1, level: icons, frame: frame),
+            window(2, level: desktop + 1, frame: live),
+            window(3, level: desktop - 1, frame: frame)
+        ]
+        let match = try XCTUnwrap(SkyLight.wallpaperWindow(in: windows, frame: frame))
+        XCTAssertEqual(match.id, 2)
+        XCTAssertEqual(match.frame, live)
+
+        let image = try makeImage(width: 12, height: 10)
+        let cropped = try XCTUnwrap(SkyLight.crop(image, from: live, to: frame))
+        XCTAssertEqual(cropped.width, 8)
+        XCTAssertEqual(cropped.height, 6)
+        XCTAssertTrue(SkyLight.crop(image, from: frame, to: frame) === image)
+
+        let fractional = CGRect(x: -0.25, y: -0.25, width: 6, height: 5)
+        let offset = try XCTUnwrap(SkyLight.crop(image, from: fractional, to: frame))
+        XCTAssertEqual(offset.width, 8)
+        XCTAssertEqual(offset.height, 6)
+
+        let clipped = try makeImage(width: 8, height: 6)
+        XCTAssertTrue(SkyLight.crop(clipped, from: live, to: frame) === clipped)
+        XCTAssertNil(SkyLight.crop(try makeImage(width: 7, height: 6), from: live, to: frame))
     }
 
     func testCaptureBridgeRejectsMalformedResultsAndRetainsImage() throws {
@@ -96,14 +126,15 @@ final class WorkspaceSwipeBackdropTests: XCTestCase {
 
     private func makeImage(
         width: Int = 4,
+        height: Int = 3,
         color: CGColor = CGColor(red: 1, green: 0, blue: 0, alpha: 1)
     ) throws -> CGImage {
         let context = try XCTUnwrap(CGContext(
-            data: nil, width: width, height: 3, bitsPerComponent: 8, bytesPerRow: width * 4,
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ))
         context.setFillColor(color)
-        context.fill(CGRect(x: 0, y: 0, width: width, height: 3))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
         return try XCTUnwrap(context.makeImage())
     }
 }
