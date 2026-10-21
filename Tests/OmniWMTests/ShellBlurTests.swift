@@ -74,6 +74,7 @@ final class ShellBlurTests: XCTestCase {
         widget.render(ShellBarData())
         let (after, afterTint) = state()
         XCTAssertNotEqual(beforeTint, afterTint)
+        XCTAssertEqual(after.count, 2)
         XCTAssertTrue(zip(before, after).allSatisfy { $0 === $1 })
     }
 
