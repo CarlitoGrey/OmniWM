@@ -266,7 +266,7 @@ extension ShellWidgetHost {
             guard let action = ShellAction(request.text) else {
                 report(state, ShellScriptFailure(
                     kind: .runtime,
-                    message: "omniwm.run(\"\(request.text)\") is not an omniwmctl, shell or volume command"
+                    message: "omniwm.run command is not an omniwmctl, shell or volume command"
                 ))
                 continue
             }

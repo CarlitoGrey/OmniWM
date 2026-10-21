@@ -156,6 +156,14 @@ final class ShellProviderVMTests: XCTestCase {
             return handled
         }
 
+        func messages(_ kind: omni_message_kind) -> [String] {
+            (0 ..< omni_vm_message_count(vm, kind)).map { index in
+                var length = 0
+                guard let text = omni_vm_message(vm, kind, index, &length) else { return "" }
+                return String(decoding: UnsafeRawBufferPointer(start: text, count: length), as: UTF8.self)
+            }
+        }
+
         func drain() -> [Request] {
             var result: [Request] = []
             var request = omni_service_request()
@@ -283,6 +291,27 @@ final class ShellProviderVMTests: XCTestCase {
         }
         XCTAssertFalse(try fixture.receive("next", incarnation: 2))
         XCTAssertEqual(omni_vm_message_count(fixture.vm, OMNI_MESSAGE_REQUEST), 1)
+    }
+
+    func testReceiveCommandsAreStoredWholeUpToTheirLimitWhileLogsStayBounded() throws {
+        let fixture = try Fixture("""
+        return { receive = function(instance, event)
+            if event.name == "over" then omniwm.run(string.rep("c", 16385)) end
+            omniwm.run(string.rep("a", 16384))
+            omniwm.log(string.rep("b", 600))
+        end, views = { compact = function(ctx) return ui.text{ text = "ready" } end } }
+        """)
+        try fixture.state(status: OMNI_PROVIDER_RUNNING)
+        XCTAssertTrue(try fixture.receive("limit"))
+        XCTAssertEqual(fixture.messages(OMNI_MESSAGE_REQUEST), [String(repeating: "a", count: 16384)])
+        XCTAssertEqual(fixture.messages(OMNI_MESSAGE_LOG), [String(repeating: "b", count: 512)])
+        var owner = omni_owner_token()
+        XCTAssertTrue(omni_vm_message_origin(fixture.vm, OMNI_MESSAGE_REQUEST, 0, &owner, nil))
+        XCTAssertEqual(owner.owner, try fixture.owner().owner)
+        XCTAssertTrue(try fixture.receive("over", expected: OMNI_ERR_COMPONENT))
+        XCTAssertTrue(fixture.message.contains("omniwm.run commands are limited to 16384 bytes"), fixture.message)
+        XCTAssertFalse(fixture.message.contains("ccc"), fixture.message)
+        XCTAssertEqual(fixture.messages(OMNI_MESSAGE_REQUEST).count, 1)
     }
 
     func testOldIncarnationResultSettlesOriginalIDAndMalformedResultSettlesOnce() throws {

@@ -24,6 +24,10 @@ enum RuntimeDiagnosticsReport {
                 FullscreenPlaceholderDiagnosticsSnapshot.capture(controller).formatted()
             ),
             section("Interaction Monitor Writes", InteractionMonitorWriteRecorder.shared.dump()),
+            section(
+                "Shell Notifications",
+                controller.workspaceBarManager.shellHost?.resources.notifications.diagnosticsSummary ?? "host=unavailable"
+            ),
             section("Reconcile Snapshot", controller.workspaceManager.reconcileSnapshotDump()),
             section("Reconcile Trace", controller.workspaceManager.reconcileTraceDump(limit: traceLimit)),
             section("Invariant Violations", controller.workspaceManager.invariantViolationCountsDump()),

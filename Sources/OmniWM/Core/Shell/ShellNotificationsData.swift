@@ -7,23 +7,26 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
     let apps: [ShellServiceValue]
     let complete: Bool
     let error: String?
+    var action: ShellServiceValue?
 
     init(
         state: String,
         items: [ShellServiceValue] = [],
         apps: [ShellServiceValue] = [],
         complete: Bool = true,
-        error: String? = nil
+        error: String? = nil,
+        action: ShellServiceValue? = nil
     ) {
         self.state = state
         self.items = items
         self.apps = apps
         self.complete = complete
         self.error = error
+        self.action = action
     }
 
     func write(into writer: inout ShellValueWriter) {
-        writer.map(5)
+        writer.map(6)
         writer.key("state")
         writer.string(state)
         writer.key("complete")
@@ -34,5 +37,7 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
         ShellServiceValue.array(apps).write(to: &writer)
         writer.key("error")
         error.map { writer.string($0) } ?? writer.null()
+        writer.key("action")
+        (action ?? .null).write(to: &writer)
     }
 }

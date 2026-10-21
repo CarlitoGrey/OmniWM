@@ -19,16 +19,20 @@ final class DiagnosticsTraceCaptureTests: XCTestCase {
         }
         XCTAssertTrue(controller.isTraceCaptureActive)
         XCTAssertNotNil(controller.traceCaptureStatus.startedAt)
+        ShellNotificationTrace.record("test.capture.notification")
 
         guard case .noChange = await controller.toggleTraceCapture(desiredState: .active) else {
             return XCTFail("expected no change when already active")
         }
 
-        guard case .stopped = await controller.toggleTraceCapture(desiredState: .inactive) else {
+        guard case let .stopped(artifact) = await controller.toggleTraceCapture(desiredState: .inactive) else {
             return XCTFail("expected capture to stop and produce an artifact")
         }
         XCTAssertFalse(controller.isTraceCaptureActive)
         XCTAssertNil(controller.traceCaptureStatus.startedAt)
+        let contents = try String(contentsOf: artifact.url, encoding: .utf8)
+        XCTAssertTrue(contents.contains("== Shell Notification Trace =="))
+        XCTAssertTrue(contents.contains("ev=test.capture.notification"))
     }
 
     @MainActor
@@ -44,6 +48,7 @@ final class DiagnosticsTraceCaptureTests: XCTestCase {
             "== Active Issues ==",
             "== Space Topology ==",
             "== Native Fullscreen Placeholders ==",
+            "== Shell Notifications ==",
             "== Multitouch Source ==",
             "== AX Frame State ==",
             "== Settings (TOML) =="

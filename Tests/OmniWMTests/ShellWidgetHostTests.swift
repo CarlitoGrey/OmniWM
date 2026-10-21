@@ -2576,7 +2576,40 @@ final class ShellWidgetClickTests: XCTestCase {
         XCTAssertEqual(harness.sink.commands, [.command(.workspace(.switchTo(workspaceNumber: 3)))])
         XCTAssertEqual(harness.sink.origins.first?.widget, "test")
         XCTAssertEqual(harness.sink.origins.first?.command, "switch-workspace 3")
-        XCTAssertTrue(harness.slot?.failure?.message.contains("not a command") == true)
+        XCTAssertEqual(
+            harness.slot?.failure?.message,
+            "omniwm.run command is not an omniwmctl, shell or volume command"
+        )
+    }
+
+    func testInvalidCommandsReportNoCommandContents() async throws {
+        executionTimeAllowance = 60
+        let hex = "Private reply draft".utf8.map { String(format: "%02x", $0) }.joined()
+        let command = "notifications reply com.example.fixture 01234567-89ab-cdef-0123-456789abcdef \(hex)0"
+        let harness = try harness("""
+        function render(ctx)
+            return ui.row{ gap = 0,
+                ui.box{ w = 10, h = 10, onClick = function() omniwm.run("\(command)") end },
+                ui.box{ w = 10, h = 10, onClick = "\(command)" },
+            }
+        end
+        """)
+        defer { harness.close() }
+        var layoutChanges = harness.layoutChanges.makeAsyncIterator()
+        try await layoutChanges.change()
+        for (point, source) in [(CGPoint(x: 5, y: 5), "omniwm.run"), (CGPoint(x: 15, y: 5), "onClick")] {
+            let message = "\(source) command is not an omniwmctl, shell or volume command"
+            click(try harness.barSurface(), at: point)
+            while harness.slot?.failure?.message != message {
+                try await layoutChanges.change()
+            }
+            XCTAssertEqual(harness.host.widgetReport.widgets.first { $0.name == "test" }?.error, message)
+            let errors = LogErrorTap.shared.dump()
+            XCTAssertTrue(errors.contains(message))
+            XCTAssertFalse(errors.contains(hex))
+            XCTAssertFalse(errors.contains("Private reply draft"))
+        }
+        XCTAssertTrue(harness.sink.commands.isEmpty)
     }
 
     func testRenderCannotRunCommands() async throws {

@@ -30,12 +30,20 @@ final class ShellNotificationWidgetTests: XCTestCase {
         }
     }
 
-    private func set(_ widget: ShellRenderedWidget, state: String, items: [[String: Any]] = [], complete: Bool = true) {
+    private func set(
+        _ widget: ShellRenderedWidget,
+        state: String,
+        items: [[String: Any]] = [],
+        complete: Bool = true,
+        action: [String: Any]? = nil
+    ) {
         widget.set("notifications") {
-            write([
+            var value: [String: Any] = [
                 "state": state, "complete": complete, "items": items,
                 "apps": [["bundle": "com.example.fixture", "name": "Fixture App"]]
-            ], into: &$0)
+            ]
+            if let action { value["action"] = action }
+            write(value, into: &$0)
         }
     }
 
@@ -178,7 +186,8 @@ final class ShellNotificationWidgetTests: XCTestCase {
         )
     }
 
-    private func click(_ title: String, in widget: ShellRenderedWidget, last: Bool = false) throws {
+    @discardableResult
+    private func click(_ title: String, in widget: ShellRenderedWidget, last: Bool = false) throws -> [String] {
         let labels = widget.surface.layout.core.elements { widget.text.string($0.text) == title }.sorted {
             CGRect(widget.surface.layout.core.absoluteFrame(of: $0)).minY
                 < CGRect(widget.surface.layout.core.absoluteFrame(of: $1)).minY
@@ -186,9 +195,25 @@ final class ShellNotificationWidgetTests: XCTestCase {
         var target = try XCTUnwrap(last ? labels.last : labels.first, title)
         while widget.surface.layout.core.content(of: target).action == 0 {
             target = widget.surface.layout.core.parent(of: target)
-            guard target.slot >= 0 else { return XCTFail("No action for \(title)") }
+            guard target.slot >= 0 else {
+                XCTFail("No action for \(title)")
+                return []
+            }
         }
         let action = widget.surface.layout.core.content(of: target).action
+        let frame = try reveal(target, in: widget)
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let delivered = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, delivered + 1, title)
+        XCTAssertEqual(widget.actions.last, action, title)
+        let requests = widget.invoke(action, view: OMNI_VIEW_POPOUT)
+        widget.layoutPopout()
+        return requests
+    }
+
+    private func reveal(_ target: ElementHandle, in widget: ShellRenderedWidget) throws -> CGRect {
         var frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
         let bounds = CGRect(origin: .zero, size: widget.surface.size)
         if !bounds.contains(frame) {
@@ -200,15 +225,205 @@ final class ShellNotificationWidgetTests: XCTestCase {
             ))
             frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
         }
-        XCTAssertTrue(bounds.contains(frame), title)
-        let point = CGPoint(x: frame.midX, y: frame.midY)
-        let delivered = widget.actions.count
-        widget.surface.press(at: point)
-        widget.surface.release(at: point)
-        XCTAssertEqual(widget.actions.count, delivered + 1, title)
-        XCTAssertEqual(widget.actions.last, action, title)
-        _ = widget.invoke(action, view: OMNI_VIEW_POPOUT)
+        XCTAssertTrue(bounds.contains(frame))
+        return frame
+    }
+
+    private func action(_ title: String, in widget: ShellRenderedWidget) throws -> UInt32 {
+        var target = try XCTUnwrap(widget.surface.layout.core.elements { widget.text.string($0.text) == title }.first)
+        while target.slot >= 0 {
+            let action = widget.surface.layout.core.content(of: target).action
+            if action != 0 { return action }
+            target = widget.surface.layout.core.parent(of: target)
+        }
+        return 0
+    }
+
+    @discardableResult
+    private func edit(_ draft: String, in widget: ShellRenderedWidget) throws -> ShellTextInput {
+        let input = try XCTUnwrap(widget.surface.textInputs.values.first)
+        var events: [ShellClick] = []
+        widget.surface.onAction = { events.append($0) }
+        input.beganEditing()
+        let editor = try XCTUnwrap(input.editor)
+        editor.string = draft
+        input.changed()
+        widget.surface.onAction = { [unowned widget] click in
+            widget.actions.append(click.action)
+            widget.clicks.append((widget.text.string(click.action), click.event.button))
+        }
+        for event in events {
+            XCTAssertEqual(widget.invoke(event.action, view: OMNI_VIEW_POPOUT, event: event.event), [])
+        }
         widget.layoutPopout()
+        return input
+    }
+
+    private func nativeAction(_ id: String, state: String, kind: String = "reply") -> [String: Any] {
+        ["id": id, "bundle": "com.example.fixture", "kind": kind, "state": state]
+    }
+
+    func testNativeReplyPreservesDraftOnFailuresAndWaitsForAuthoritativeDispatch() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        let retained = item(id)
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertEqual(
+            widget.text.string(try action(ShellLocalizer.string("Dismiss", []), in: widget)),
+            "notifications dismiss com.example.fixture \(id)"
+        )
+        try click(ShellLocalizer.string("Reply", []), in: widget)
+        let draft = "Reply ✓ 中文 العربية 👩🏽‍💻 e\u{301}\n\"quoted\" \\ slash"
+        let input = try edit(draft, in: widget)
+        let command = "notifications reply com.example.fixture \(id) "
+            + draft.utf8.map { String(format: "%02x", $0) }.joined()
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [command])
+        XCTAssertEqual(input.text, draft)
+        XCTAssertTrue(widget.surface.textInputs.values.contains { $0 === input })
+        var unrelated = nativeAction(id, state: "dispatched")
+        unrelated["bundle"] = "com.example.other"
+        set(widget, state: "ready", items: [retained], action: unrelated)
+        widget.layoutPopout()
+        XCTAssertEqual(input.text, draft)
+        set(widget, state: "ready", items: [retained], action: nativeAction(id, state: "pending"))
+        widget.layoutPopout()
+        XCTAssertEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0)
+        XCTAssertEqual(try action(ShellLocalizer.string("Dismiss", []), in: widget), 0)
+        XCTAssertEqual(input.text, draft)
+        for state in ["notFound", "denied", "ambiguous", "failed", "timeout", "failedPanelOpen"] {
+            set(widget, state: "ready", items: [retained], action: nativeAction(id, state: state))
+            widget.layoutPopout()
+            XCTAssertEqual(input.text, draft, state)
+            XCTAssertNotEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0, state)
+        }
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [command])
+        set(widget, state: "ready", items: [retained], action: nativeAction(id, state: "dispatchedPanelOpen"))
+        widget.layoutPopout()
+        XCTAssertTrue(widget.surface.textInputs.isEmpty)
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Fixture body"))
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(
+            "Action submitted. Close Notification Center to continue.", []
+        )))
+        try click(ShellLocalizer.string("Reply", []), in: widget)
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "")
+        try edit("Discard when the retained item disappears", in: widget)
+        set(widget, state: "empty")
+        widget.layoutPopout()
+        XCTAssertTrue(widget.surface.textInputs.isEmpty)
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        try click(ShellLocalizer.string("Reply", []), in: widget)
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "")
+    }
+
+    func testNativeReplyRequiresAnUnambiguousActionAndBoundsUTF8WithoutLosingTheDraft() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        var retained = item(id)
+        let reply = try XCTUnwrap((retained["actions"] as? [[String: Any]])?.first)
+        let ambiguous: [[[String: Any]]] = [[], [reply, reply], [reply, ["title": "Reply ✓"]]]
+        for actions in ambiguous {
+            retained["actions"] = actions
+            set(widget, state: "ready", items: [retained])
+            widget.layoutPopout()
+            XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Reply", [])))
+        }
+        retained["actions"] = [reply]
+        set(widget, state: "incomplete", items: [retained], complete: false)
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Dismiss", [])))
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Reply", [])))
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        try click(ShellLocalizer.string("Reply", []), in: widget)
+        for (invalid, message) in [
+            (" \t\n\u{00A0}\u{2003}", "Reply cannot be empty."),
+            ("Reply\0text", "Reply contains unsupported characters.")
+        ] {
+            let input = try edit(invalid, in: widget)
+            XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [])
+            XCTAssertEqual(input.text, invalid)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(message, [])))
+        }
+        let draft = String(repeating: "e\u{301}\u{301}\u{301}\u{301}", count: 600)
+        XCTAssertLessThan(draft.count, 1024)
+        XCTAssertGreaterThan(draft.utf8.count, 4096)
+        let input = try edit(draft, in: widget)
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [])
+        XCTAssertEqual(input.text, draft)
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(
+            "Reply exceeds the 4096-byte limit.",
+            []
+        )))
+        try click(ShellLocalizer.string("Cancel", []), in: widget)
+        XCTAssertTrue(widget.surface.textInputs.isEmpty)
+        try click(ShellLocalizer.string("Reply", []), in: widget)
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, draft)
+    }
+
+    func testNativeReplyCommandsReachTheParserWhole() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "01234567-89ab-cdef-0123-456789abcdef"))
+        let ascii = String(repeating: "a", count: 300)
+        let unicode = String(repeating: "Reply ✓ 中文 العربية 👩🏽‍💻 e\u{301}\n", count: 12)
+        let maximum = String(repeating: "👩🏽‍💻", count: 273) + "a"
+        let longest = "com." + String(repeating: "a", count: 251)
+        XCTAssertEqual(maximum.utf8.count, 4096)
+        XCTAssertEqual(longest.utf8.count, 255)
+        for (bundle, draft) in [
+            ("com.example.fixture", ascii),
+            ("com.example.fixtures", ascii),
+            ("com.example.fixtures", unicode),
+            (longest, maximum)
+        ] {
+            let widget = try ShellRenderedWidget("notifications")
+            var retained = item(id.uuidString.lowercased())
+            retained["bundle"] = bundle
+            set(widget, state: "ready", items: [retained])
+            widget.layoutPopout()
+            try click(ShellLocalizer.string("Reply", []), in: widget)
+            try edit(draft, in: widget)
+            XCTAssertEqual(
+                try click(ShellLocalizer.string("Send", []), in: widget).compactMap(ShellAction.init),
+                [.notifications(.reply(bundle: bundle, id: id, text: draft))],
+                bundle
+            )
+        }
+    }
+
+    func testEveryNotificationProfileKeepsNativeReplyControlsInsideTheCard() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        for profile in ShellProfiles.names(in: shell) {
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(profile: profile, shellDirectory: shell, problems: &problems))
+            XCTAssertEqual(problems, [], profile)
+            for dark in [false, true] {
+                let widget = try styledWidget(config, shell: shell, dark: dark)
+                var bar = ShellBarData()
+                bar.style.height = config.barOverride?.settings.height ?? 24
+                widget.render(bar)
+                set(widget, state: "ready", items: [item(id)])
+                widget.layoutPopout()
+                widget.surface.view.frame = CGRect(origin: .zero, size: widget.surface.size)
+                widget.surface.view.layoutSubtreeIfNeeded()
+                try click(ShellLocalizer.string("Reply", []), in: widget)
+                let input = try edit("Reply ✓ 中文 العربية 👩🏽‍💻", in: widget)
+                let frame = try reveal(input.handle, in: widget)
+                let parent = widget.surface.layout.core.parent(of: input.handle)
+                XCTAssertTrue(CGRect(widget.surface.layout.core.absoluteFrame(of: parent)).contains(frame), profile)
+                XCTAssertFalse(input.view.isHidden, profile)
+                XCTAssertEqual(input.text, "Reply ✓ 中文 العربية 👩🏽‍💻", profile)
+                XCTAssertNotNil(input.editor, profile)
+                XCTAssertEqual(input.editor?.placeholder, "Write a reply", profile)
+                input.view.displayIfNeeded()
+                try export(widget, name: "\(profile)-reply-\(dark ? "dark" : "light")", dark: dark)
+                XCTAssertNotEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0, profile)
+                XCTAssertNotEqual(try action(ShellLocalizer.string("Cancel", []), in: widget), 0, profile)
+            }
+        }
     }
 
     func testNotificationProfilesFitBaseAndEnlargedBarsAtBothScalesAndOrientations() throws {

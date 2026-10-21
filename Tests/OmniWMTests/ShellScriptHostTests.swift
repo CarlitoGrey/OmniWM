@@ -95,6 +95,14 @@ final class ShellScriptHostTests: XCTestCase {
         return store
     }
 
+    func messages(_ kind: omni_message_kind, of script: Script) -> [String] {
+        (0 ..< omni_instance_message_count(script.instance, kind)).map { index in
+            var length = 0
+            guard let text = omni_instance_message(script.instance, kind, index, &length) else { return "" }
+            return String(decoding: UnsafeRawBufferPointer(start: text, count: length), as: UTF8.self)
+        }
+    }
+
     func testRenderEncodesTreeAndStrings() throws {
         let script = try Script("""
         function render(ctx)
@@ -489,6 +497,33 @@ final class ShellScriptHostTests: XCTestCase {
         XCTAssertTrue(script.message.contains("boom"), script.message)
         let stale = OMNI_ACTION_HANDLER | 99
         XCTAssertEqual(script.invoke(stale), OMNI_ERR_STALE_ACTION)
+    }
+
+    func testHandlerCommandsAreStoredWholeUpToTheirLimitWhileLogsStayBounded() throws {
+        let script = try Script("""
+        function render(ctx)
+            return ui.row{
+                ui.box{ w = 10, h = 10, onClick = function()
+                    for _ = 1, 16 do omniwm.run(string.rep("a", 16384)) end
+                    omniwm.log(string.rep("b", 600))
+                end },
+                ui.box{ w = 10, h = 10, onClick = function() omniwm.run(string.rep("c", 16385)) end },
+            }
+        end
+        """)
+        XCTAssertEqual(script.render().status, OMNI_OK, script.message)
+        let nodes = decode(script.output)
+        XCTAssertEqual(script.invoke(nodes[1].content.action), OMNI_OK, script.message)
+        XCTAssertEqual(
+            messages(OMNI_MESSAGE_REQUEST, of: script),
+            Array(repeating: String(repeating: "a", count: 16384), count: 16)
+        )
+        XCTAssertEqual(messages(OMNI_MESSAGE_LOG, of: script), [String(repeating: "b", count: 512)])
+        omni_instance_clear_messages(script.instance)
+        XCTAssertEqual(script.invoke(nodes[2].content.action), OMNI_ERR_RUNTIME)
+        XCTAssertTrue(script.message.contains("omniwm.run commands are limited to 16384 bytes"), script.message)
+        XCTAssertFalse(script.message.contains("ccc"), script.message)
+        XCTAssertTrue(messages(OMNI_MESSAGE_REQUEST, of: script).isEmpty)
     }
 
     func testHandlersReceiveTheClickEvent() throws {

@@ -24,6 +24,7 @@ struct TraceCaptureResources {
         AXWriteLatencyTrace.shared,
         OverviewFrameTrace.shared,
         ShellFrameTrace.shared,
+        ShellNotificationTrace.shared,
         BorderOpMetricsRecorder.shared,
         MouseTrace.shared,
         TrackpadScrollTrace.shared,

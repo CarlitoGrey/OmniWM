@@ -1633,7 +1633,7 @@ void queueServiceMessage(lua_State *L, omni_message_kind kind, const char *text,
         }
         return;
     }
-    messages.push_back({std::string(text, std::min(length, size_t(512))), scriptOwner(L), scriptDisplay(L)});
+    messages.push_back({std::string(text, length), scriptOwner(L), scriptDisplay(L)});
 }
 
 void componentServiceOwner(lua_State *L, int object, bool alive, bool provider) {

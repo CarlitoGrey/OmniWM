@@ -3051,12 +3051,13 @@ int popoutAction(lua_State *) {
 
 constexpr size_t maximumRequests = 16;
 constexpr size_t maximumLogs = 32;
-constexpr size_t maximumMessageLength = 512;
+constexpr size_t maximumLogLength = 512;
+constexpr size_t maximumRequestLength = 16384;
 
 void storeMessage(lua_State *L, omni_instance *instance, omni_message_kind kind, const char *text, size_t length) {
     bool stored = true;
     try {
-        instance->messages[kind].emplace_back(text, std::min(length, maximumMessageLength));
+        instance->messages[kind].emplace_back(text, length);
     } catch (...) {
         stored = false;
     }
@@ -3074,6 +3075,9 @@ int runRequest(lua_State *L) {
     }
     size_t length = 0;
     const char *text = luaL_checklstring(L, 1, &length);
+    if (length > maximumRequestLength) {
+        luaL_error(L, "omniwm.run commands are limited to %d bytes", static_cast<int>(maximumRequestLength));
+    }
     if (asynchronous) {
         queueServiceMessage(L, OMNI_MESSAGE_REQUEST, text, length);
     } else {
@@ -3101,6 +3105,7 @@ int logMessage(lua_State *L) {
     lua_concat(L, count * 2 - 1);
     size_t length = 0;
     const char *text = lua_tolstring(L, -1, &length);
+    length = std::min(length, maximumLogLength);
     if (asynchronous) {
         queueServiceMessage(L, OMNI_MESSAGE_LOG, text, length);
     } else {

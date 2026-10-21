@@ -9,6 +9,147 @@ local DETAILS = 24
 local TEXT_PAGE = 8
 local button = presentation.button
 
+local function replyAction(item)
+    local reply = nil
+    for _, action in item.actions or {} do
+        if type(action) == "table" and type(action.title) == "string" and action.title ~= ""
+            and type(action.textInputButtonTitle) == "string" and action.textInputButtonTitle ~= "" then
+            if reply then return nil end
+            reply = action
+        end
+    end
+    if reply then
+        local count = 0
+        for _, action in item.actions or {} do
+            if type(action) == "table" and action.title == reply.title then count += 1 end
+        end
+        if count ~= 1 then return nil end
+    end
+    return reply
+end
+
+local function actionMessage(action)
+    if not action then return nil end
+    if action.state == "pending" then
+        return if action.kind == "reply" then omniwm.l10n("Submitting reply…") else omniwm.l10n("Dismissing notification…")
+    elseif action.state == "dispatched" then
+        return if action.kind == "reply" then omniwm.l10n("Reply submitted to Notification Center.") else omniwm.l10n("Dismiss requested in Notification Center.")
+    elseif action.state == "dispatchedPanelOpen" then
+        return omniwm.l10n("Action submitted. Close Notification Center to continue.")
+    elseif action.state == "failedPanelOpen" then
+        return omniwm.l10n("The action failed. Close Notification Center and try again.")
+    elseif action.state == "notFound" then
+        return omniwm.l10n("This notification is no longer available in Notification Center.")
+    elseif action.state == "denied" then
+        return omniwm.l10n("Accessibility access is required for notification actions.")
+    elseif action.state == "unavailable" then
+        return omniwm.l10n("Notification Center is unavailable.")
+    elseif action.state == "ambiguous" then
+        return omniwm.l10n("The native notification action could not be matched uniquely.")
+    elseif action.state == "unsupported" then
+        return omniwm.l10n("This native notification action is unavailable.")
+    elseif action.state == "failed" then
+        return omniwm.l10n("The native notification action failed.")
+    elseif action.state == "cancelled" then
+        return omniwm.l10n("Notification action cancelled.")
+    elseif action.state == "timeout" then
+        return omniwm.l10n("Notification Center did not complete the action.")
+    end
+    return nil
+end
+
+local function emptyReply(value)
+    for _, scalar in utf8.codes(value) do
+        if not ((scalar >= 9 and scalar <= 13) or scalar == 32 or scalar == 133 or scalar == 160
+            or scalar == 5760 or (scalar >= 8192 and scalar <= 8203) or scalar == 8232 or scalar == 8233
+            or scalar == 8239 or scalar == 8287 or scalar == 12288) then
+            return false
+        end
+    end
+    return true
+end
+
+local function syncReplies(ctx, value)
+    ctx.state.drafts = ctx.state.drafts or {}
+    local action = if value then value.action else nil
+    local key = if action then action.bundle .. ":" .. action.id .. ":" .. action.kind .. ":" .. action.state else nil
+    if key ~= ctx.state.lastAction then
+        ctx.state.lastAction = key
+        local matching = false
+        for _, item in (if value then value.items or {} else {}) do
+            if string.lower(item.id) == (if action then action.id else nil) and item.bundle == action.bundle then
+                matching = true
+                break
+            end
+        end
+        if action and matching and (action.state == "dispatched" or action.state == "dispatchedPanelOpen") and action.kind == "reply" then
+            ctx.state.drafts[action.id] = nil
+            if ctx.state.reply == action.id then
+                ctx.state.reply = nil
+                ctx.state.replyError = nil
+            end
+        end
+    end
+    if value and value.complete == true and (value.state == "ready" or value.state == "empty") then
+        local retained = {}
+        for _, item in value.items or {} do retained[string.lower(item.id)] = true end
+        for id in ctx.state.drafts do
+            if not retained[id] then ctx.state.drafts[id] = nil end
+        end
+        if ctx.state.reply and not retained[ctx.state.reply] then
+            ctx.state.reply = nil
+            ctx.state.replyError = nil
+        end
+    end
+end
+
+local function composer(ctx, item, action, width, busy)
+    local id = string.lower(item.id)
+    local draft = ctx.state.drafts[id] or ""
+    local function send(next, event)
+        if busy then return end
+        local value = if event and event.text then event.text else next.state.drafts[id] or ""
+        next.state.drafts[id] = value
+        if string.find(value, "\0", 1, true) then
+            next.state.replyError = omniwm.l10n("Reply contains unsupported characters.")
+            return
+        end
+        if emptyReply(value) then
+            next.state.replyError = omniwm.l10n("Reply cannot be empty.")
+            return
+        end
+        if #value > 4096 then
+            next.state.replyError = omniwm.l10n("Reply exceeds the 4096-byte limit.")
+            return
+        end
+        local encoded = table.create(#value)
+        for index = 1, #value do encoded[index] = string.format("%02x", string.byte(value, index)) end
+        next.state.replyError = nil
+        omniwm.run("notifications reply " .. item.bundle .. " " .. id .. " " .. table.concat(encoded))
+    end
+    local function cancel(next)
+        next.state.reply = nil
+        next.state.replyError = nil
+    end
+    local rows = { w = width, pad = 6, gap = 6, center = false,
+        ui.input{ key = "notification-reply-" .. id, w = width - 12, h = 72, multiline = true, maxLength = 1024,
+            text = draft, placeholder = if type(action.textInputPlaceholder) == "string" then action.textInputPlaceholder else nil,
+            focus = true, color = "foreground",
+            onChange = function(next, event)
+                next.state.drafts[id] = event.text or ""
+                next.state.replyError = nil
+            end,
+            onCommit = send, onCancel = cancel },
+        ui.row{ gap = 6,
+            button(omniwm.l10n("Send"), if busy or draft == "" then nil else send),
+            button(omniwm.l10n("Cancel"), cancel) } }
+    if ctx.state.replyError then
+        rows[#rows + 1] = presentation.text{ text = ctx.state.replyError, style = "small", color = "secondaryForeground",
+            maxWidth = width - 12, lines = 4 }
+    end
+    return presentation.group(rows, true)
+end
+
 local function text(rows, value, width, style, color, ctx, key)
     if type(value) ~= "string" or value == "" then
         return
@@ -183,6 +324,28 @@ local function notification(ctx, item)
             state.state.detailsPage = 1
         end),
         button(omniwm.l10n("Open App"), "notifications open " .. item.bundle) }
+    local value = ctx.data.notifications
+    local action = value.action
+    local id = string.lower(item.id)
+    local busy = action and action.state == "pending"
+    if value.complete == true then
+        local reply = replyAction(item)
+        local actions = { gap = 6,
+            button(omniwm.l10n("Dismiss"), if busy then nil else "notifications dismiss " .. item.bundle .. " " .. id) }
+        if reply then
+            actions[#actions + 1] = button(omniwm.l10n("Reply"), function(next)
+                next.state.reply = if next.state.reply == id then nil else id
+                next.state.replyError = nil
+            end)
+        end
+        rows[#rows + 1] = ui.row(actions)
+        if reply and ctx.state.reply == id then
+            rows[#rows + 1] = composer(ctx, item, reply, content, busy)
+        end
+    end
+    if action and action.id == id and action.bundle == item.bundle then
+        text(rows, actionMessage(action), content, "small", "secondaryForeground")
+    end
     if expanded then
         rows[#rows + 1] = inspector(ctx, item, content, app)
     end
@@ -227,6 +390,7 @@ end
 
 function popout(ctx)
     local value = ctx.data.notifications
+    syncReplies(ctx, value)
     local items = if value then value.items or {} else {}
     local pages = math.max(1, math.ceil(#items / PAGE))
     local page = math.clamp(ctx.state.page or 1, 1, pages)

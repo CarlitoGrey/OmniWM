@@ -278,6 +278,12 @@ export type Notifications = {
         requests: any,
     } },
     error: string?,
+    action: {
+        id: string,
+        bundle: string,
+        kind: "reply" | "dismiss",
+        state: string,
+    }?,
 }
 
 export type Reminder = {
