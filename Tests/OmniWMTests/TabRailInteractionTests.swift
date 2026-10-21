@@ -204,6 +204,70 @@ final class TabRailInteractionTests: XCTestCase {
         XCTAssertFalse(window.hoverCard.isVisible)
     }
 
+    func testSettledUpdatesAfterAnimationMoveInWindowServerAndKeepGeometryReadersCurrent() throws {
+        let manager = TabRailManager(motionPolicy: MotionPolicy(animationsEnabled: false))
+        defer { manager.removeAll() }
+        let visibleFrame = try XCTUnwrap(NSScreen.main).visibleFrame
+        let tileFrame = CGRect(x: visibleFrame.minX + 100, y: visibleFrame.minY + 100, width: 400, height: 300)
+        var info = replacing(makeInfo(count: 2), tileFrame: tileFrame)
+        manager.updateRails([info])
+        let window = try XCTUnwrap(manager.existingWindow(for: info.key) as? TabRailWindow)
+        let view = try XCTUnwrap(window.contentView as? TabRailView)
+        let realizedFrame = window.frame
+        XCTAssertEqual(window.appliedFrame, realizedFrame)
+
+        let animatedTile = tileFrame.offsetBy(dx: 45, dy: 10)
+        manager.applyAnimationGeometry([.init(key: info.key, tileFrame: animatedTile, visibleTileFrame: animatedTile)])
+        info = replacing(info, tileFrame: animatedTile)
+        manager.updateRails([info])
+        XCTAssertEqual(window.frame, realizedFrame)
+        try assertRailGeometry(window, view, info, railFrame: realizedFrame.offsetBy(dx: 45, dy: 10))
+
+        let settledTile = animatedTile.offsetBy(dx: -20, dy: 30)
+        info = replacing(info, tileFrame: settledTile)
+        manager.updateRails([info])
+        let settledFrame = realizedFrame.offsetBy(dx: 25, dy: 40)
+        XCTAssertEqual(window.frame, realizedFrame)
+        try assertRailGeometry(window, view, info, railFrame: settledFrame)
+
+        try showHover(in: window)
+        manager.updateRails([info])
+        XCTAssertTrue(window.hoverCard.isVisible)
+        let expectedCard = TabRailHoverCardPlacement.frame(
+            railFrame: settledFrame,
+            itemRect: try XCTUnwrap(view.item(at: CGPoint(x: 17, y: view.bounds.midY))).pillRect,
+            cardSize: TabRailMetrics.hoverCardSize,
+            visibleFrame: try XCTUnwrap(window.screen).visibleFrame,
+            gap: TabRailMetrics.hoverCardGap
+        )
+        XCTAssertEqual(window.hoverCard.frame, expectedCard)
+
+        info = replacing(info, tileFrame: CGRect(origin: settledTile.origin, size: CGSize(width: 400, height: 40)))
+        manager.updateRails([info])
+        XCTAssertNotEqual(window.frame.size, realizedFrame.size)
+        XCTAssertEqual(window.frame.minX, settledFrame.minX)
+        try assertRailGeometry(window, view, info, railFrame: window.frame)
+    }
+
+    private func assertRailGeometry(
+        _ window: TabRailWindow, _ view: TabRailView, _ info: TabRailInfo, railFrame: CGRect
+    ) throws {
+        XCTAssertEqual(window.appliedFrame, railFrame)
+        let surface = SurfaceCoordinator.shared.visibleSurfaceInfos().first {
+            $0.kind == .tabRail && $0.id.contains(info.workspaceId.uuidString)
+        }
+        XCTAssertEqual(surface?.frame, railFrame)
+        let children = try XCTUnwrap(view.accessibilityChildren() as? [NSAccessibilityElement])
+        let layout = TabRailLayout(
+            tabCount: info.tabCount, bounds: view.bounds,
+            activeVisualIndex: info.activeVisualIndex, scale: window.backingScaleFactor
+        )
+        XCTAssertEqual(children.count, layout.items.count)
+        for (child, item) in zip(children, layout.items) {
+            XCTAssertEqual(child.accessibilityFrame(), item.hitRect.offsetBy(dx: railFrame.minX, dy: railFrame.minY))
+        }
+    }
+
     private func showHover(in window: TabRailWindow) throws {
         let view = try XCTUnwrap(window.contentView as? TabRailView)
         view.mouseMoved(with: try event(.mouseMoved, at: CGPoint(x: 17, y: view.bounds.midY), in: window))
