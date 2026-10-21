@@ -1420,6 +1420,80 @@ final class FocusWithoutRaiseTests: XCTestCase {
         XCTAssertNil(fixture.controller.workspaceManager.pendingFocusedToken)
     }
 
+    func testMatchingPointerSampleChecksScreenshotSelectionOnceWhenCompletingSameAppHandoff() throws {
+        for selectionActive in [false, true] {
+            let fixture = try makeFixture()
+            let source = addWindow(
+                pid: 820_070,
+                windowId: 820_170,
+                to: fixture.workspaceId,
+                controller: fixture.controller
+            )
+            let target = addWindow(
+                pid: source.pid,
+                windowId: 820_171,
+                to: fixture.workspaceId,
+                controller: fixture.controller,
+                mode: .floating
+            )
+            setFocused(source, in: fixture.workspaceId, controller: fixture.controller)
+            fixture.recorder.operations.removeAll()
+            let request = try hoverFloatingTarget(target, in: fixture.workspaceId, controller: fixture.controller)
+            XCTAssertEqual(fixture.recorder.operations, [.deactivate(source)])
+            var selectionChecks = 0
+            fixture.controller.focusPolicyEngine.screenshotSelectionActiveProvider = {
+                selectionChecks += 1
+                return selectionActive
+            }
+
+            fixture.controller.axEventHandler.handleIntentExpired(request.requestId)
+
+            if selectionActive {
+                XCTAssertFalse(fixture.recorder.operations.contains(.activateSameApp(target)))
+                XCTAssertNil(fixture.controller.intentLedger.activeManagedRequest)
+                XCTAssertNil(fixture.controller.workspaceManager.pendingFocusedToken)
+            } else {
+                XCTAssertEqual(selectionChecks, 1)
+                XCTAssertEqual(fixture.recorder.operations, [.deactivate(source), .activateSameApp(target)])
+                XCTAssertEqual(fixture.controller.intentLedger.activeManagedRequest?.phase, .awaitingConfirmation)
+            }
+        }
+    }
+
+    func testMatchingPointerSampleChecksScreenshotSelectionOnceWhenRetryingMouseFocus() throws {
+        for selectionActive in [false, true] {
+            let fixture = try makeFixture()
+            let target = addWindow(
+                pid: 820_071,
+                windowId: 820_172,
+                to: fixture.workspaceId,
+                controller: fixture.controller,
+                mode: .floating
+            )
+            let request = try hoverFloatingTarget(target, in: fixture.workspaceId, controller: fixture.controller)
+            XCTAssertEqual(fixture.recorder.operations, [.focus(target)])
+            var selectionChecks = 0
+            fixture.controller.focusPolicyEngine.screenshotSelectionActiveProvider = {
+                selectionChecks += 1
+                return selectionActive
+            }
+
+            fixture.controller.retryManagedFocusFronting(request)
+
+            XCTAssertEqual(selectionChecks, 1, "selectionActive=\(selectionActive)")
+            XCTAssertEqual(
+                fixture.recorder.operations,
+                selectionActive ? [.focus(target)] : [.focus(target), .focus(target)],
+                "selectionActive=\(selectionActive)"
+            )
+            XCTAssertEqual(
+                fixture.controller.intentLedger.activeManagedRequest?.token,
+                selectionActive ? nil : target,
+                "selectionActive=\(selectionActive)"
+            )
+        }
+    }
+
     func testRetiringPendingTargetRestoresSourceBeforeRemoval() throws {
         let fixture = try makeFixture()
         let source = addWindow(
@@ -1744,6 +1818,27 @@ final class FocusWithoutRaiseTests: XCTestCase {
             to: workspaceId,
             mode: mode
         )
+    }
+
+    private func hoverFloatingTarget(
+        _ target: WindowToken,
+        in workspaceId: WorkspaceDescriptor.ID,
+        controller: WMController
+    ) throws -> ManagedFocusRequest {
+        let monitor = try XCTUnwrap(controller.workspaceManager.monitor(for: workspaceId))
+        let targetFrame = CGRect(
+            x: monitor.visibleFrame.minX + 40,
+            y: monitor.visibleFrame.minY + 40,
+            width: 240,
+            height: 160
+        )
+        controller.workspaceManager.updateFloatingGeometry(frame: targetFrame, for: target)
+        controller.focusPolicyEngine.screenshotSelectionActiveProvider = { false }
+        controller.mouseEventHandler.dispatchMouseMoved(
+            at: targetFrame.center,
+            windowIdUnderPointer: target.windowId
+        )
+        return try XCTUnwrap(controller.intentLedger.activeManagedRequest)
     }
 
     private func setFocused(

@@ -100,9 +100,7 @@ extension WMController {
             return
         }
         guard focusFollowsMouseEnabled,
-              !mouseEventHandler.hasLatestFocusFollowsMouseSample
-              || mouseEventHandler.latestFocusFollowsMouseToken() == liveRequest.token,
-              focusPolicyEngine.evaluate(.focusFollowsMouse).allowsFocusChange,
+              focusFollowsMouseAllowsFocus(on: liveRequest.token, validatesPointer: true),
               canFocusWindow(pid: entry.pid, windowId: entry.windowId)
         else {
             cancelManagedFocusRequestAndRestoreSource(
@@ -133,25 +131,21 @@ extension WMController {
     }
 
     private func validateMouseFocusRequest(_ liveRequest: ManagedFocusRequest, validatesPointer: Bool) -> Bool {
-        if liveRequest.origin == .focusFollowsMouse {
-            guard focusFollowsMouseEnabled else {
-                cancelManagedFocusRequestAndRestoreSource(liveRequest)
-                return false
-            }
-            if validatesPointer,
-               mouseEventHandler.hasLatestFocusFollowsMouseSample,
-               mouseEventHandler.latestFocusFollowsMouseToken() != liveRequest.token
-            {
-                cancelManagedFocusRequestAndRestoreSource(liveRequest)
-                return false
-            }
-            guard focusPolicyEngine.evaluate(.focusFollowsMouse).allowsFocusChange else {
-                cancelManagedFocusRequestAndRestoreSource(liveRequest)
-                return false
-            }
+        guard liveRequest.origin == .focusFollowsMouse else { return true }
+        guard focusFollowsMouseEnabled,
+              focusFollowsMouseAllowsFocus(on: liveRequest.token, validatesPointer: validatesPointer)
+        else {
+            cancelManagedFocusRequestAndRestoreSource(liveRequest)
+            return false
         }
-
         return true
+    }
+
+    private func focusFollowsMouseAllowsFocus(on token: WindowToken, validatesPointer: Bool) -> Bool {
+        guard validatesPointer, mouseEventHandler.hasLatestFocusFollowsMouseSample else {
+            return focusPolicyEngine.evaluate(.focusFollowsMouse).allowsFocusChange
+        }
+        return mouseEventHandler.latestFocusFollowsMouseToken() == token
     }
 
     private func frontManagedFocusRequest(
