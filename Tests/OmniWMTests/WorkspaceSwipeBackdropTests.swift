@@ -92,6 +92,10 @@ final class WorkspaceSwipeBackdropTests: XCTestCase {
         let offset = try XCTUnwrap(SkyLight.crop(image, from: fractional, to: frame))
         XCTAssertEqual(offset.width, 8)
         XCTAssertEqual(offset.height, 6)
+
+        let clipped = try makeImage(width: 8, height: 6)
+        XCTAssertTrue(SkyLight.crop(clipped, from: live, to: frame) === clipped)
+        XCTAssertNil(SkyLight.crop(try makeImage(width: 7, height: 6), from: live, to: frame))
     }
 
     func testCaptureBridgeRejectsMalformedResultsAndRetainsImage() throws {

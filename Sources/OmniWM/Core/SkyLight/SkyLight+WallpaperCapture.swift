@@ -34,7 +34,8 @@ extension SkyLight {
     }
 
     static func crop(_ image: CGImage, from windowFrame: CGRect, to frame: CGRect) -> CGImage? {
-        guard windowFrame != frame, windowFrame.width > 0 else { return image }
+        if windowFrame == frame || covers(image, frame) { return image }
+        guard covers(image, windowFrame) else { return nil }
         let scale = CGFloat(image.width) / windowFrame.width
         let rect = CGRect(
             x: ((frame.minX - windowFrame.minX) * scale).rounded(),
@@ -43,6 +44,13 @@ extension SkyLight {
             height: (frame.height * scale).rounded()
         )
         return image.cropping(to: rect)
+    }
+
+    private static func covers(_ image: CGImage, _ rect: CGRect) -> Bool {
+        guard rect.width > 0 else { return false }
+        let scale = CGFloat(image.width) / rect.width
+        return scale >= 1 && abs(scale - scale.rounded()) < 0.01
+            && Int((rect.height * scale).rounded()) == image.height
     }
 
     nonisolated static func firstCapturedImage(in images: CFArray) -> CGImage? {
