@@ -16,6 +16,10 @@ struct TapFilterSnapshot: Sendable {
     var isInputSuppressed: Bool = false
 }
 
+private struct TouchCountProviderBox: Sendable {
+    var provider: (@Sendable () -> Int)?
+}
+
 final class InputTapThread: @unchecked Sendable {
     private var thread: Thread?
     private var runLoopRef: CFRunLoop?
@@ -24,11 +28,11 @@ final class InputTapThread: @unchecked Sendable {
     private var started = false
 
     private let filterLock = OSAllocatedUnfairLock(initialState: TapFilterSnapshot())
-    private let touchCountLock = OSAllocatedUnfairLock<(@Sendable () -> Int)?>(initialState: nil)
+    private let touchCountLock = OSAllocatedUnfairLock(initialState: TouchCountProviderBox())
 
     var touchCountProvider: (@Sendable () -> Int)? {
-        get { touchCountLock.withLock { $0 } }
-        set { touchCountLock.withLock { $0 = newValue } }
+        get { touchCountLock.withLock { $0.provider } }
+        set { touchCountLock.withLock { $0.provider = newValue } }
     }
 
     var runLoop: CFRunLoop? {
