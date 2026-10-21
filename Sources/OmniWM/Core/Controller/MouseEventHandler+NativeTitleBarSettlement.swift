@@ -147,7 +147,7 @@ extension MouseEventHandler {
         )
     }
 
-    private func nativeWindowFrameMatchesManagedTarget(
+    func nativeWindowFrameMatchesManagedTarget(
         _ observedFrame: CGRect,
         entry: WindowState
     ) -> Bool {

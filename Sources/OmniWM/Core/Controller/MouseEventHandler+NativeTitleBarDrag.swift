@@ -179,6 +179,7 @@ extension MouseEventHandler {
         guard let observedFrame,
               abs(observedFrame.width - move.startFrame.width) <= FrameTolerance.screenMatch,
               abs(observedFrame.height - move.startFrame.height) <= FrameTolerance.screenMatch,
+              !nativeWindowFrameMatchesManagedTarget(observedFrame, entry: entry),
               let plan = controller.crossDisplayDropPlan(for: drop)
         else {
             state.nativeCrossDisplayMove = nil
