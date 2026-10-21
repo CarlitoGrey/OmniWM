@@ -48,6 +48,36 @@ final class ShellBlurTests: XCTestCase {
         }
     }
 
+    func testFillOnlyRepaintKeepsBackdropFilters() throws {
+        guard !NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency else {
+            throw XCTSkip("Reduce Transparency replaces materials with solid fills")
+        }
+        let widget = try ShellRenderedWidget(name: "blurfill", source: """
+        function render(ctx)
+            return ui.stack{ w = 100, h = 80, material = 'regular',
+                fill = ctx.state.on and '#00ff0040' or '#ff000040',
+                onClick = function(next) next.state.on = true end }
+        end
+        """)
+        widget.render(ShellBarData())
+        let node = try XCTUnwrap(widget.tree().first)
+        let scene = widget.surface.scene
+        let state = {
+            ShellLayerScene.engineQueue.sync { () -> ([NSObject], CGColor?) in
+                let entry = scene.backdrops.values.first
+                return (entry?.backdrop.filters as? [NSObject] ?? [], entry?.tint.backgroundColor)
+            }
+        }
+        let (before, beforeTint) = state()
+        XCTAssertEqual(before.count, 2)
+        widget.invoke(node.content.action)
+        widget.render(ShellBarData())
+        let (after, afterTint) = state()
+        XCTAssertNotEqual(beforeTint, afterTint)
+        XCTAssertEqual(after.count, 2)
+        XCTAssertTrue(zip(before, after).allSatisfy { $0 === $1 })
+    }
+
     func testInvalidBlurAndTextureDeclarationsAreRejected() throws {
         for properties in [
             "blurRadius = -1",
