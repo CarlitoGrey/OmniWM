@@ -128,26 +128,27 @@ extension MouseEventHandler {
         return annotatedMoveTapInstalled
     }
 
-    private func installSessionTap(annotatedMoveTapInstalled: Bool) {
-        let callback: CGEventTapCallBack = { _, type, event, _ in
-            if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
-                InputTapHealth.recordTapDisabled(mouse: true, byTimeout: type == .tapDisabledByTimeout)
-                if let tap = MouseEventHandler._instance?.state.eventTap {
-                    CGEvent.tapEnable(tap: tap, enable: true)
-                }
-                Task { @MainActor in
-                    MouseEventHandler._instance?.recoverAfterTapDisable()
-                }
-                return Unmanaged.passUnretained(event)
+    nonisolated static let sessionTapCallback: CGEventTapCallBack = { _, type, event, _ in
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            InputTapHealth.recordTapDisabled(mouse: true, byTimeout: type == .tapDisabledByTimeout)
+            if let tap = MouseEventHandler._instance?.inputTapThread.sessionTap {
+                CGEvent.tapEnable(tap: tap, enable: true)
             }
-
-            guard let evaluated = MouseEventHandler.processTap(type: type, event: event) else {
-                return nil
+            Task { @MainActor in
+                MouseEventHandler._instance?.recoverAfterTapDisable()
             }
-
-            return Unmanaged.passUnretained(evaluated)
+            return Unmanaged.passUnretained(event)
         }
-        installSessionTap(annotatedMoveTapInstalled: annotatedMoveTapInstalled, callback: callback)
+
+        guard let evaluated = MouseEventHandler.processTap(type: type, event: event) else {
+            return nil
+        }
+
+        return Unmanaged.passUnretained(evaluated)
+    }
+
+    private func installSessionTap(annotatedMoveTapInstalled: Bool) {
+        installSessionTap(annotatedMoveTapInstalled: annotatedMoveTapInstalled, callback: Self.sessionTapCallback)
     }
 
     private func installSessionTap(annotatedMoveTapInstalled: Bool, callback: CGEventTapCallBack) {
@@ -167,6 +168,7 @@ extension MouseEventHandler {
             if let source = state.runLoopSource {
                 let tapRunLoop = inputTapThread.startAndGetRunLoop()
                 state.eventTapRunLoop = tapRunLoop
+                inputTapThread.sessionTap = tap
                 CFRunLoopAddSource(tapRunLoop, source, .commonModes)
                 CGEvent.tapEnable(tap: tap, enable: true)
             } else {
@@ -195,6 +197,7 @@ extension MouseEventHandler {
     }
 
     private func tearDownSessionEventTap() {
+        inputTapThread.sessionTap = nil
         var tap = state.eventTap
         var source = state.runLoopSource
         let runLoop = state.eventTapRunLoop ?? CFRunLoopGetMain()!

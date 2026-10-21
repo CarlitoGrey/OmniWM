@@ -368,12 +368,13 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         bar.visible = false
         bar.retainWhileHidden = true
         manager.apply([bar])
-        await waitForShellWidgets(manager, on: display, count: 2)
+        await waitForShellWidgets(manager, on: display, count: 2, loaded: "drawer")
         let panel = try XCTUnwrap(manager.barsByMonitor[display.id]?.primary.panel)
         panel.setFrame(
             CGRect(x: display.frame.minX + 100, y: display.frame.maxY - 24, width: 200, height: 24),
             display: false
         )
+        panel.contentView?.layoutSubtreeIfNeeded()
         manager.rebuildAutoHideTargets()
         pointer = CGPoint(x: panel.frame.midX, y: display.frame.maxY - 0.5)
         manager.handleAutoHideMouseMoved(at: pointer)
@@ -888,8 +889,14 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         await waitForShellWidgets(manager, on: monitor, count: 1)
     }
 
-    private func waitForShellWidgets(_ manager: WorkspaceBarManager, on monitor: Monitor, count: Int) async {
+    private func waitForShellWidgets(
+        _ manager: WorkspaceBarManager,
+        on monitor: Monitor,
+        count: Int,
+        loaded widget: String? = nil
+    ) async {
         await until {
+            if let widget, manager.shellHost?.widgets[widget]?.package == nil { return false }
             guard let model = manager.barsByMonitor[monitor.id]?.model else { return true }
             return model.snapshot.shellWidgets.count >= count
         }

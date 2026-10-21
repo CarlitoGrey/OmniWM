@@ -39,6 +39,7 @@ enum WindowAdmissionTestSupport {
         )
         let handler = controller.axEventHandler
         handler.lifecycleQueries.query = { [weak handler] in handler?.windowInfoProvider($0) }
+        handler.frameObservations.nativeDragQuery = { [weak handler] in handler?.windowInfoProvider($0) }
         return controller
     }
 

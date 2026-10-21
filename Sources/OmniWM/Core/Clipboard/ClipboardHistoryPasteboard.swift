@@ -32,11 +32,18 @@ enum ClipboardHistoryPasteboard {
     ]
 
     static func capture(configuration: ClipboardPasteboardCaptureConfiguration) -> ClipboardPasteboardCapture? {
-        let rejectedTypes = rejectedTypeValues.union(configuration.ignoredTypes)
-        guard Set(NSPasteboard.general.types?.map(\.rawValue) ?? []).isDisjoint(with: rejectedTypes) else {
+        let pasteboard = NSPasteboard.general
+        let exclusionKey = "_shouldExcludeFromHistory"
+        if pasteboard.responds(to: Selector(exclusionKey)),
+           pasteboard.value(forKey: exclusionKey) as? Bool == true
+        {
             return nil
         }
-        guard let pasteboardItems = NSPasteboard.general.pasteboardItems,
+        let rejectedTypes = rejectedTypeValues.union(configuration.ignoredTypes)
+        guard Set(pasteboard.types?.map(\.rawValue) ?? []).isDisjoint(with: rejectedTypes) else {
+            return nil
+        }
+        guard let pasteboardItems = pasteboard.pasteboardItems,
               !pasteboardItems.isEmpty
         else {
             return nil

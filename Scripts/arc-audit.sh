@@ -5,12 +5,14 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+swiftly_bin="${SWIFTLY_HOME_DIR:-$HOME/.swiftly}/bin"
+cd "$root"
 scratch="$root/.build/arc-audit"
 products="$scratch/out/Products/Release"
 objects="$scratch/out/Intermediates.noindex/OmniWM.build/Release/OmniWMShellCore-t.build/Objects-normal/arm64"
 forbidden='_swift_retain|_swift_release|_swift_allocObject|_swift_allocBox|_swift_bridgeObjectRetain|_swift_bridgeObjectRelease|_swift_beginAccess|_swift_getGenericMetadata|_swift_dynamicCast|_objc_retain|_objc_release'
 
-xcrun swift build -c release --target OmniWMShellCore --scratch-path "$scratch" >/dev/null
+"$swiftly_bin/swift" build -c release --target OmniWMShellCore --scratch-path "$scratch" >/dev/null
 
 echo "arc-audit: runtime calls referenced by OmniWMShellCore, by function"
 for object in "$objects"/*.o; do
@@ -20,11 +22,11 @@ for object in "$objects"/*.o; do
             /ARM64_RELOC_BRANCH26|ARM64_RELOC_GOT_LOAD_PAGE21/ && $NF ~ "^(" pattern ")$" {
                 print "  " file ": " function_name " -> " $NF
             }' \
-        | sort -u | xcrun swift-demangle --simplified
+        | sort -u | "$swiftly_bin/swift-demangle" --simplified
 done
 
 xcrun clang -c -O2 -o "$scratch/Counters.o" "$root/Scripts/arc-audit/Counters.c"
-xcrun swiftc -O -whole-module-optimization -parse-as-library -swift-version 6 \
+"$swiftly_bin/swiftc" -O -whole-module-optimization -parse-as-library -swift-version 6 \
     -I "$products" \
     -import-objc-header "$root/Scripts/arc-audit/Counters.h" \
     "$root/Scripts/arc-audit/ArcAudit.swift" \
@@ -35,19 +37,15 @@ xcrun swiftc -O -whole-module-optimization -parse-as-library -swift-version 6 \
 echo "arc-audit: Embedded Swift compile of OmniWMShellCore (not gating)"
 shopt -s nullglob
 embedded_swiftc=""
-for toolchain in "$HOME"/Library/Developer/Toolchains/swift-6.4*-RELEASE.xctoolchain \
-    /Library/Developer/Toolchains/swift-6.4*-RELEASE.xctoolchain; do
-    if [ -x "$toolchain/usr/bin/swiftc" ]; then
-        embedded_swiftc="$toolchain/usr/bin/swiftc"
-        break
-    fi
-done
+if [ -x "$swiftly_bin/swiftc" ]; then
+    embedded_swiftc="$swiftly_bin/swiftc"
+fi
 if [ -z "$embedded_swiftc" ]; then
-    echo "  skipped: no swift.org 6.4 toolchain, which carries the Embedded standard library"
+    echo "  skipped: no swiftly-managed pinned Swift 6.5-dev toolchain, which carries the Embedded standard library"
 elif "$embedded_swiftc" -enable-experimental-feature Embedded -wmo -parse-as-library -module-name OmniWMShellCore \
     -target arm64-apple-macos14 -c "$root"/Sources/OmniWMShellCore/*.swift -o "$scratch/embedded.o" \
     >"$scratch/embedded.log" 2>&1; then
-    echo "  compiled with $(basename "$(dirname "$(dirname "$(dirname "$embedded_swiftc")")")")"
+    echo "  compiled with $("$embedded_swiftc" --version 2>/dev/null | head -n 1)"
 else
     echo "  did not compile; see $scratch/embedded.log"
     head -5 "$scratch/embedded.log" | sed 's/^/  /'

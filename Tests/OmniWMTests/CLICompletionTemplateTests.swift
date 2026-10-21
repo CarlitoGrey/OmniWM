@@ -16,8 +16,9 @@ final class CLICompletionTemplateTests: XCTestCase {
             ("omniwmctl window mark ''", 4, "set"),
             ("omniwmctl window mark list ''", 5, "--json")
         ] {
-            let setup = "words=(\(words)); CURRENT=\(position); compadd() { print -r -- \"$@\" }; "
-            XCTAssertTrue(try suggestions(from: "/bin/zsh", ["-fc", setup + script]).contains(expected), words)
+            let setup = "words=(\(words)); CURRENT=\(position); compadd() { print -r -- \"$@\" }; compdef() { :; }; "
+            let input = setup + script + "\n_omniwmctl; :"
+            XCTAssertTrue(try suggestions(from: "/bin/zsh", ["-fc", input]).contains(expected), words)
         }
     }
 
@@ -32,12 +33,29 @@ final class CLICompletionTemplateTests: XCTestCase {
             ("omniwmctl window gather --from all ow_a ''", [])
         ] {
             let count = words.split(separator: " ").count
-            let zshInput = "words=(\(words)); CURRENT=\(count); compadd() { shift; print -r -- \"$@\" }; \(zsh)\n:"
+            let zshInput = "words=(\(words)); CURRENT=\(count); compadd() { shift; print -r -- \"$@\" }; "
+                + "compdef() { :; }; \(zsh)\n_omniwmctl; :"
             let bashInput = "\(bash)\nCOMP_WORDS=(\(words)); COMP_CWORD=\(count - 1); _omniwmctl\n"
                 + #"printf '%s\n' "${COMPREPLY[@]}""#
             XCTAssertEqual(Set(try suggestions(from: "/bin/zsh", ["-fc", zshInput])), Set(expected), words)
             XCTAssertEqual(Set(try suggestions(from: "/bin/bash", ["-c", bashInput])), Set(expected), words)
         }
+    }
+
+    func testZshScriptRegistersWhenEvaluatedAndCompletesWhenAutoloaded() throws {
+        let script = CLICompletionGenerator.script(for: .zsh)
+        let stubs = "compadd() { shift; print -r -- \"$@\" }; compdef() { print -r -- \"compdef $*\" }; "
+
+        let evaluated = try suggestions(from: "/bin/zsh", ["-fc", stubs + script])
+        XCTAssertEqual(evaluated, ["compdef", "_omniwmctl", "omniwmctl"])
+
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        try script.write(to: directory.appendingPathComponent("_omniwmctl"), atomically: true, encoding: .utf8)
+        let autoload = stubs + "fpath=(\(directory.path) $fpath); autoload -Uz _omniwmctl; "
+            + "words=(omniwmctl window gather ''); CURRENT=4; _omniwmctl; :"
+        XCTAssertEqual(try suggestions(from: "/bin/zsh", ["-fc", autoload]), ["--from"])
     }
 
     func testFishGatherCompletionsOfferTheReachFlagOnceAndItsValuesAfterIt() {

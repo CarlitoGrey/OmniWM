@@ -15,7 +15,7 @@ This guide is for contributors who want to understand OmniWM's internals. It is 
 
 ### SwiftPM Targets
 
-OmniWM is built with Swift Package Manager (Swift 6.4, strict concurrency, language mode v6). There are eleven production targets, one test target, and one binary target, with a clear dependency graph:
+OmniWM is built with Swift Package Manager (the pinned Swift 6.5-dev snapshot, strict concurrency, language mode v6). There are eleven production targets, one test target, and one binary target, with a clear dependency graph:
 
 ```
 OmniWMApp                          (@main entry point)
@@ -136,7 +136,7 @@ OmniWM has a single third-party Swift package and otherwise builds on system fra
 ### Building & Running
 
 ```bash
-make setup                   # Obtain pinned GhosttyKit, SwiftFormat, and SwiftLint
+make setup                   # Build pinned GhosttyKit, SwiftFormat, and SwiftLint from flake.nix
 make build                   # Ghostty preflight + arm64 Debug build
 make run                     # Build, sign, install, and switch to OmniWM Dev
 make format                  # Rewrite formatting with SwiftFormat

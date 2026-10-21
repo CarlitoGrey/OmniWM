@@ -5,7 +5,7 @@ import CoreGraphics
 import Foundation
 
 struct SkyLightQueryFunctions {
-    typealias WindowQueryWindowsFunc = @convention(c) (Int32, CFArray, UInt32) -> Unmanaged<CFTypeRef>?
+    typealias WindowQueryWindowsFunc = @convention(c) (Int32, CFArray, UInt) -> Unmanaged<CFTypeRef>?
     typealias WindowQueryResultCopyWindowsFunc = @convention(c) (CFTypeRef) -> Unmanaged<CFTypeRef>?
     typealias WindowIteratorGetCountFunc = @convention(c) (CFTypeRef) -> Int32
     typealias WindowIteratorAdvanceFunc = @convention(c) (CFTypeRef) -> Bool

@@ -8,7 +8,7 @@ import Foundation
 final class WindowRuleReevaluationScheduler {
     private weak var controller: WMController?
     private var pendingWindowRuleReevaluationTask: Task<Void, Never>?
-    private var pendingWindowRuleReevaluationTargets: Set<WindowRuleReevaluationTarget> = []
+    private(set) var pendingWindowRuleReevaluationTargets: Set<WindowRuleReevaluationTarget> = []
     private var pendingWindowRuleReevaluationGeneration: UInt64 = 0
     private let reevaluate: (WMController, Set<WindowRuleReevaluationTarget>) async -> WindowRuleReevaluationOutcome
 
