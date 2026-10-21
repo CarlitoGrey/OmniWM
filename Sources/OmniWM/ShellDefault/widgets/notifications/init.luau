@@ -1,23 +1,20 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+local presentation = require("../lib/notification-style")
+
 local WIDTH = 392
 local PAGE = 8
 local DETAILS = 24
 local TEXT_PAGE = 8
-local HOVER = "foreground/0.12"
-
-local function button(title, action)
-    return ui.box{ pad = 5, radius = 5, hover = HOVER, onClick = action,
-        ui.text{ text = title, style = "small" } }
-end
+local button = presentation.button
 
 local function text(rows, value, width, style, color, ctx, key)
     if type(value) ~= "string" or value == "" then
         return
     end
     if not utf8.len(value) then
-        rows[#rows + 1] = ui.text{ text = omniwm.l10n("Data (%lld bytes)", #value), style = "small", color = "secondaryForeground" }
+        rows[#rows + 1] = presentation.text{ text = omniwm.l10n("Data (%lld bytes)", #value), style = "small", color = "secondaryForeground" }
         return
     end
     local starts = { 1 }
@@ -41,7 +38,7 @@ local function text(rows, value, width, style, color, ctx, key)
     local pages = math.max(1, math.ceil((#starts - 1) / TEXT_PAGE))
     local page = math.clamp(if ctx then (ctx.state.textPages or {})[key] or 1 else 1, 1, pages)
     for index = (page - 1) * TEXT_PAGE + 1, math.min(page * TEXT_PAGE, #starts - 1) do
-        rows[#rows + 1] = ui.text{ text = string.sub(value, starts[index], starts[index + 1] - 1),
+        rows[#rows + 1] = presentation.text{ text = string.sub(value, starts[index], starts[index + 1] - 1),
             maxWidth = width, lines = 255, style = style, color = color }
     end
     if pages > 1 and ctx then
@@ -51,7 +48,7 @@ local function text(rows, value, width, style, color, ctx, key)
         end
         rows[#rows + 1] = ui.row{ gap = 5,
             button(omniwm.l10n("Previous Text"), function(state) select(state, math.max(1, page - 1)) end),
-            ui.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small", color = "secondaryForeground" },
+            presentation.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small", color = "secondaryForeground" },
             button(omniwm.l10n("Next Text"), function(state) select(state, math.min(pages, page + 1)) end) }
     end
 end
@@ -123,7 +120,7 @@ local function inspector(ctx, item, width, app)
     local lines = detailLines(item, app)
     local pages = math.max(1, math.ceil(#lines / DETAILS))
     local page = math.clamp(ctx.state.detailsPage or 1, 1, pages)
-    local rows = { w = width, gap = 3, center = false, pad = 6, radius = 6, fill = "foreground/0.04" }
+    local rows = { w = width, gap = 3, center = false, pad = 6 }
     for index = (page - 1) * DETAILS + 1, math.min(page * DETAILS, #lines) do
         local line = lines[index]
         text(rows, line.path .. ": " .. line.value, width - 12, "small", "secondaryForeground", ctx, item.id .. ":detail:" .. tostring(index))
@@ -131,16 +128,16 @@ local function inspector(ctx, item, width, app)
     if pages > 1 then
         rows[#rows + 1] = ui.row{ gap = 5,
             button(omniwm.l10n("Previous"), function(state) state.state.detailsPage = math.max(1, page - 1) end),
-            ui.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small" },
+            presentation.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small" },
             button(omniwm.l10n("Next"), function(state) state.state.detailsPage = math.min(pages, page + 1) end) }
     end
-    return ui.column(rows)
+    return presentation.group(rows, true)
 end
 
 local function notification(ctx, item)
     local width = WIDTH - 24
     local content = width - 16
-    local rows = { key = item.id, w = width, gap = 5, pad = 8, radius = 8, fill = "foreground/0.05", center = false }
+    local rows = { key = item.id, w = width, gap = 5, pad = 8, center = false }
     local app = nil
     for _, value in ctx.data.notifications.apps or {} do
         if value.bundle == item.bundle then
@@ -152,8 +149,8 @@ local function notification(ctx, item)
     local timestamp = if type(item.date) == "number" then ctx.format.date(item.date, "MMM d, HH:mm") else nil
     rows[#rows + 1] = ui.row{ w = content, gap = 6,
         ui.icon{ app = item.bundle, w = 18, h = 18, placeholder = "app" },
-        ui.text{ text = name, style = "small", grow = 1, maxWidth = content - 120 },
-        ui.text{ text = timestamp or "", style = "small", color = "secondaryForeground" } }
+        presentation.text{ text = name, style = "small", grow = 1, maxWidth = content - 120 },
+        presentation.text{ text = timestamp or "", style = "small", color = "secondaryForeground" } }
     local communication = item.communication
     if type(communication) == "table" then
         text(rows, label(communication.sender), content, "small", "secondaryForeground", ctx, item.id .. ":sender")
@@ -189,7 +186,7 @@ local function notification(ctx, item)
     if expanded then
         rows[#rows + 1] = inspector(ctx, item, content, app)
     end
-    return ui.column(rows)
+    return presentation.group(rows)
 end
 
 local function status(value)
@@ -216,13 +213,16 @@ function render(ctx)
     local value = ctx.data.notifications
     local count = if value then #(value.items or {}) else 0
     local issue = status(value)
-    local rows = { gap = 4, pad = 2, radius = 4, hover = HOVER, onClick = ui.popout,
+    local scale = presentation.scale(ctx)
+    local rows = { gap = 4 * scale, onClick = ui.popout,
         help = issue or omniwm.l10n("Notifications"),
-        ui.symbol{ name = if issue then "bell.badge" else "bell" } }
+        presentation.icon(issue, 14 * scale) }
     if count > 0 then
-        rows[#rows + 1] = ui.text{ text = tostring(count), style = "small" }
+        local size = if ctx.data.bar.style.vertical then math.min(12 * scale, (ctx.data.bar.style.height - 8) / 2)
+            else 12 * scale
+        rows[#rows + 1] = presentation.text{ text = tostring(count), style = "small", size = size }
     end
-    return if ctx.data.bar.style.vertical then ui.column(rows) else ui.row(rows)
+    return presentation.bar(ctx, rows)
 end
 
 function popout(ctx)
@@ -232,14 +232,14 @@ function popout(ctx)
     local page = math.clamp(ctx.state.page or 1, 1, pages)
     local rows = { w = WIDTH, h = 520, pad = 12, gap = 10, center = false, scroll = true,
         ui.row{ w = WIDTH - 24, gap = 5,
-            ui.text{ text = omniwm.l10n("Notifications"), style = "bold", grow = 1 },
+            presentation.text{ text = omniwm.l10n("Notifications"), style = "bold", grow = 1 },
             button(omniwm.l10n("Refresh"), "notifications refresh"),
             button(omniwm.l10n("Settings"), "notifications settings") } }
     local issue = status(value)
     if issue then
         text(rows, issue, WIDTH - 24, "body", "secondaryForeground")
     elseif #items == 0 then
-        rows[#rows + 1] = ui.text{ text = omniwm.l10n("No retained notifications"), color = "secondaryForeground" }
+        rows[#rows + 1] = presentation.text{ text = omniwm.l10n("No retained notifications"), color = "secondaryForeground" }
     end
     if value and value.error and value.error ~= "" then
         text(rows, value.error, WIDTH - 24, "small", "secondaryForeground")
@@ -250,8 +250,8 @@ function popout(ctx)
     if pages > 1 then
         rows[#rows + 1] = ui.row{ w = WIDTH - 24, gap = 8, center = true,
             button(omniwm.l10n("Previous"), function(state) state.state.page = math.max(1, page - 1) end),
-            ui.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small", color = "secondaryForeground" },
+            presentation.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small", color = "secondaryForeground" },
             button(omniwm.l10n("Next"), function(state) state.state.page = math.min(pages, page + 1) end) }
     end
-    return ui.column(rows)
+    return presentation.panel(ctx, rows)
 end

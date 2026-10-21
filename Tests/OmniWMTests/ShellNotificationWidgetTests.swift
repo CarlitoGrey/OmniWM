@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import AppKit
 import Foundation
 @testable import OmniWM
 import OmniWMScriptHost
+import OmniWMShellCore
 import XCTest
 
 @MainActor
@@ -142,5 +144,176 @@ final class ShellNotificationWidgetTests: XCTestCase {
         _ = widget.invoke(next.content.action, view: OMNI_VIEW_POPOUT)
         _ = widget.renderPopout()
         XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Item body 8"))
+    }
+
+    private func styledWidget(
+        _ config: ShellConfig,
+        shell: URL,
+        scale: CGFloat = 2,
+        dark: Bool = false
+    ) throws -> ShellRenderedWidget {
+        let sourceURL = try XCTUnwrap(config.widget("notifications"))
+        let source = try ShellWidgetSourceLoader.build(.init(
+            name: "notifications", shellDirectory: shell, sourceURL: sourceURL,
+            directories: config.directories, profile: config.profile
+        ))
+        let resources = ShellResources(motion: MotionPolicy(animationsEnabled: false))
+        resources.palette.refresh(
+            theme: config.theme,
+            appearance: try XCTUnwrap(NSAppearance(named: dark ? .darkAqua : .aqua))
+        )
+        return try ShellRenderedWidget(
+            name: "notifications", source: source.main, directories: config.directories,
+            modules: source.modules, chunk: source.chunk, scale: scale, resources: resources
+        )
+    }
+
+    private func export(_ widget: ShellRenderedWidget, name: String, dark: Bool = false) throws {
+        guard let directory = ProcessInfo.processInfo.environment["OMNIWM_SHELL_SNAPSHOTS"] else { return }
+        try ShellBundledWidgetTests.writeSnapshot(
+            widget.surface,
+            name: "notifications-\(name)",
+            dark: dark,
+            directory: directory
+        )
+    }
+
+    private func click(_ title: String, in widget: ShellRenderedWidget, last: Bool = false) throws {
+        let labels = widget.surface.layout.core.elements { widget.text.string($0.text) == title }.sorted {
+            CGRect(widget.surface.layout.core.absoluteFrame(of: $0)).minY
+                < CGRect(widget.surface.layout.core.absoluteFrame(of: $1)).minY
+        }
+        var target = try XCTUnwrap(last ? labels.last : labels.first, title)
+        while widget.surface.layout.core.content(of: target).action == 0 {
+            target = widget.surface.layout.core.parent(of: target)
+            guard target.slot >= 0 else { return XCTFail("No action for \(title)") }
+        }
+        let action = widget.surface.layout.core.content(of: target).action
+        var frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
+        let bounds = CGRect(origin: .zero, size: widget.surface.size)
+        if !bounds.contains(frame) {
+            let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first)
+            let viewport = CGRect(widget.surface.layout.core.absoluteFrame(of: scroll)).intersection(bounds)
+            XCTAssertTrue(widget.surface.scroll(
+                at: CGPoint(x: viewport.midX, y: viewport.midY), event: ShellEvent(button: .none),
+                content: CGPoint(x: 0, y: frame.midY - viewport.midY)
+            ))
+            frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
+        }
+        XCTAssertTrue(bounds.contains(frame), title)
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let delivered = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, delivered + 1, title)
+        XCTAssertEqual(widget.actions.last, action, title)
+        _ = widget.invoke(action, view: OMNI_VIEW_POPOUT)
+        widget.layoutPopout()
+    }
+
+    func testNotificationProfilesFitBaseAndEnlargedBarsAtBothScalesAndOrientations() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let profiles = ShellProfiles.names(in: shell)
+        XCTAssertEqual(profiles.count, 8)
+        let counts = (0 ..< 256).map { item("item-\($0)") }
+        for profile in profiles {
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(profile: profile, shellDirectory: shell, problems: &problems))
+            XCTAssertEqual(problems, [], profile)
+            let base = config.barOverride?.settings.height ?? 24
+            for dark in [false, true] {
+                for scale in [CGFloat(1), 2] {
+                    let widget = try styledWidget(config, shell: shell, scale: scale, dark: dark)
+                    set(widget, state: "ready", items: counts)
+                    for height in [base, base * 1.5] {
+                        for vertical in [false, true] {
+                            var bar = ShellBarData()
+                            bar.style.height = height
+                            bar.style.vertical = vertical
+                            bar.style.position = vertical ? "left" : "top"
+                            widget.render(bar)
+                            let name = "\(profile)-\(height)-\(vertical ? "vertical" : "horizontal")-\(scale)-\(dark ? "dark" : "light")"
+                            let bounds = CGRect(origin: .zero, size: widget.surface.size)
+                            XCTAssertTrue(bounds.width.isFinite && bounds.height.isFinite, name)
+                            XCTAssertGreaterThan(bounds.width, 0, name)
+                            XCTAssertGreaterThan(bounds.height, 0, name)
+                            XCTAssertLessThanOrEqual(vertical ? bounds.width : bounds.height, height, name)
+                            for leaf in widget.surface.layout.core.elements(matching: { $0.text != 0 }) {
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: leaf))
+                                XCTAssertTrue(bounds.contains(frame), name)
+                            }
+                            let target = try XCTUnwrap(widget.surface.layout.core
+                                .elements { $0.action == OMNI_ACTION_POPOUT }.first)
+                            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
+                            widget.surface.press(at: CGPoint(x: frame.midX, y: frame.midY))
+                            widget.surface.release(at: CGPoint(x: frame.midX, y: frame.midY))
+                            XCTAssertEqual(widget.actions.last, UInt32(OMNI_ACTION_POPOUT), name)
+                            XCTAssertTrue(widget.strings().contains("256"), name)
+                            if scale == 2, height == base { try export(widget, name: name, dark: dark) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func testNotificationProfilesKeepStorageStatesAndDeliveredDetailsPaging() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ShellProfiles.names(in: shell) {
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(profile: profile, shellDirectory: shell, problems: &problems))
+            XCTAssertEqual(problems, [], profile)
+            let widget = try styledWidget(config, shell: shell)
+            var bar = ShellBarData()
+            bar.style.height = config.barOverride?.settings.height ?? 24
+            widget.render(bar)
+            for state in ["accessDenied", "empty"] {
+                set(widget, state: state)
+                widget.layoutPopout()
+                let strings = widget.strings(OMNI_VIEW_POPOUT)
+                XCTAssertEqual(
+                    strings.contains(ShellLocalizer.string("No retained notifications", [])),
+                    state == "empty",
+                    profile
+                )
+                for action in ["notifications refresh", "notifications settings"] {
+                    let target = try XCTUnwrap(widget.surface.layout.core
+                        .elements { widget.text.string($0.action) == action }.first)
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
+                    XCTAssertTrue(CGRect(origin: .zero, size: widget.surface.size).contains(frame), profile)
+                    widget.surface.press(at: CGPoint(x: frame.midX, y: frame.midY))
+                    widget.surface.release(at: CGPoint(x: frame.midX, y: frame.midY))
+                    XCTAssertEqual(widget.clicks.last?.action, action, profile)
+                }
+                try export(widget, name: "\(profile)-\(state)")
+            }
+            var items = (0 ..< 9).map { item("item-\($0)", body: "Notification body \($0) ✓ 中文 العربية 👩🏽‍💻") }
+            items[0]["metadata"] = Dictionary(uniqueKeysWithValues: (0 ..< 40).map { (
+                String(format: "field%02d", $0),
+                "Metadata \($0)"
+            ) })
+            set(widget, state: "ready", items: items)
+            widget.layoutPopout()
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Notification body 0 ✓ 中文 العربية 👩🏽‍💻"), profile)
+            let bounds = CGRect(origin: .zero, size: widget.surface.size)
+            XCTAssertGreaterThanOrEqual(bounds.width, 392, profile)
+            XCTAssertLessThanOrEqual(bounds.width, 480, profile)
+            try export(widget, name: "\(profile)-ready")
+            try click(ShellLocalizer.string("Details", []), in: widget)
+            XCTAssertTrue(
+                widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("actions.1.textInputButtonTitle: Send reply") },
+                profile
+            )
+            try export(widget, name: "\(profile)-details")
+            try click(ShellLocalizer.string("Next", []), in: widget)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("metadata.field") }, profile)
+            try click(ShellLocalizer.string("Next", []), in: widget, last: true)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Notification body 8 ✓ 中文 العربية 👩🏽‍💻"), profile)
+            try export(widget, name: "\(profile)-last-page")
+        }
     }
 }
