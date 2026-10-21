@@ -178,10 +178,7 @@ final class InputTapThread: @unchecked Sendable {
                 EventIntake.post(.mouseDragged(button: .left, location: location))
                 return event
             }
-            let suppress = evaluateAuthoritativeTapOnMain(
-                type: type, location: location, modifiers: event.flags, buttonNumber: 0, scrollPayload: nil
-            )
-            return suppress ? nil : event
+            return forwardCapturedDrag(event, type: type, location: location, buttonNumber: 0)
         case .leftMouseUp:
             guard snap.activeCapture == .left else {
                 DispatchQueue.main.async {
@@ -232,10 +229,7 @@ final class InputTapThread: @unchecked Sendable {
                 EventIntake.post(.mouseDragged(button: .right, location: location))
                 return event
             }
-            let suppress = evaluateAuthoritativeTapOnMain(
-                type: type, location: location, modifiers: flags, buttonNumber: 1, scrollPayload: nil
-            )
-            return suppress ? nil : event
+            return forwardCapturedDrag(event, type: type, location: location, buttonNumber: 1)
         case .rightMouseUp:
             guard snap.activeCapture == .right else {
                 DispatchQueue.main.async {
@@ -339,5 +333,30 @@ final class InputTapThread: @unchecked Sendable {
                 ) ?? false
             }
         }
+    }
+}
+
+extension InputTapThread {
+    private nonisolated func forwardCapturedDrag(
+        _ event: CGEvent,
+        type: CGEventType,
+        location: CGPoint,
+        buttonNumber: Int64
+    ) -> CGEvent? {
+        let flags = event.flags
+        guard !Thread.isMainThread else {
+            let suppress = evaluateAuthoritativeTapOnMain(
+                type: type, location: location, modifiers: flags, buttonNumber: buttonNumber, scrollPayload: nil
+            )
+            return suppress ? nil : event
+        }
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                _ = MouseEventHandler._instance?.dispatchAuthoritativeTap(
+                    type: type, location: location, modifiers: flags, buttonNumber: buttonNumber, scrollPayload: nil
+                )
+            }
+        }
+        return nil
     }
 }
