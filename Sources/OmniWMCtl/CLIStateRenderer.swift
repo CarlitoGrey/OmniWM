@@ -81,6 +81,12 @@ enum CLIStateRenderer {
             headers: &headers,
             rows: &rows
         )
+        appendColumn(
+            "FOCUS RANK",
+            values: payload.windows.map { $0.focusRank.map(String.init) },
+            headers: &headers,
+            rows: &rows
+        )
 
         return CLITableRenderer.formatRows(headers: headers, rows: rows, format: format)
     }

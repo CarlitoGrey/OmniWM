@@ -208,6 +208,10 @@ extension IPCJSONWriter {
             self.key("display", &first)
             try self.value(fieldValue)
         }
+        if let fieldValue = value.focusRank {
+            self.key("focusRank", &first)
+            try self.value(fieldValue)
+        }
         if let fieldValue = value.frame {
             self.key("frame", &first)
             try self.value(fieldValue)
@@ -216,13 +220,13 @@ extension IPCJSONWriter {
             self.key("hiddenReason", &first)
             try self.value(fieldValue)
         }
+    }
+
+    mutating func fields1(_ value: borrowing IPCWindowQuerySnapshot, _ first: inout Bool) throws {
         if let fieldValue = value.id {
             self.key("id", &first)
             try self.value(fieldValue)
         }
-    }
-
-    mutating func fields1(_ value: borrowing IPCWindowQuerySnapshot, _ first: inout Bool) throws {
         if let fieldValue = value.isAppHidden {
             self.key("isAppHidden", &first)
             try self.value(fieldValue)
@@ -241,10 +245,6 @@ extension IPCJSONWriter {
         }
         if let fieldValue = value.isVisible {
             self.key("isVisible", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.layoutReason {
-            self.key("layoutReason", &first)
             try self.value(fieldValue)
         }
     }

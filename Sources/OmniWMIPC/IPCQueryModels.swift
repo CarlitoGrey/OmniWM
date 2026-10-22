@@ -107,19 +107,26 @@ public struct IPCQuerySelectors: Codable, Equatable, Sendable {
     }
 }
 
+public enum IPCQuerySort: String, Codable, CaseIterable, Equatable, Sendable {
+    case mru
+}
+
 public struct IPCQueryRequest: Codable, Equatable, Sendable {
     public let name: IPCQueryName
     public let selectors: IPCQuerySelectors
     public let fields: [String]
+    public let sort: IPCQuerySort?
 
     public init(
         name: IPCQueryName,
         selectors: IPCQuerySelectors = IPCQuerySelectors(),
-        fields: [String] = []
+        fields: [String] = [],
+        sort: IPCQuerySort? = nil
     ) {
         self.name = name
         self.selectors = selectors
         self.fields = fields
+        self.sort = sort
     }
 }
 
@@ -224,6 +231,7 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
     public let scratchpadIndex: Int?
     public let hiddenReason: IPCHiddenReason?
     public let columnIndex: Int?
+    public let focusRank: Int?
 
     public init(
         id: String? = nil,
@@ -244,7 +252,8 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
         isScratchpad: Bool? = nil,
         scratchpadIndex: Int? = nil,
         hiddenReason: IPCHiddenReason? = nil,
-        columnIndex: Int? = nil
+        columnIndex: Int? = nil,
+        focusRank: Int? = nil
     ) {
         self.id = id
         self.pid = pid
@@ -265,6 +274,7 @@ public struct IPCWindowQuerySnapshot: Codable, Equatable, Sendable {
         self.scratchpadIndex = scratchpadIndex
         self.hiddenReason = hiddenReason
         self.columnIndex = columnIndex
+        self.focusRank = focusRank
     }
 }
 

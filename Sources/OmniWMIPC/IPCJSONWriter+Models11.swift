@@ -4,6 +4,40 @@
 import Foundation
 
 extension IPCJSONWriter {
+    mutating func value(_ value: borrowing IPCWindowRequest) throws {
+        begin(123)
+        var first = true
+        if let fieldValue = value.change {
+            self.key("change", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.columnIndex {
+            self.key("columnIndex", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.cycle {
+            self.key("cycle", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.direction {
+            self.key("direction", &first)
+            try self.value(fieldValue)
+        }
+        self.key("name", &first)
+        try self.value(value.name)
+        if let fieldValue = value.scratchpadIndex {
+            self.key("scratchpadIndex", &first)
+            try self.value(fieldValue)
+        }
+        self.key("windowId", &first)
+        try self.value(value.windowId)
+        if let fieldValue = value.workspaceTarget {
+            self.key("workspaceTarget", &first)
+            try self.value(fieldValue)
+        }
+        end(125)
+    }
+
     mutating func value(_ value: borrowing IPCWindowMarkRequest) throws {
         switch value {
         case let .set(mark):
@@ -221,23 +255,5 @@ extension IPCJSONWriter {
         case let .subscribe(payload):
             try self.value(payload)
         }
-    }
-
-    mutating func value(_ value: borrowing IPCRequest) throws {
-        begin(123)
-        var first = true
-        if let fieldValue = value.authorizationToken {
-            self.key("authorizationToken", &first)
-            try self.value(fieldValue)
-        }
-        self.key("id", &first)
-        try self.value(value.id)
-        self.key("kind", &first)
-        try self.value(value.kind)
-        self.key("payload", &first)
-        try self.value(value.payload)
-        self.key("version", &first)
-        try self.value(value.version)
-        end(125)
     }
 }

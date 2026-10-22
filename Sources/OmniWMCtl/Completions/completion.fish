@@ -43,6 +43,7 @@ end
 #{{queryLines}}
 #{{queryFlagLines}}
 #{{queryFieldLines}}
+#{{querySortLines}}
 #{{commandRootLines}}
 #{{commandNestedLines}}
 #{{commandPathArgumentLines}}

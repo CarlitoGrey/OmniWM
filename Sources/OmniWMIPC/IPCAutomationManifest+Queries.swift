@@ -23,7 +23,8 @@ extension IPCAutomationManifest {
         "is-scratchpad",
         "scratchpad-index",
         "hidden-reason",
-        "column-index"
+        "column-index",
+        "focus-rank"
     ]
 
     public static let workspaceFieldCatalog: [String] = [

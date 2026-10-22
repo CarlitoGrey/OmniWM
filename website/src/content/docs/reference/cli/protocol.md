@@ -11,7 +11,7 @@ sidebar:
 
 ```json
 {
-  "version": 21,
+  "version": 22,
   "id": "<uuid>",
   "kind": "<ping|version|command|capture|query|rule|workspace|window|window-mark|window-gather|shell|subscribe>",
   "authorizationToken": "<token>",
@@ -50,9 +50,12 @@ sidebar:
     "workspace": "main",
     "visible": true
   },
-  "fields": ["id", "title", "app"]
+  "fields": ["id", "title", "app", "focus-rank"],
+  "sort": "mru"
 }
 ```
+
+`sort` is optional and accepted only by the `windows` query; `"mru"` orders windows most recently focused first.
 
 **Capture start:**
 ```json
@@ -200,7 +203,7 @@ Both fields are required. `from` is `workspace`, `monitor`, or `all`; `omniwmctl
 
 ```json
 {
-  "version": 21,
+  "version": 22,
   "id": "<request-id>",
   "ok": true,
   "kind": "<ping|version|command|capture|query|rule|workspace|window|window-mark|window-gather|shell|subscribe>",
@@ -229,7 +232,7 @@ Authorization, protocol, validation, and routing failures keep the originating r
 
 ```json
 {
-  "version": 21,
+  "version": 22,
   "id": "<request-id>",
   "ok": false,
   "kind": "query",
@@ -246,7 +249,7 @@ Events are sent on subscription connections after the initial response.
 
 ```json
 {
-  "version": 21,
+  "version": 22,
   "id": "<event-id>",
   "kind": "event",
   "channel": "focus",

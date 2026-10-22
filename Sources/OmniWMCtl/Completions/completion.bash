@@ -29,6 +29,8 @@ _omniwmctl()
         case "$query_name" in
           #{{queryFieldsByName}}
         esac
+      elif [[ "$prev" == "--sort" ]]; then
+        suggestions="#{{querySortValues}}"
       else
         case "$query_name" in
           #{{queryFlagsByName}}

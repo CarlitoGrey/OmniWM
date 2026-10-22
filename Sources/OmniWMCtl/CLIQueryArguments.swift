@@ -10,6 +10,7 @@ struct CLIQueryArguments {
     private var fields: [String] = []
     private var seenSelectors: Set<IPCQuerySelectorName> = []
     private var sawFields = false
+    private var sort: IPCQuerySort?
 
     static func parse(arguments: [String]) throws -> IPCQueryRequest {
         guard let rawName = arguments.first else {
@@ -24,7 +25,7 @@ struct CLIQueryArguments {
 
         var parsed = Self(descriptor: descriptor)
         try parsed.read(arguments: arguments)
-        return IPCQueryRequest(name: queryName, selectors: parsed.selectors, fields: parsed.fields)
+        return IPCQueryRequest(name: queryName, selectors: parsed.selectors, fields: parsed.fields, sort: parsed.sort)
     }
 
     private mutating func read(arguments: [String]) throws {
@@ -33,6 +34,10 @@ struct CLIQueryArguments {
             let argument = arguments[index]
             if argument == "--fields" {
                 try readFields(arguments: arguments, index: &index)
+                continue
+            }
+            if argument == "--sort" {
+                try readSort(arguments: arguments, index: &index)
                 continue
             }
 
@@ -76,6 +81,18 @@ struct CLIQueryArguments {
         }
         fields = parsedFields
         sawFields = true
+        index += 2
+    }
+
+    private mutating func readSort(arguments: [String], index: inout Int) throws {
+        guard sort == nil,
+              descriptor.name == .windows,
+              index + 1 < arguments.count,
+              let parsedSort = IPCQuerySort(rawValue: arguments[index + 1])
+        else {
+            throw CLIParseError.usage(CLIParser.usageText)
+        }
+        sort = parsedSort
         index += 2
     }
 }

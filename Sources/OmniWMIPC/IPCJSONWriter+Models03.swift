@@ -5,6 +5,10 @@ import Foundation
 
 extension IPCJSONWriter {
     mutating func fields2(_ value: borrowing IPCWindowQuerySnapshot, _ first: inout Bool) throws {
+        if let fieldValue = value.layoutReason {
+            self.key("layoutReason", &first)
+            try self.value(fieldValue)
+        }
         if let fieldValue = value.manualOverride {
             self.key("manualOverride", &first)
             try self.value(fieldValue)
@@ -25,13 +29,13 @@ extension IPCJSONWriter {
             self.key("title", &first)
             try self.value(fieldValue)
         }
+    }
+
+    mutating func fields3(_ value: borrowing IPCWindowQuerySnapshot, _ first: inout Bool) throws {
         if let fieldValue = value.windowId {
             self.key("windowId", &first)
             try self.value(fieldValue)
         }
-    }
-
-    mutating func fields3(_ value: borrowing IPCWindowQuerySnapshot, _ first: inout Bool) throws {
         if let fieldValue = value.workspace {
             self.key("workspace", &first)
             try self.value(fieldValue)

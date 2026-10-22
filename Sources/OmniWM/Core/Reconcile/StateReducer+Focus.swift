@@ -76,9 +76,17 @@ extension StateReducer {
         case let .nativeFocusOwnerChanged(owner, preservePendingManagedFocus, _):
             var focusSession = currentSnapshot.focusSession
             focusSession.nativeFocusOwner = owner
-            if case let .managed(token) = owner {
+            switch owner {
+            case let .managed(token):
                 focusSession.selectedManagedToken = token
                 focusSession.recordWindowFocus(token)
+            case let .external(identity):
+                guard let token = identity.exactToken else { break }
+                if currentSnapshot.windows.contains(where: { $0.token == token }) {
+                    focusSession.recordWindowFocus(token)
+                }
+            default:
+                break
             }
             if !preservePendingManagedFocus {
                 focusSession.pendingManagedFocus = .empty
