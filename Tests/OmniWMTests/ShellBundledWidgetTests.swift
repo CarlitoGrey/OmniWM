@@ -21,13 +21,13 @@ final class ShellBundledWidgetTests: XCTestCase {
         "clock", "date", "seconds", "cpu", "memory", "charging", "bar", "workspace", "app", "bundle", "title"
     ]
 
-    private func value(_ write: (inout ShellValueWriter) -> Void) -> [UInt8] {
+    func value(_ write: (inout ShellValueWriter) -> Void) -> [UInt8] {
         var writer = ShellValueWriter()
         write(&writer)
         return writer.bytes
     }
 
-    private func fullData(
+    func fullData(
         island: WorkspaceBarIslandSlice = .all,
         vertical: Bool = false,
         capsule: Bool = false,
@@ -297,7 +297,7 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
-    private func renderStyle(
+    func renderStyle(
         _ style: String,
         widget: String,
         data: [(String, [UInt8])],
@@ -624,7 +624,7 @@ final class ShellBundledWidgetTests: XCTestCase {
         XCTAssertTrue(CGImageDestinationFinalize(destination), name)
     }
 
-    private func writeAppearanceSnapshots(_ bytes: [UInt8], text: ShellTextStore, name: String) throws {
+    func writeAppearanceSnapshots(_ bytes: [UInt8], text: ShellTextStore, name: String) throws {
         guard let directory = ProcessInfo.processInfo.environment["OMNIWM_SHELL_SNAPSHOTS"] else { return }
         for dark in [false, true] {
             let resources = ShellResources(motion: MotionPolicy(animationsEnabled: false))

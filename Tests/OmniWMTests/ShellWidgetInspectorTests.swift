@@ -1,0 +1,185 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
+
+import AppKit
+@testable import OmniWM
+import SwiftUI
+import XCTest
+
+@MainActor
+final class ShellWidgetInspectorTests: XCTestCase {
+    private struct Option {
+        let widget: String
+        let key: String
+        let minimum: Double
+        let maximum: Double
+        let defaultValue: Double
+    }
+
+    private let options = [
+        Option(
+            widget: "scratchpads",
+            key: "shownWindows",
+            minimum: 0,
+            maximum: 6,
+            defaultValue: 2
+        ),
+        Option(
+            widget: "calendar",
+            key: "agendaEvents",
+            minimum: 1,
+            maximum: 12,
+            defaultValue: 6
+        ),
+        Option(
+            widget: "weather",
+            key: "forecastHours",
+            minimum: 4,
+            maximum: 12,
+            defaultValue: 12
+        )
+    ]
+
+    func testNocturneInspectorUpdatesAtBoundsAndRestoresDefaultAppearance() async throws {
+        _ = NSApplication.shared
+        let activationPolicy = NSApp.activationPolicy()
+        _ = NSApp.setActivationPolicy(.accessory)
+        defer { _ = NSApp.setActivationPolicy(activationPolicy) }
+        let (directory, configuration) = try await fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for appearance in [NSAppearance.Name.aqua, .darkAqua] {
+            for option in options {
+                try await configuration.reset(table: "widgets." + option.widget)
+                let window = NSWindow(
+                    contentRect: CGRect(x: 0, y: 0, width: 600, height: 620),
+                    styleMask: [.titled], backing: .buffered, defer: false
+                )
+                window.isReleasedWhenClosed = false
+                defer { window.contentView = nil
+                    window.close()
+                }
+                window.appearance = NSAppearance(named: appearance)
+                let host = NSHostingView(rootView: ShellWidgetInspector(
+                    configuration: configuration, widget: option.widget
+                )
+                .environment(\.locale, Locale(identifier: "en"))
+                .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light)
+                .transaction { $0.animation = nil })
+                window.contentView = host
+                window.orderBack(nil)
+                let cases: [(String, Double?)] = [
+                    ("default", nil), ("minimum", option.minimum), ("maximum", option.maximum), ("reset", nil)
+                ]
+                var pixels: [String: Data] = [:]
+                for (state, number) in cases {
+                    if let number {
+                        try await configuration.setWidgetValue(.number(number), widget: option.widget, key: option.key)
+                    } else {
+                        try await configuration.reset(table: "widgets." + option.widget)
+                    }
+                    await display(window)
+                    pixels[state] = try snapshot(
+                        host,
+                        name: "nocturne-inspector-\(option.widget)-\(appearance == .darkAqua ? "dark" : "light")-\(state)"
+                    )
+                }
+                XCTAssertNotEqual(pixels["default"], pixels["minimum"], option.widget)
+                XCTAssertNotEqual(pixels["minimum"], pixels["maximum"], option.widget)
+                XCTAssertEqual(pixels["default"], pixels["reset"], option.widget)
+                if option.defaultValue == option.maximum {
+                    XCTAssertEqual(pixels["default"], pixels["maximum"], option.widget)
+                }
+            }
+        }
+    }
+
+    func testNocturneOptionsSurviveReloadAndStyleSwitchAndResetToStyleDefaults() async throws {
+        let (directory, configuration) = try await fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for option in options {
+            try await configuration.setWidgetValue(.number(option.minimum), widget: option.widget, key: option.key)
+        }
+        let reloaded = ShellConfigurationCoordinator(shellDirectory: directory)
+        try await reloaded.ensureLoaded()
+        XCTAssertEqual(reloaded.config.profile, "nocturne")
+        for option in options {
+            XCTAssertEqual(
+                ShellWidgetSettingsModel.values(widget: option.widget, config: reloaded.config)[option.key],
+                .number(option.minimum)
+            )
+        }
+        try await reloaded.selectProfile("system")
+        for option in options {
+            XCTAssertNil(ShellWidgetSettingsModel.values(widget: option.widget, config: reloaded.config)[option.key])
+        }
+        try await reloaded.selectProfile("nocturne")
+        for option in options {
+            XCTAssertEqual(
+                ShellWidgetSettingsModel.values(widget: option.widget, config: reloaded.config)[option.key],
+                .number(option.minimum)
+            )
+            try await reloaded.reset(table: "widgets." + option.widget)
+        }
+        let reset = ShellConfigurationCoordinator(shellDirectory: directory)
+        try await reset.ensureLoaded()
+        for option in options {
+            XCTAssertNil(ShellWidgetSettingsModel.values(widget: option.widget, config: reset.config)[option.key])
+            XCTAssertEqual(
+                reset.widgetSchemas[option.widget]?.options[option.key]?.defaultValue,
+                .number(option.defaultValue)
+            )
+        }
+    }
+
+    private func fixture() async throws -> (URL, ShellConfigurationCoordinator) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        _ = ShellDefaults.sync(into: directory)
+        _ = try ShellProfiles.select("nocturne", in: directory)
+        let configuration = ShellConfigurationCoordinator(shellDirectory: directory)
+        try await configuration.ensureLoaded()
+        XCTAssertNil(configuration.metadataError)
+        XCTAssertTrue(configuration.configProblems.isEmpty)
+        return (directory, configuration)
+    }
+
+    private func snapshot(_ view: NSView, name: String) throws -> Data {
+        // Keep the header and option controls in a fixed viewport.
+        let height = min(view.bounds.height, 300)
+        let area = CGRect(
+            x: 0,
+            y: view.isFlipped ? 0 : view.bounds.maxY - height,
+            width: view.bounds.width,
+            height: height
+        )
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: Int(area.width * 2), pixelsHigh: Int(area.height * 2),
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        bitmap.size = area.size
+        let bytes = try XCTUnwrap(bitmap.bitmapData)
+        let count = bitmap.bytesPerRow * bitmap.pixelsHigh
+        bytes.initialize(repeating: 0, count: count)
+        view.cacheDisplay(in: area, to: bitmap)
+        if let path = ProcessInfo.processInfo.environment["OMNIWM_SHELL_SNAPSHOTS"] {
+            let directory = URL(fileURLWithPath: path)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
+                .write(to: directory.appendingPathComponent(name + ".png"))
+        }
+        return Data(bytes: bytes, count: count)
+    }
+
+    private func display(_ window: NSWindow) async {
+        await withCheckedContinuation { continuation in
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            CATransaction.setCompletionBlock { continuation.resume() }
+            NSApp.updateWindows()
+            window.contentView?.layoutSubtreeIfNeeded()
+            window.display()
+            CATransaction.commit()
+            CATransaction.flush()
+        }
+    }
+}
