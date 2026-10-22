@@ -27,7 +27,7 @@ final class ShellWidgetOptionDeclarationTests: XCTestCase {
 
     private func optionReads(in folder: URL) throws -> Set<String> {
         let pattern = try NSRegularExpression(
-            pattern: #"\b(?:settings|options)(?: or \{\}\))?\.([A-Za-z_]+)|select\("settings",\s*"([A-Za-z_]+)""#
+            pattern: #"\b(?:settings|options)(?: or \{\}\))?\.([A-Za-z_][A-Za-z0-9_]*)|select\("settings",\s*"([A-Za-z_][A-Za-z0-9_]*)""#
         )
         var keys: Set<String> = []
         let files = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil)?
