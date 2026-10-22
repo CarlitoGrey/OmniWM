@@ -232,6 +232,10 @@ extension IPCJSONWriter {
         end(125)
     }
 
+    mutating func value(_ value: borrowing IPCQuerySort) throws {
+        try self.value(value.rawValue)
+    }
+
     mutating func value(_ value: borrowing IPCQueryRequest) throws {
         begin(123)
         var first = true
@@ -241,31 +245,10 @@ extension IPCJSONWriter {
         try self.value(value.name)
         self.key("selectors", &first)
         try self.value(value.selectors)
+        if let fieldValue = value.sort {
+            self.key("sort", &first)
+            try self.value(fieldValue)
+        }
         end(125)
-    }
-
-    mutating func fields0(_ value: borrowing IPCRuleDefinition, _ first: inout Bool) throws {
-        if let fieldValue = value.appNameSubstring {
-            self.key("appNameSubstring", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.assignToWorkspace {
-            self.key("assignToWorkspace", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.axRole {
-            self.key("axRole", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.axSubrole {
-            self.key("axSubrole", &first)
-            try self.value(fieldValue)
-        }
-        self.key("bundleId", &first)
-        try self.value(value.bundleId)
-        if let fieldValue = value.initialContainerPrimarySpan {
-            self.key("initialContainerPrimarySpan", &first)
-            try self.value(fieldValue)
-        }
     }
 }

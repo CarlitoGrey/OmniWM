@@ -4,6 +4,31 @@
 import Foundation
 
 extension IPCJSONWriter {
+    mutating func fields0(_ value: borrowing IPCRuleDefinition, _ first: inout Bool) throws {
+        if let fieldValue = value.appNameSubstring {
+            self.key("appNameSubstring", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.assignToWorkspace {
+            self.key("assignToWorkspace", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.axRole {
+            self.key("axRole", &first)
+            try self.value(fieldValue)
+        }
+        if let fieldValue = value.axSubrole {
+            self.key("axSubrole", &first)
+            try self.value(fieldValue)
+        }
+        self.key("bundleId", &first)
+        try self.value(value.bundleId)
+        if let fieldValue = value.initialContainerPrimarySpan {
+            self.key("initialContainerPrimarySpan", &first)
+            try self.value(fieldValue)
+        }
+    }
+
     mutating func fields1(_ value: borrowing IPCRuleDefinition, _ first: inout Bool) throws {
         self.key("layout", &first)
         try self.value(value.layout)
@@ -207,39 +232,5 @@ extension IPCJSONWriter {
 
     mutating func value(_ value: borrowing IPCCycleDirection) throws {
         try self.value(value.rawValue)
-    }
-
-    mutating func value(_ value: borrowing IPCWindowRequest) throws {
-        begin(123)
-        var first = true
-        if let fieldValue = value.change {
-            self.key("change", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.columnIndex {
-            self.key("columnIndex", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.cycle {
-            self.key("cycle", &first)
-            try self.value(fieldValue)
-        }
-        if let fieldValue = value.direction {
-            self.key("direction", &first)
-            try self.value(fieldValue)
-        }
-        self.key("name", &first)
-        try self.value(value.name)
-        if let fieldValue = value.scratchpadIndex {
-            self.key("scratchpadIndex", &first)
-            try self.value(fieldValue)
-        }
-        self.key("windowId", &first)
-        try self.value(value.windowId)
-        if let fieldValue = value.workspaceTarget {
-            self.key("workspaceTarget", &first)
-            try self.value(fieldValue)
-        }
-        end(125)
     }
 }

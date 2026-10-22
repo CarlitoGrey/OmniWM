@@ -138,9 +138,6 @@ extension FocusSessionSnapshot {
         guard windowFocusHistory.first != token else { return }
         windowFocusHistory.removeAll { $0 == token }
         windowFocusHistory.insert(token, at: 0)
-        if windowFocusHistory.count > 32 {
-            windowFocusHistory.removeLast(windowFocusHistory.count - 32)
-        }
     }
 
     @discardableResult

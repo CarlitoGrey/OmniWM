@@ -82,6 +82,10 @@ enum IPCQuerySelection {
             }
         }
 
+        if query.sort != nil, query.name != .windows {
+            return .invalidArguments
+        }
+
         if let windowSelector = query.selectors.window, supportedSelectors.contains(.window) {
             switch IPCWindowOpaqueID.validate(windowSelector, expectingSessionToken: sessionToken) {
             case .valid:
