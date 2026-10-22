@@ -81,6 +81,10 @@ final class GestureSettings {
         didSet { notifyChange() }
     }
 
+    var workspaceSwipeEdgeBehavior = GestureSettings.defaults.workspaceSwipeEdgeBehavior ?? .cycle {
+        didSet { notifyChange() }
+    }
+
     var overviewGestureEnabled = GestureSettings.defaults.overviewGestureEnabled ?? false {
         didSet {
             guard oldValue != overviewGestureEnabled else { return }
@@ -164,6 +168,7 @@ final class GestureSettings {
             workspaceSwipeEnabled: workspaceSwipeEnabled,
             workspaceSwipeFingerCount: workspaceSwipeFingerCount,
             workspaceSwipeAxis: workspaceSwipeAxis,
+            workspaceSwipeEdgeBehavior: workspaceSwipeEdgeBehavior,
             overviewGestureEnabled: overviewGestureEnabled,
             overviewGestureFingerCount: overviewGestureFingerCount,
             windowMoveEnabled: windowMoveEnabled,
@@ -196,6 +201,7 @@ final class GestureSettings {
         workspaceSwipeEnabled = gestures.workspaceSwipeEnabled
         workspaceSwipeFingerCount = gestures.workspaceSwipeFingerCount
         workspaceSwipeAxis = gestures.workspaceSwipeAxis
+        workspaceSwipeEdgeBehavior = gestures.workspaceSwipeEdgeBehavior ?? .cycle
         overviewGestureEnabled = gestures.overviewGestureEnabled ?? false
         overviewGestureFingerCount = gestures.overviewGestureFingerCount ?? .four
         windowMoveEnabled = gestures.windowMoveEnabled ?? false

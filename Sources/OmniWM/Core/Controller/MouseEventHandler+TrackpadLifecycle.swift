@@ -189,7 +189,7 @@ extension MouseEventHandler {
               )
         else { return }
         state.workspaceSwipeFired = true
-        controller?.workspaceNavigationHandler.switchWorkspaceRelative(isNext: isNext, monitorId: monitorId)
+        controller?.workspaceNavigationHandler.switchWorkspaceBySwipe(isNext: isNext, monitorId: monitorId)
     }
 
     func finishCommittedGestureOnRelease(timestamp: TimeInterval, allowFlick: Bool) {
@@ -268,7 +268,7 @@ extension MouseEventHandler {
             )
         else { return }
         state.workspaceSwipeFired = true
-        controller?.workspaceNavigationHandler.switchWorkspaceRelative(isNext: isNext, monitorId: monitorId)
+        controller?.workspaceNavigationHandler.switchWorkspaceBySwipe(isNext: isNext, monitorId: monitorId)
     }
 
     func finalizeOrCancelCommittedGesture(

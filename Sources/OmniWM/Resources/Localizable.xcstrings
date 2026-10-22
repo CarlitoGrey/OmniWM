@@ -1,6 +1,21 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "At the ends" : {
+
+    },
+    "Open One Empty Workspace" : {
+
+    },
+    "Stop" : {
+
+    },
+    "Wrap Around" : {
+
+    },
+    "Wrap Around moves between the last and first workspace. Stop ignores swipes past either end. Open One Empty Workspace moves from the last occupied workspace to an empty one, creating it if needed, and ignores swipes past an empty last workspace or before the first." : {
+
+    },
     "Applies to modifier-based mouse resizing, trackpad resize gestures, and Niri keyboard resizing. Native edge or corner drags bypass previews; Dwindle neighbours always resize live. Window Snapshot stretches a still image and needs Screen Recording. Glass Placeholder shows app icons without capture. With either preview, windows get their final size when resizing ends." : {
       "localizations" : {
         "zh-Hans" : {
