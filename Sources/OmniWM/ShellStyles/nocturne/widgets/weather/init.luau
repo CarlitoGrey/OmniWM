@@ -7,7 +7,6 @@ local HOVER = "focus/0.14"
 local WIDTH = 480
 local INNER = WIDTH - 2 - 24
 local CARD = INNER - 20
-local HOURS = 12
 
 local conditions = {
     Clear = omniwm.l10n("Clear"),
@@ -78,11 +77,11 @@ function render(ctx)
     return ui.row(item)
 end
 
-local function hourly(weather)
+local function hourly(weather, hours: number)
     local strip = { gap = 0 }
-    local column = math.floor(CARD / HOURS)
+    local column = math.floor(CARD / hours)
     for index, hour in weather.hours do
-        if index > HOURS then
+        if index > hours then
             break
         end
         strip[#strip + 1] = ui.column{ w = column, gap = 5, help = conditions[hour.condition],
@@ -164,7 +163,7 @@ function popout(ctx)
         rows[#rows + 1] = ui.row(chips)
     end
     if #weather.hours > 0 then
-        rows[#rows + 1] = card{ hourly(weather) }
+        rows[#rows + 1] = card{ hourly(weather, tonumber((ctx.data.settings or {}).forecastHours) or 12) }
     end
     if #weather.days > 0 then
         rows[#rows + 1] = card{ daily(ctx, weather) }

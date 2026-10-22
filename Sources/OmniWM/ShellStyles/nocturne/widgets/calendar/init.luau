@@ -10,7 +10,6 @@ local WIDTH = 320
 local INNER = WIDTH - 2 - 24
 local CARD = INNER - 20
 local CELL = math.floor(CARD / 7)
-local AGENDA = 6
 local SOON = 12 * 3600
 
 local function nextEvent(ctx, calendar)
@@ -164,6 +163,7 @@ function popout(ctx)
         return ui.box{ w = 0, h = 0 }
     end
     local month = calendar.month
+    local limit = tonumber((ctx.data.settings or {}).agendaEvents) or 6
     local rows = { w = WIDTH - 2, pad = 12, gap = 8, center = false,
         ui.row{ w = INNER, gap = 2,
             ui.box{ w = 2, h = 1 },
@@ -178,7 +178,7 @@ function popout(ctx)
         for _, event in calendar.events do
             if event["end"] > now then
                 agenda[#agenda + 1] = agendaRow(ctx, event)
-                if #agenda == AGENDA then
+                if #agenda >= limit then
                     break
                 end
             end
