@@ -3,7 +3,6 @@
 
 spanIslands = true
 
-local SHOWN_ICONS = 2
 
 local function line(vertical: boolean, props)
     return vertical and ui.column(props) or ui.row(props)
@@ -50,14 +49,14 @@ local function windowCount(scratchpad: BarScratchpad): number
     return count
 end
 
-local function help(scratchpad: BarScratchpad, bar: Bar): string
+local function help(scratchpad: BarScratchpad, bar: Bar, shown: number): string
     local count = windowCount(scratchpad)
     local summary = count == 1 and scratchpad.windows[1].name or omniwm.l10n("%lld windows", count)
     local text = scratchpad.visible and omniwm.l10n("Scratchpad %@: %@, visible", scratchpad.name, summary)
         or omniwm.l10n("Scratchpad %@: %@, hidden", scratchpad.name, summary)
     if bar.badges ~= "off" and not scratchpad.compact then
         for index, item in ipairs(scratchpad.windows) do
-            if index > SHOWN_ICONS then
+            if index > shown then
                 break
             end
             if item.badge ~= "" then
@@ -93,7 +92,7 @@ local function chip(scratchpad: BarScratchpad, style: BarStyle, size: number, sh
         ui.box{ w = 6, h = 1 } }
 end
 
-local function capsule(scratchpad: BarScratchpad, bar: Bar)
+local function capsule(scratchpad: BarScratchpad, bar: Bar, shown: number)
     local style = bar.style
     local vertical = style.vertical
     local scale = style.height / 40
@@ -106,15 +105,15 @@ local function capsule(scratchpad: BarScratchpad, bar: Bar)
         border = style.backgrounds and "border/0.6" or nil, borderWidth = 1,
         onClick = "scratchpad toggle " .. scratchpad.id,
         target = "scratchpad " .. scratchpad.id, menu = true,
-        help = help(scratchpad, bar),
+        help = help(scratchpad, bar, shown),
         spacer(vertical, 1),
         chip(scratchpad, style, 24 * scale, compact or vertical) }
     if compact then
         node[#node + 1] = countPill(tostring(windowCount(scratchpad)), size - 10)
     else
         for index, member in ipairs(scratchpad.windows) do
-            if index > SHOWN_ICONS then
-                node[#node + 1] = countPill("+" .. tostring(#scratchpad.windows - SHOWN_ICONS), size - 10)
+            if index > shown then
+                node[#node + 1] = countPill("+" .. tostring(#scratchpad.windows - shown), size - 10)
                 break
             end
             node[#node + 1] = ui.stack{ w = icon + 3 * scale, h = icon + 3 * scale,
@@ -132,9 +131,10 @@ function render(ctx: Context)
     if bar.island == "active" then
         return ui.row{}
     end
+    local shown = tonumber((ctx.data.settings or {}).shownWindows) or 2
     local items = { gap = 6 }
     for _, scratchpad in ipairs(bar.scratchpads) do
-        items[#items + 1] = capsule(scratchpad, bar)
+        items[#items + 1] = capsule(scratchpad, bar, shown)
     end
     return line(bar.style.vertical, items)
 end
