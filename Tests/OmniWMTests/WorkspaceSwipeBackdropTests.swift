@@ -98,6 +98,37 @@ final class WorkspaceSwipeBackdropTests: XCTestCase {
         XCTAssertNil(SkyLight.crop(try makeImage(width: 7, height: 6), from: live, to: frame))
     }
 
+    func testFullWindowCaptureIsCroppedWhenDisplayHasSameAspectRatio() throws {
+        for scale in [1, 2] {
+            let image = try makeCoordinateImage(width: 8 * scale, height: 6 * scale)
+            let source = NSBitmapImageRep(cgImage: image)
+            for origin in [CGPoint.zero, CGPoint(x: -8, y: 11)] {
+                let windowFrame = CGRect(origin: origin, size: CGSize(width: 8, height: 6))
+                let frame = CGRect(x: origin.x + 2, y: origin.y + 1, width: 4, height: 3)
+
+                let cropped = try XCTUnwrap(SkyLight.crop(image, from: windowFrame, to: frame))
+
+                XCTAssertEqual(cropped.width, 4 * scale)
+                XCTAssertEqual(cropped.height, 3 * scale)
+                let pixels = NSBitmapImageRep(cgImage: cropped)
+                for (x, y) in [(0, 0), (4 * scale - 1, 3 * scale - 1)] {
+                    XCTAssertEqual(pixels.colorAt(x: x, y: y), source.colorAt(x: x + 2 * scale, y: y + scale))
+                }
+            }
+        }
+    }
+
+    func testAlreadyClippedWallpaperCaptureKeepsItsScale() throws {
+        let windowFrame = CGRect(x: -1, y: -1, width: 6, height: 5)
+        let frame = CGRect(x: 0, y: 0, width: 4, height: 3)
+        for scale in [1, 2] {
+            let clipped = try makeImage(width: 4 * scale, height: 3 * scale)
+            XCTAssertTrue(SkyLight.crop(clipped, from: windowFrame, to: frame) === clipped)
+            let invalid = try makeImage(width: 4 * scale, height: 3 * scale + 1)
+            XCTAssertNil(SkyLight.crop(invalid, from: windowFrame, to: frame))
+        }
+    }
+
     func testCaptureBridgeRejectsMalformedResultsAndRetainsImage() throws {
         XCTAssertNil(SkyLight.firstCapturedImage(in: [] as CFArray))
         XCTAssertNil(SkyLight.firstCapturedImage(in: ["not an image"] as CFArray))
@@ -122,6 +153,22 @@ final class WorkspaceSwipeBackdropTests: XCTestCase {
             kCGWindowLayer as String: level,
             kCGWindowBounds as String: frame.dictionaryRepresentation
         ]
+    }
+
+    private func makeCoordinateImage(width: Int, height: Int) throws -> CGImage {
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        for y in 0 ..< height {
+            for x in 0 ..< width {
+                context.setFillColor(CGColor(
+                    red: CGFloat(x) / CGFloat(width), green: CGFloat(y) / CGFloat(height), blue: 0, alpha: 1
+                ))
+                context.fill(CGRect(x: x, y: y, width: 1, height: 1))
+            }
+        }
+        return try XCTUnwrap(context.makeImage())
     }
 
     private func makeImage(
