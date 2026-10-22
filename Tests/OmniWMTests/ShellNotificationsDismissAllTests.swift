@@ -12,18 +12,46 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         var snapshot: ShellNotificationsData
         var entered: (Int) -> Void = { _ in }
         var actionEntered: () -> Void = {}
+        var readEntered: (Int) -> Void = { _ in }
+        var holdNextRead = false
+        var storageRevision = Gate.revision(0)
+        private(set) var readCount = 0
         private(set) var batches: [[ShellNotificationActionRequest]] = []
         private(set) var actions: [ShellNotificationActionRequest] = []
         private var progress: [Int: @MainActor @Sendable (ShellNotificationActionOutcome) -> Void] = [:]
         private var pending: [Int: CheckedContinuation<ShellNotificationActionOutcome, Never>] = [:]
         private var pendingAction: CheckedContinuation<ShellNotificationActionOutcome, Never>?
+        private var pendingReads: [Int: CheckedContinuation<ShellNotificationsData, Never>] = [:]
 
         init(snapshot: ShellNotificationsData) {
             self.snapshot = snapshot
         }
 
-        func read(_: URL) -> ShellNotificationsData {
-            snapshot
+        static func revision(_ stamp: Int64) -> ShellNotificationsController.StorageRevision {
+            .init(database: .init(
+                deviceID: 1, inode: 1, modificationTimeNanoseconds: stamp,
+                statusChangeTimeNanoseconds: stamp, fileSize: 32
+            ))
+        }
+
+        func read(_: URL) async -> ShellNotificationsData {
+            let index = readCount
+            readCount += 1
+            if holdNextRead {
+                holdNextRead = false
+                return await withCheckedContinuation { continuation in
+                    pendingReads[index] = continuation
+                    readEntered(index)
+                }
+            }
+            return snapshot
+        }
+
+        @discardableResult
+        func finishRead(_ index: Int, with value: ShellNotificationsData) -> Bool {
+            guard let continuation = pendingReads.removeValue(forKey: index) else { return false }
+            continuation.resume(returning: value)
+            return true
         }
 
         func dismissAll(
@@ -99,7 +127,8 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
             url: url,
             load: { await gate.read($0) },
             perform: { await gate.perform($0) },
-            dismissAll: { await gate.dismissAll($0, progress: $1) }
+            dismissAll: { await gate.dismissAll($0, progress: $1) },
+            revision: { gate.storageRevision }
         )
         await listen(controller, expected: gate.snapshot)
         return controller
@@ -198,7 +227,9 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
     }
 
     func testPartialFailureProgressAndOutcomeSurviveWireEncodingWithoutRemovingRows() async throws {
-        let initial = ShellNotificationsData(state: "ready", items: [item(UUID()), item(UUID())])
+        let first = UUID()
+        let second = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(first), item(second)])
         let gate = Gate(snapshot: initial)
         let entered = expectation(description: "batch starts")
         gate.entered = { _ in entered.fulfill() }
@@ -208,6 +239,8 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         let task = try XCTUnwrap(controller.actionTask)
         await fulfillment(of: [entered], timeout: 5)
         gate.emit(0, .dispatched)
+        XCTAssertEqual(controller.current.dispatched, [first.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.items, initial.items)
         gate.emit(0, .notFound)
         XCTAssertEqual(number(controller, "completed"), 2)
         XCTAssertEqual(number(controller, "failed"), 1)
@@ -222,9 +255,13 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         let decoded = try ShellServiceValue.decode(writer.bytes)
         XCTAssertEqual(decoded.fields?["dismissAll"], controller.current.dismissAll)
         XCTAssertEqual(decoded.fields?["items"], .array(initial.items))
+        XCTAssertEqual(decoded.fields?["dispatched"], .array([.text(first.uuidString.lowercased())]))
+        XCTAssertEqual(decoded.fields?["kept"], .number(0))
         var empty = ShellValueWriter()
         ShellNotificationsData(state: "empty").write(into: &empty)
         XCTAssertEqual(try ShellServiceValue.decode(empty.bytes).fields?["dismissAll"], .null)
+        XCTAssertEqual(try ShellServiceValue.decode(empty.bytes).fields?["dispatched"], .array([]))
+        XCTAssertEqual(try ShellServiceValue.decode(empty.bytes).fields?["kept"], .number(0))
     }
 
     func testBatchAndIndividualActionsShareOneBusyGuard() async throws {
@@ -245,10 +282,15 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         gate.emit(0, .dispatched)
         XCTAssertTrue(gate.finish(0, .dispatched))
         await batchTask.value
+        await controller.task?.value
 
         let actionEntered = expectation(description: "individual action starts")
         gate.actionEntered = { actionEntered.fulfill() }
-        XCTAssertTrue(controller.perform(.dismiss(bundle: firstBundle, id: id)))
+        let arrived = UUID()
+        gate.snapshot = .init(state: "ready", items: [item(id), item(arrived)])
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertTrue(controller.perform(.dismiss(bundle: firstBundle, id: arrived)))
         let actionTask = try XCTUnwrap(controller.actionTask)
         XCTAssertFalse(controller.perform(.dismissAll))
         XCTAssertFalse(controller.perform(.cancelDismissAll))
@@ -378,10 +420,11 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         XCTAssertFalse(controller.perform(.cancelDismissAll))
     }
 
-    func testClearingFinishedBatchPublishesOnceWithoutChangingTheRetainedSnapshot() async throws {
+    func testFinishedBatchSurvivesReadsUntilDatabaseConfirmsItsDispatchedRowsAreGone() async throws {
         let id = UUID()
-        let gate = Gate(snapshot: .init(state: "ready", items: [item(id)]))
-        let entered = expectation(description: "batch starts before feedback is cleared")
+        let initial = ShellNotificationsData(state: "ready", items: [item(id)])
+        let gate = Gate(snapshot: initial)
+        let entered = expectation(description: "batch starts")
         gate.entered = { _ in entered.fulfill() }
         let controller = await controller(gate)
         defer { controller.setListening(false) }
@@ -391,68 +434,412 @@ final class ShellNotificationsDismissAllTests: XCTestCase {
         gate.emit(0, .dispatched)
         XCTAssertTrue(gate.finish(0, .dispatched))
         await task.value
+        await controller.task?.value
+        let finished = controller.current.dismissAll
         XCTAssertEqual(state(controller), "completed")
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
 
-        let before = controller.current
-        var publications: [ShellNotificationsData] = []
-        controller.onChange = { publications.append($0) }
-        controller.clearFinishedDismissAll()
-        controller.clearFinishedDismissAll()
-        var expected = before
-        expected.dismissAll = nil
-        XCTAssertEqual(controller.current, expected)
-        XCTAssertEqual(publications, [expected])
-        XCTAssertNil(controller.actionTask)
-        XCTAssertEqual(gate.batches.count, 1)
-        controller.onChange = nil
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dismissAll, finished)
+        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+
+        gate.snapshot = .init(state: "empty")
+        gate.storageRevision = Gate.revision(1)
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, [])
+        XCTAssertEqual(controller.current.dispatched, [])
+        XCTAssertNil(controller.current.dismissAll)
+        XCTAssertEqual(controller.current.kept, 0)
     }
 
-    func testClearingFinishedFeedbackPreservesPendingAndCancellingBatchUntilCompletion() async throws {
-        let initial = ShellNotificationsData(state: "ready", items: [item(UUID())])
+    func testCompleteEmptyReadClearsZeroSuccessFailedAndCancelledBatchResults() async throws {
+        for outcome in [ShellNotificationActionOutcome.denied, .cancelled] {
+            let initial = ShellNotificationsData(state: "ready", items: [item(UUID())])
+            let gate = Gate(snapshot: initial)
+            let entered = expectation(description: "zero-success batch starts")
+            gate.entered = { _ in entered.fulfill() }
+            let controller = await controller(gate)
+            XCTAssertTrue(controller.perform(.dismissAll))
+            let task = try XCTUnwrap(controller.actionTask)
+            await fulfillment(of: [entered], timeout: 5)
+            if outcome == .cancelled { XCTAssertTrue(controller.perform(.cancelDismissAll)) }
+            XCTAssertTrue(gate.finish(0, outcome))
+            await task.value
+            await controller.task?.value
+            XCTAssertEqual(state(controller), outcome == .cancelled ? "cancelled" : "failed")
+            XCTAssertEqual(number(controller, "completed"), 0)
+            XCTAssertEqual(controller.current.dispatched, [])
+            XCTAssertEqual(controller.current.items, initial.items)
+            let terminal = controller.current.dismissAll
+
+            gate.snapshot = .init(state: "incomplete", complete: false)
+            controller.refresh(.filesystem)
+            await controller.task?.value
+            XCTAssertEqual(controller.current.dismissAll, terminal)
+            XCTAssertEqual(controller.current.items, [])
+            XCTAssertEqual(controller.current.kept, 0)
+
+            gate.snapshot = .init(state: "empty")
+            controller.refresh()
+            await controller.task?.value
+            XCTAssertNil(controller.current.dismissAll)
+            XCTAssertEqual(controller.current.items, [])
+            XCTAssertEqual(controller.current.dispatched, [])
+            XCTAssertEqual(controller.current.kept, 0)
+            XCTAssertEqual(gate.batches.count, 1)
+            controller.setListening(false)
+        }
+    }
+
+    func testCompleteEmptyReadPreservesActiveBatchAndKeptUntilNativeCleanup() async throws {
+        let first = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(first), item(UUID())])
         let gate = Gate(snapshot: initial)
-        let entered = expectation(description: "batch starts before attempted feedback clear")
+        let entered = expectation(description: "batch starts before database becomes empty")
         gate.entered = { _ in entered.fulfill() }
         let controller = await controller(gate)
         defer { controller.setListening(false) }
         XCTAssertTrue(controller.perform(.dismissAll))
         let task = try XCTUnwrap(controller.actionTask)
         await fulfillment(of: [entered], timeout: 5)
-        var publications: [ShellNotificationsData] = []
-        controller.onChange = { publications.append($0) }
-        let pending = controller.current
-        controller.clearFinishedDismissAll()
-        XCTAssertEqual(controller.current, pending)
-        XCTAssertTrue(publications.isEmpty)
+        gate.emit(0, .dispatched)
+        gate.storageRevision = Gate.revision(1)
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertEqual(controller.current.dispatched, [])
+        XCTAssertEqual(controller.current.kept, 1)
+        XCTAssertEqual(state(controller), "pending")
+
+        gate.snapshot = .init(state: "empty")
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, [])
+        XCTAssertEqual(state(controller), "pending")
+        XCTAssertEqual(number(controller, "completed"), 1)
+        XCTAssertEqual(controller.current.dismissAll?.fields?["active"]?.boolean, true)
+        XCTAssertEqual(controller.current.kept, 1)
         XCTAssertNotNil(controller.actionTask)
 
         XCTAssertTrue(controller.perform(.cancelDismissAll))
-        publications.removeAll()
-        let cancelling = controller.current
-        controller.clearFinishedDismissAll()
-        XCTAssertEqual(controller.current, cancelling)
-        XCTAssertTrue(publications.isEmpty)
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(state(controller), "cancelling")
+        XCTAssertEqual(controller.current.kept, 1)
         XCTAssertNotNil(controller.actionTask)
-        XCTAssertTrue(gate.finish(0, .failedPanelOpen))
+        XCTAssertTrue(gate.finish(0, .cancelled))
         await task.value
-        XCTAssertEqual(state(controller), "cancelled")
-        controller.clearFinishedDismissAll()
+        await controller.task?.value
         XCTAssertNil(controller.current.dismissAll)
-        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertEqual(controller.current.items, [])
         XCTAssertNil(controller.actionTask)
-        controller.onChange = nil
     }
 
-    func testClearingRejectedBatchFeedbackPreservesTheIncompleteSnapshot() async {
-        let initial = ShellNotificationsData(state: "incomplete", items: [item(UUID())], complete: false)
+    func testNextClearAllExcludesDispatchedRowsAndReplacesThePreviousResult() async throws {
+        let first = UUID()
+        let second = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(first), item(second)])
         let gate = Gate(snapshot: initial)
+        let firstEntered = expectation(description: "first batch starts")
+        let secondEntered = expectation(description: "remaining-row batch starts")
+        gate.entered = { index in
+            if index == 0 { firstEntered.fulfill() }
+            else if index == 1 { secondEntered.fulfill() }
+            else { XCTFail("Unexpected extra batch") }
+        }
         let controller = await controller(gate)
         defer { controller.setListening(false) }
-        XCTAssertFalse(controller.perform(.dismissAll))
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let firstTask = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [firstEntered], timeout: 5)
+        gate.emit(0, .dispatched)
+        gate.emit(0, .notFound)
+        XCTAssertTrue(gate.finish(0, .dispatched))
+        await firstTask.value
+        await controller.task?.value
+        XCTAssertEqual(state(controller), "partial")
+        XCTAssertEqual(controller.current.dispatched, [first.uuidString.lowercased()])
+
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let secondTask = try XCTUnwrap(controller.actionTask)
+        XCTAssertEqual(state(controller), "pending")
+        XCTAssertEqual(number(controller, "total"), 1)
+        XCTAssertEqual(number(controller, "completed"), 0)
+        XCTAssertEqual(number(controller, "failed"), 0)
+        await fulfillment(of: [secondEntered], timeout: 5)
+        XCTAssertEqual(gate.batches[1].map(\.id), [second])
+        gate.emit(1, .dispatchedPanelOpen)
+        XCTAssertTrue(gate.finish(1, .dispatchedPanelOpen))
+        await secondTask.value
+        await controller.task?.value
+        XCTAssertEqual(state(controller), "completed")
+        XCTAssertEqual(number(controller, "failed"), 0)
+        XCTAssertEqual(Set(controller.current.dispatched), Set([first, second].map { $0.uuidString.lowercased() }))
+        XCTAssertEqual(controller.current.items, initial.items)
+        _ = controller.perform(.dismissAll)
+        XCTAssertNil(controller.actionTask)
+        XCTAssertEqual(gate.batches.count, 2)
+        XCTAssertEqual(controller.current.items, initial.items)
+    }
+
+    func testCancelledBatchHidesOnlySuccessfulDispatchesAndRetriesTheRemainingRows() async throws {
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(first), item(second), item(third)])
+        let gate = Gate(snapshot: initial)
+        let firstEntered = expectation(description: "first batch starts")
+        let secondEntered = expectation(description: "retry batch starts")
+        gate.entered = { index in
+            if index == 0 { firstEntered.fulfill() }
+            else if index == 1 { secondEntered.fulfill() }
+            else { XCTFail("Unexpected extra batch") }
+        }
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let firstTask = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [firstEntered], timeout: 5)
+        gate.emit(0, .dispatched)
+        gate.emit(0, .notFound)
+        XCTAssertTrue(controller.perform(.cancelDismissAll))
+        XCTAssertTrue(gate.finish(0, .cancelled))
+        await firstTask.value
+        await controller.task?.value
+        XCTAssertEqual(state(controller), "cancelled")
+        XCTAssertEqual(number(controller, "completed"), 2)
+        XCTAssertEqual(number(controller, "failed"), 1)
+        XCTAssertEqual(controller.current.dispatched, [first.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.items, initial.items)
+
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let secondTask = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [secondEntered], timeout: 5)
+        XCTAssertEqual(gate.batches[1].map(\.id), [second, third])
+        XCTAssertTrue(controller.perform(.cancelDismissAll))
+        XCTAssertTrue(gate.finish(1, .cancelled))
+        await secondTask.value
+        XCTAssertEqual(controller.current.dispatched, [first.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.items, initial.items)
+    }
+
+    func testRetainedRowsReappearOnlyAfterAChangedStablePostDispatchFilesystemRead() async throws {
+        let id = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(id)])
+        let gate = Gate(snapshot: initial)
+        let entered = expectation(description: "batch starts")
+        gate.entered = { _ in entered.fulfill() }
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let task = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [entered], timeout: 5)
+        gate.emit(0, .dispatched)
+        XCTAssertTrue(gate.finish(0, .dispatched))
+        await task.value
+        await controller.task?.value
+
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        gate.storageRevision = .init(database: gate.storageRevision.database, wal: Gate.revision(1).database)
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        controller.refresh(.action)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertEqual(controller.current.dispatched, [])
+        XCTAssertEqual(controller.current.kept, 1)
+        XCTAssertNil(controller.current.dismissAll)
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(controller.current.kept, 1)
+
+        let actionEntered = expectation(description: "restored row can be dismissed again")
+        gate.actionEntered = { actionEntered.fulfill() }
+        XCTAssertTrue(controller.perform(.dismiss(bundle: firstBundle, id: id)))
+        let actionTask = try XCTUnwrap(controller.actionTask)
+        XCTAssertEqual(controller.current.kept, 0)
+        await fulfillment(of: [actionEntered], timeout: 5)
+        XCTAssertTrue(gate.finishAction(.dispatched))
+        await actionTask.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.items, initial.items)
+    }
+
+    func testIncompleteAndUnstableFilesystemReadsCannotRestoreDispatchedRows() async throws {
+        let id = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(id)])
+        let gate = Gate(snapshot: initial)
+        let entered = expectation(description: "batch starts")
+        gate.entered = { _ in entered.fulfill() }
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let task = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [entered], timeout: 5)
+        gate.emit(0, .dispatched)
+        XCTAssertTrue(gate.finish(0, .dispatched))
+        await task.value
+        await controller.task?.value
+
+        gate.storageRevision = Gate.revision(1)
+        gate.snapshot = .init(state: "incomplete", items: initial.items, complete: false)
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertEqual(controller.current.items, initial.items)
+
+        let readEntered = expectation(description: "filesystem read remains in flight")
+        let index = gate.readCount
+        gate.holdNextRead = true
+        gate.readEntered = { _ in readEntered.fulfill() }
+        controller.refresh(.filesystem)
+        let readTask = try XCTUnwrap(controller.task)
+        await fulfillment(of: [readEntered], timeout: 5)
+        gate.storageRevision = Gate.revision(2)
+        XCTAssertTrue(gate.finishRead(index, with: initial))
+        await readTask.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+
+        gate.snapshot = initial
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [])
+        XCTAssertEqual(controller.current.kept, 1)
+        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertNil(controller.current.dismissAll)
+
+        gate.snapshot = .init(state: "incomplete", complete: false)
+        controller.refresh(.filesystem)
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, [])
+        XCTAssertEqual(controller.current.kept, 1)
+        gate.snapshot = .init(state: "empty")
+        controller.refresh()
+        await controller.task?.value
+        XCTAssertEqual(controller.current.items, [])
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertNil(controller.current.dismissAll)
+    }
+
+    func testInflightManualReadCannotBorrowALaterFilesystemEvent() async throws {
+        let id = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(id)])
+        let gate = Gate(snapshot: initial)
+        let entered = expectation(description: "batch starts")
+        gate.entered = { _ in entered.fulfill() }
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let task = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [entered], timeout: 5)
+        gate.emit(0, .dispatched)
+        XCTAssertTrue(gate.finish(0, .dispatched))
+        await task.value
+        await controller.task?.value
+
+        gate.storageRevision = Gate.revision(1)
+        let firstReadEntered = expectation(description: "manual read starts")
+        let coalescedReadEntered = expectation(description: "post-event read starts")
+        let index = gate.readCount
+        gate.holdNextRead = true
+        gate.readEntered = { read in
+            if read == index { firstReadEntered.fulfill() }
+            else if read == index + 1 { coalescedReadEntered.fulfill() }
+            else { XCTFail("Unexpected held read") }
+        }
+        controller.refresh()
+        let firstReadTask = try XCTUnwrap(controller.task)
+        await fulfillment(of: [firstReadEntered], timeout: 5)
+        controller.refresh(.filesystem)
+        gate.holdNextRead = true
+        XCTAssertTrue(gate.finishRead(index, with: initial))
+        await firstReadTask.value
+        await fulfillment(of: [coalescedReadEntered], timeout: 5)
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+        let coalescedReadTask = try XCTUnwrap(controller.task)
+        XCTAssertTrue(gate.finishRead(index + 1, with: initial))
+        await coalescedReadTask.value
+        XCTAssertEqual(controller.current.dispatched, [])
+        XCTAssertEqual(controller.current.kept, 1)
+        XCTAssertNil(controller.current.dismissAll)
+        XCTAssertEqual(controller.current.items, initial.items)
+    }
+
+    func testReadAndFilesystemEventBeforeDispatchCannotRestoreTheDispatchedRow() async throws {
+        let id = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(id)])
+        let gate = Gate(snapshot: initial)
+        let readEntered = expectation(description: "read starts before dispatch")
+        let actionEntered = expectation(description: "batch starts while old read remains in flight")
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        gate.storageRevision = Gate.revision(1)
+        let index = gate.readCount
+        gate.holdNextRead = true
+        gate.readEntered = { _ in readEntered.fulfill() }
+        controller.refresh(.filesystem)
+        let readTask = try XCTUnwrap(controller.task)
+        await fulfillment(of: [readEntered], timeout: 5)
+        gate.entered = { _ in actionEntered.fulfill() }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let actionTask = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [actionEntered], timeout: 5)
+        gate.emit(0, .dispatched)
+        XCTAssertTrue(gate.finish(0, .dispatched))
+        await actionTask.value
+        gate.storageRevision = Gate.revision(2)
+        XCTAssertTrue(gate.finishRead(index, with: initial))
+        await readTask.value
+        await controller.task?.value
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertEqual(controller.current.items, initial.items)
+        XCTAssertEqual(state(controller), "completed")
+    }
+
+    func testHistoryClosingMidBatchPreservesSuccessfulDispatchesAndReportsItsOutcome() async throws {
+        let first = UUID()
+        let second = UUID()
+        let third = UUID()
+        let initial = ShellNotificationsData(state: "ready", items: [item(first), item(second), item(third)])
+        let gate = Gate(snapshot: initial)
+        let entered = expectation(description: "batch starts before history closes")
+        gate.entered = { _ in entered.fulfill() }
+        let controller = await controller(gate)
+        defer { controller.setListening(false) }
+        XCTAssertTrue(controller.perform(.dismissAll))
+        let task = try XCTUnwrap(controller.actionTask)
+        await fulfillment(of: [entered], timeout: 5)
+        gate.emit(0, .dispatched)
+        gate.emit(0, .historyClosed)
+        XCTAssertTrue(gate.finish(0, .historyClosed))
+        await task.value
+        await controller.task?.value
         XCTAssertEqual(state(controller), "failed")
-        controller.clearFinishedDismissAll()
-        XCTAssertEqual(controller.current, initial)
-        XCTAssertTrue(gate.batches.isEmpty)
-        XCTAssertTrue(gate.actions.isEmpty)
+        XCTAssertEqual(number(controller, "total"), 3)
+        XCTAssertEqual(number(controller, "completed"), 2)
+        XCTAssertEqual(number(controller, "failed"), 1)
+        XCTAssertEqual(controller.current.dismissAll?.fields?["outcome"]?.string, "historyClosed")
+        XCTAssertEqual(controller.current.dismissAll?.fields?["active"]?.boolean, false)
+        XCTAssertEqual(controller.current.dispatched, [first.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertEqual(controller.current.items, initial.items)
     }
 
     func testIncompleteAndAmbiguousSnapshotsNeverReachNativeBatch() async {

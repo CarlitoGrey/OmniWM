@@ -18,6 +18,7 @@ enum ShellNotificationDismissAll {
             let outcome = dismiss(request)
             if outcome == .cancelled { return finish(.cancelled) }
             progress(outcome)
+            if outcome == .historyClosed { return finish(.historyClosed) }
         }
         return finish(.dispatched)
     }

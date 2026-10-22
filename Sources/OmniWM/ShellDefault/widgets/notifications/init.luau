@@ -9,7 +9,19 @@ local TEXT_PAGE = 8
 local function consume() end
 
 local function button(title, action)
-    return presentation.button(title, action or consume)
+    return presentation.button(title, action or consume, action ~= nil)
+end
+
+local function visibleItems(value)
+    if not value then return {} end
+    if not value.dispatched or #value.dispatched == 0 then return value.items or {} end
+    local dispatched = {}
+    for _, id in value.dispatched or {} do dispatched[string.lower(id)] = true end
+    local items = {}
+    for _, item in value.items or {} do
+        if not dispatched[string.lower(item.id)] then items[#items + 1] = item end
+    end
+    return items
 end
 
 local function replyAction(item)
@@ -43,6 +55,8 @@ local function actionMessage(action)
         return omniwm.l10n("The action failed. Close Notification Center and try again.")
     elseif action.state == "notFound" then
         return omniwm.l10n("This notification is no longer available in Notification Center.")
+    elseif action.state == "historyClosed" then
+        return omniwm.l10n("Notification Center closed.")
     elseif action.state == "denied" then
         return omniwm.l10n("Accessibility access is required for notification actions.")
     elseif action.state == "unavailable" then
@@ -344,7 +358,7 @@ end
 
 function render(ctx)
     local value = ctx.data.notifications
-    local count = if value then #(value.items or {}) else 0
+    local count = #visibleItems(value)
     local issue = status(value)
     local scale = presentation.scale(ctx)
     local rows = { gap = 4 * scale, onClick = ui.popout,
@@ -361,15 +375,15 @@ end
 function popout(ctx)
     local value = ctx.data.notifications
     syncReplies(ctx, value)
-    local items = if value then value.items or {} else {}
+    local items = visibleItems(value)
+    local busy = value and ((value.action and value.action.state == "pending") or (value.dismissAll and value.dismissAll.active))
     local pages = math.max(1, math.ceil(#items / PAGE))
     local page = math.clamp(ctx.state.page or 1, 1, pages)
     local rows = { w = WIDTH, h = 520, pad = 12, gap = 10, center = false, scroll = true,
         ui.row{ w = WIDTH - 24, gap = 5,
             presentation.text{ text = omniwm.l10n("Notifications"), style = "bold", grow = 1 },
-            button(if value and value.dismissAll and value.dismissAll.active then omniwm.l10n("Cancel") else omniwm.l10n("Clear All"),
-                if value and value.dismissAll and value.dismissAll.active then "notifications cancel-dismiss-all"
-                elseif value and value.complete == true and #items > 0 and not (value.action and value.action.state == "pending")
+            button(omniwm.l10n("Clear All"),
+                if value and value.complete == true and value.state == "ready" and #items > 0 and not busy
                     then "notifications dismiss-all" else nil),
             button(omniwm.l10n("Settings"), "notifications settings") } }
     local issue = status(value)
@@ -381,11 +395,34 @@ function popout(ctx)
     if value and value.error and value.error ~= "" then
         text(rows, value.error, WIDTH - 24, "small", "secondaryForeground")
     end
+    if value and value.kept and value.kept > 0 then
+        text(rows, omniwm.l10n("macOS kept notifications: %lld", value.kept), WIDTH - 24, "small", "secondaryForeground")
+    end
+    local panelAction = nil
+    local action = if value then value.action else nil
+    if action and (action.kind == "dismiss" or action.kind == "reply") and action.state == "dispatchedPanelOpen" then
+        for _, id in value.dispatched or {} do
+            if string.lower(id) == string.lower(action.id) then
+                panelAction = actionMessage(action)
+                text(rows, panelAction, WIDTH - 24, "small", "secondaryForeground")
+                break
+            end
+        end
+    end
     if value and value.dismissAll then
         local batch = value.dismissAll
-        text(rows, batchMessage(batch), WIDTH - 24, "small", "secondaryForeground")
+        local progress = { w = WIDTH - 24, gap = 6 }
+        text(progress, batchMessage(batch), WIDTH - 110, "small", "secondaryForeground")
+        if batch.active then
+            progress[#progress + 1] = button(omniwm.l10n("Cancel"),
+                if batch.state ~= "cancelling" then "notifications cancel-dismiss-all" else nil)
+        end
+        rows[#rows + 1] = ui.row(progress)
         if batch.outcome and batch.outcome ~= "dispatched" and batch.outcome ~= "cancelled" then
-            text(rows, actionMessage({ state = batch.outcome, kind = "dismiss" }), WIDTH - 24, "small", "secondaryForeground")
+            local message = actionMessage({ state = batch.outcome, kind = "dismiss" })
+            if message ~= panelAction then
+                text(rows, message, WIDTH - 24, "small", "secondaryForeground")
+            end
         end
     end
     for index = (page - 1) * PAGE + 1, math.min(page * PAGE, #items) do

@@ -129,11 +129,11 @@ extension ShellNotificationAccessibility {
             do {
                 try check()
                 enter("individual")
-                let target = try individual()
                 switch request.operation {
                 case .dismiss:
-                    try dismiss()
+                    return try dismiss()
                 case let .reply(text, title, sendTitle):
+                    let target = try individual()
                     try reply(target, text: text, title: title, sendTitle: sendTitle)
                 }
                 return .dispatched
@@ -328,6 +328,7 @@ extension ShellNotificationAccessibility {
             var current = try snapshot()
             var expanded = Set<UUID>()
             while true {
+                guard current.history else { throw ActionFailure(outcome: .historyClosed) }
                 if let matches = current.items[request.id] {
                     guard matches.count == 1 else { throw ActionFailure(outcome: .ambiguous) }
                     let target = matches[0]
@@ -352,6 +353,7 @@ extension ShellNotificationAccessibility {
                     throw ActionFailure(outcome: .failed)
                 }
                 current = try wait { value in
+                    guard value.history else { throw ActionFailure(outcome: .historyClosed) }
                     guard let matches = value.items[id], matches.count == 1 else { return false }
                     return try self.string(matches[0], kAXSubroleAttribute) == "AXNotificationCenterBanner"
                 }
@@ -425,18 +427,23 @@ extension ShellNotificationAccessibility.Session {
         return result
     }
 
-    func dismiss() throws {
-        enter("dismiss")
-        let current = try exactTarget()
-        let names = try actions(current)
-        let close = names.filter { $0.hasPrefix("Name:Close\n") }
-        trace("native.dismiss.controls", fields: "matches=\(close.count)")
-        guard close.count <= 1 else { throw ShellNotificationAccessibility.ActionFailure(outcome: .ambiguous) }
-        guard let close = close.first else { throw ShellNotificationAccessibility.ActionFailure(outcome: .unsupported) }
-        try check()
-        let result = AXUIElementPerformAction(current, close as CFString)
-        trace("native.dismiss.press", fields: "ax=\(result.rawValue)")
-        if result != .success { throw ShellNotificationAccessibility.ActionFailure(outcome: .failed) }
+    func dismiss() throws -> ShellNotificationActionOutcome {
+        try ShellNotificationAction.dismiss(
+            resolve: { try individual() },
+            actions: { target in
+                enter("dismiss")
+                let names = try actions(target)
+                let matches = names.lazy.filter { $0.hasPrefix("Name:Close\n") }.count
+                trace("native.dismiss.controls", fields: "matches=\(matches)")
+                return names
+            },
+            press: { target, close in
+                try check()
+                let result = AXUIElementPerformAction(target, close as CFString)
+                trace("native.dismiss.press", fields: "ax=\(result.rawValue)")
+                return result == .success
+            }
+        )
     }
 
     func reply(_ target: AXUIElement, text: String, title: String, sendTitle: String) throws {

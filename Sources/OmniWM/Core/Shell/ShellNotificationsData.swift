@@ -9,6 +9,8 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
     let error: String?
     var action: ShellServiceValue?
     var dismissAll: ShellServiceValue?
+    var dispatched: [String]
+    var kept: Int
 
     init(
         state: String,
@@ -17,7 +19,9 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
         complete: Bool = true,
         error: String? = nil,
         action: ShellServiceValue? = nil,
-        dismissAll: ShellServiceValue? = nil
+        dismissAll: ShellServiceValue? = nil,
+        dispatched: [String] = [],
+        kept: Int = 0
     ) {
         self.state = state
         self.items = items
@@ -26,10 +30,12 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
         self.error = error
         self.action = action
         self.dismissAll = dismissAll
+        self.dispatched = dispatched
+        self.kept = kept
     }
 
     func write(into writer: inout ShellValueWriter) {
-        writer.map(7)
+        writer.map(9)
         writer.key("state")
         writer.string(state)
         writer.key("complete")
@@ -44,5 +50,9 @@ struct ShellNotificationsData: Equatable, Sendable, ShellValueWritable {
         (action ?? .null).write(to: &writer)
         writer.key("dismissAll")
         (dismissAll ?? .null).write(to: &writer)
+        writer.key("dispatched")
+        ShellServiceValue.array(dispatched.map(ShellServiceValue.text)).write(to: &writer)
+        writer.key("kept")
+        writer.number(Double(kept))
     }
 }

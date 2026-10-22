@@ -13,9 +13,10 @@ local function presentation(look)
         props.hover = "foreground/0.12"
         return if ctx.data.bar.style.vertical then ui.column(props) else ui.row(props)
     end
-    look.button = look.button or function(title, action)
-        return ui.box{ pad = 5, radius = look.buttonRadius or 5, hover = look.hover or "foreground/0.12",
-            fill = look.buttonFill, onClick = action,
+    look.button = look.button or function(title, action, enabled)
+        return ui.box{ pad = 5, radius = look.buttonRadius or 5,
+            hover = if enabled ~= false then look.hover or "foreground/0.12" else nil,
+            opacity = if enabled == false then 0.4 else 1, fill = look.buttonFill, onClick = action,
             look.text{ text = title, style = "small", color = look.buttonForeground } }
     end
     look.group = look.group or function(props, details)

@@ -14,7 +14,7 @@ final class ShellResources {
     let media: MediaController?
     let calendar: CalendarController?
     let devices = ShellDevices()
-    let notifications = ShellNotificationsController()
+    let notifications: ShellNotificationsController
     var resourceImages: ShellResourceImages?
     private let iconOverride: @MainActor (String) -> NSImage?
     private let windowIcon: @MainActor (String) -> NSImage?
@@ -26,6 +26,7 @@ final class ShellResources {
         appVolumes: AppVolumeMixer? = nil,
         media: MediaController? = nil,
         calendar: CalendarController? = nil,
+        notifications: ShellNotificationsController? = nil,
         windowIcon: @escaping @MainActor (String) -> NSImage? = { _ in nil },
         iconOverride: @escaping @MainActor (String) -> NSImage? = { _ in nil }
     ) {
@@ -33,6 +34,7 @@ final class ShellResources {
         self.appVolumes = appVolumes
         self.media = media
         self.calendar = calendar
+        self.notifications = notifications ?? ShellNotificationsController()
         self.windowIcon = windowIcon
         self.iconOverride = iconOverride
     }

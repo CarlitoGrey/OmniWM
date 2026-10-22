@@ -978,15 +978,17 @@ final class ShellWidgetClickTests: XCTestCase {
 
     private func harness(
         _ source: String,
+        widget: String = "test",
         world: ShellWorldData = ShellWorldData(),
         bars: [ShellBarKey: ShellBarData] = [Harness.bar: ShellBarData()],
         animations: Bool = false,
-        files: [String: String] = [:]
+        files: [String: String] = [:],
+        notifications: ShellNotificationsController? = nil
     ) throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let contents = ["shell.toml": "profiles.default.trailing = [\"test\"]\n"]
+        let contents = ["shell.toml": "profiles.default.trailing = [\"\(widget)\"]\n"]
             .merging(files, uniquingKeysWith: { $1 })
-            .merging(["widgets/test/init.luau": source], uniquingKeysWith: { $1 })
+            .merging(["widgets/\(widget)/init.luau": source], uniquingKeysWith: { $1 })
         for (path, contents) in contents {
             let url = root.appendingPathComponent("shell/" + path)
             try FileManager.default.createDirectory(
@@ -1002,6 +1004,7 @@ final class ShellWidgetClickTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { changed.finish() }
         let resources = ShellResources(
             motion: MotionPolicy(animationsEnabled: animations),
+            notifications: notifications,
             iconOverride: { _ in sink.iconOverride }
         )
         let host = ShellWidgetHost(
@@ -1028,6 +1031,113 @@ final class ShellWidgetClickTests: XCTestCase {
     private func click(_ surface: ShellWidgetSurface, at point: CGPoint) {
         surface.press(at: point)
         surface.release(at: point)
+    }
+
+    func testFinishedNotificationBatchSurvivesHostPopoutAndDrawerReopening() async throws {
+        executionTimeAllowance = 60
+        guard let screen = NSScreen.screens.first(where: { $0.displayId == CGMainDisplayID() }) else {
+            throw XCTSkip("notification popouts and drawers need the main display")
+        }
+        let main = Monitor.ID(displayId: try XCTUnwrap(screen.displayId))
+        let id = UUID()
+        let snapshot = ShellNotificationsData(state: "ready", items: [.object([
+            "id": .text(id.uuidString.lowercased()),
+            "bundle": .text("com.example.NotificationHostFixture"),
+            "title": .text("Retained host fixture")
+        ])])
+        let batchEntered = expectation(description: "injected notification batch runs")
+        batchEntered.assertForOverFulfill = true
+        let notifications = ShellNotificationsController(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent("notifications.db"),
+            load: { _ in snapshot },
+            perform: { _ in
+                XCTFail("The host fixture must not perform individual native actions")
+                return .failed
+            },
+            dismissAll: { requests, progress in
+                batchEntered.fulfill()
+                XCTAssertEqual(requests.map(\.id), [id])
+                for _ in requests { progress(.dispatched) }
+                return .dispatched
+            }
+        )
+        let harness = try harness("""
+        function render(ctx)
+            return ui.box{ w = ctx.data.notifications and 20 or 10, h = 20, onClick = ui.popout }
+        end
+        function popout(ctx)
+            local value = ctx.data.notifications
+            local batch = value and value.dismissAll
+            return ui.text{ w = 180, h = 24,
+                text = batch and (batch.state .. ":" .. tostring(batch.completed) .. "/" .. tostring(batch.total)) or "none" }
+        end
+        """, widget: "notifications", bars: [ShellBarKey(monitor: main): ShellBarData()], files: [
+            "shell.toml": """
+            profiles.default.leading = []
+            profiles.default.center = []
+            profiles.default.trailing = ["notifications"]
+            [profiles.default.drawer.notification-history]
+            edge = "right"
+            widgets = ["notifications"]
+            """
+        ], notifications: notifications)
+        defer { harness.close() }
+        XCTAssertTrue(harness.resources.notifications === notifications)
+        await until {
+            notifications.isListening && notifications.current.state == "ready"
+                && harness.host.slots(for: main).first?.id == "notifications"
+        }
+        let expectedFeedback = "completed:1/1"
+        func hasFeedback(_ surface: ShellWidgetSurface) -> Bool {
+            !surface.layout.core.elements { surface.text?.string($0.text) == expectedFeedback }.isEmpty
+        }
+        XCTAssertTrue(harness.host.togglePopout(of: "notifications", on: main))
+        let firstPopout = try XCTUnwrap(harness.host.popout)
+        XCTAssertTrue(notifications.perform(.dismissAll))
+        let actionTask = try XCTUnwrap(notifications.actionTask)
+        await actionTask.value
+        await fulfillment(of: [batchEntered], timeout: 10)
+        await notifications.task?.value
+        let finished = try XCTUnwrap(notifications.current.dismissAll)
+        XCTAssertEqual(finished.fields?["state"]?.string, "completed")
+        await until { hasFeedback(firstPopout.surface) }
+        XCTAssertTrue(hasFeedback(firstPopout.surface))
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closePopout(animated: false)
+        XCTAssertNil(harness.host.popout)
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertTrue(harness.host.togglePopout(of: "notifications", on: main))
+        let reopenedPopout = try XCTUnwrap(harness.host.popout)
+        XCTAssertFalse(reopenedPopout === firstPopout)
+        await until { hasFeedback(reopenedPopout.surface) }
+        XCTAssertTrue(hasFeedback(reopenedPopout.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closePopout(animated: false)
+        XCTAssertTrue(harness.host.toggleDrawer("notification-history", on: main))
+        let firstDrawer = try XCTUnwrap(harness.host.drawer)
+        let firstSection = try XCTUnwrap(firstDrawer.sections.first)
+        XCTAssertEqual(firstSection.widget, "notifications")
+        await until { hasFeedback(firstSection.surface) }
+        XCTAssertTrue(hasFeedback(firstSection.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closeDrawer(animated: false)
+        XCTAssertNil(harness.host.drawer)
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertTrue(harness.host.toggleDrawer("notification-history", on: main))
+        let reopenedDrawer = try XCTUnwrap(harness.host.drawer)
+        XCTAssertFalse(reopenedDrawer === firstDrawer)
+        let reopenedSection = try XCTUnwrap(reopenedDrawer.sections.first)
+        await until { hasFeedback(reopenedSection.surface) }
+        XCTAssertTrue(hasFeedback(reopenedSection.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+        XCTAssertEqual(notifications.current.dispatched, [id.uuidString.lowercased()])
     }
 
     func testHostAsksForWindowTitlesOnlyWhileAWidgetReadsThem() async throws {

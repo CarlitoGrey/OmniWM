@@ -36,11 +36,13 @@ final class ShellNotificationWidgetTests: XCTestCase {
         items: [[String: Any]] = [],
         complete: Bool = true,
         action: [String: Any]? = nil,
-        dismissAll: [String: Any]? = nil
+        dismissAll: [String: Any]? = nil,
+        dispatched: [String] = [],
+        kept: Int = 0
     ) {
         widget.set("notifications") {
             var value: [String: Any] = [
-                "state": state, "complete": complete, "items": items,
+                "state": state, "complete": complete, "items": items, "dispatched": dispatched, "kept": kept,
                 "apps": [["bundle": "com.example.fixture", "name": "Fixture App"]]
             ]
             if let action { value["action"] = action }
@@ -330,9 +332,15 @@ final class ShellNotificationWidgetTests: XCTestCase {
                 "The action failed. Close Notification Center and try again.", []
             )), state)
             XCTAssertEqual(
-                try click(ShellLocalizer.string(active ? "Cancel" : "Clear All", []), in: widget),
-                [active ? "notifications cancel-dismiss-all" : "notifications dismiss-all"], state
+                try click(ShellLocalizer.string("Clear All", []), in: widget),
+                active ? [] : ["notifications dismiss-all"], state
             )
+            if active {
+                XCTAssertEqual(
+                    try click(ShellLocalizer.string("Cancel", []), in: widget),
+                    state == "cancelling" ? [] : ["notifications cancel-dismiss-all"], state
+                )
+            }
         }
         set(widget, state: "incomplete", items: [retained], complete: false)
         widget.layoutPopout()
@@ -341,6 +349,144 @@ final class ShellNotificationWidgetTests: XCTestCase {
         set(widget, state: "empty")
         widget.layoutPopout()
         XCTAssertEqual(try click(ShellLocalizer.string("Clear All", []), in: widget), [])
+    }
+
+    func testDispatchedCardsDisappearFromEveryPageAndBarCountUntilKeptPublication() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let items = (0 ..< 10).map { item("item-\($0)", body: "Retained body \($0)") }
+        set(widget, state: "ready", items: items)
+        widget.render(ShellBarData())
+        XCTAssertTrue(widget.strings().contains("10"))
+        set(widget, state: "ready", items: items, dispatched: ["ITEM-0", "item-8"])
+        widget.render(ShellBarData())
+        XCTAssertTrue(widget.strings().contains("8"))
+        widget.layoutPopout()
+        let visible = widget.strings(OMNI_VIEW_POPOUT)
+        XCTAssertFalse(visible.contains("Retained body 0"))
+        XCTAssertFalse(visible.contains("Retained body 8"))
+        XCTAssertTrue(visible.contains("Retained body 9"))
+        XCTAssertFalse(visible.contains(ShellLocalizer.string("Next", [])))
+        set(widget, state: "ready", items: items, dispatched: (0 ..< 10).map { "item-\($0)" })
+        widget.render(ShellBarData())
+        XCTAssertFalse(widget.strings().contains("10"))
+        XCTAssertFalse(widget.strings().contains("0"))
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.hasPrefix("Retained body") })
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("No retained notifications", [])))
+        try assertButton(ShellLocalizer.string("Clear All", []), enabled: false, in: widget)
+        set(widget, state: "ready", items: items, kept: 1)
+        widget.render(ShellBarData())
+        XCTAssertTrue(widget.strings().contains("10"))
+        widget.layoutPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Retained body 0"))
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("macOS kept notifications: 1"))
+        try assertButton(ShellLocalizer.string("Clear All", []), enabled: true, in: widget)
+    }
+
+    func testHiddenSuccessfulActionKeepsPanelRestorationGuidanceOutsideCards() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let id = "a2345678-9abc-def0-1234-56789abcdef0"
+        let retained = item(id)
+        set(widget, state: "ready", items: [retained])
+        widget.render(ShellBarData())
+        XCTAssertTrue(widget.strings().contains("1"))
+        let guidance = "Action submitted. Close Notification Center to continue."
+        set(
+            widget, state: "ready", items: [retained],
+            action: nativeAction(id.uppercased(), state: "dispatchedPanelOpen", kind: "dismiss"),
+            dispatched: [id]
+        )
+        widget.render(ShellBarData())
+        XCTAssertFalse(widget.strings().contains("1"))
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains("Fixture title ✓"))
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains("Fixture body"))
+        XCTAssertEqual(widget.strings(OMNI_VIEW_POPOUT).filter { $0 == guidance }.count, 1)
+        let note = try XCTUnwrap(widget.surface.layout.core.elements { widget.text.string($0.text) == guidance }.first)
+        let frame = try reveal(note, in: widget)
+        XCTAssertNil(widget.surface.command(at: CGPoint(x: frame.midX, y: frame.midY)))
+        set(
+            widget, state: "ready", items: [retained],
+            action: nativeAction(id, state: "dispatchedPanelOpen", kind: "dismiss"),
+            dismissAll: [
+                "active": false, "total": 1, "completed": 1, "failed": 0, "state": "completed",
+                "outcome": "dispatchedPanelOpen"
+            ],
+            dispatched: [id.uppercased()]
+        )
+        widget.layoutPopout()
+        XCTAssertEqual(widget.strings(OMNI_VIEW_POPOUT).filter { $0 == guidance }.count, 1)
+        set(
+            widget, state: "ready", items: [retained],
+            action: nativeAction(id, state: "dispatchedPanelOpen", kind: "reply"), dispatched: [id]
+        )
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains("Fixture title ✓"))
+        XCTAssertEqual(widget.strings(OMNI_VIEW_POPOUT).filter { $0 == guidance }.count, 1)
+    }
+
+    func testClearAllStaysInHeaderWhileCancelSitsBesideProgressAndDimsDuringCancellation() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let retained = item()
+        set(widget, state: "ready", items: [retained], dismissAll: [
+            "active": true, "total": 1, "completed": 0, "failed": 0, "state": "pending"
+        ])
+        widget.layoutPopout()
+        try assertButton(ShellLocalizer.string("Clear All", []), enabled: false, in: widget)
+        try assertButton(ShellLocalizer.string("Cancel", []), enabled: true, in: widget)
+        let clear = try control(ShellLocalizer.string("Clear All", []), in: widget)
+        let cancel = try control(ShellLocalizer.string("Cancel", []), in: widget)
+        let progress = try XCTUnwrap(widget.surface.layout.core.elements {
+            widget.text.string($0.text) == "Clearing notifications: 0 of 1"
+        }.first)
+        XCTAssertNotEqual(widget.surface.layout.core.parent(of: clear), widget.surface.layout.core.parent(of: cancel))
+        XCTAssertEqual(widget.surface.layout.core.parent(of: progress), widget.surface.layout.core.parent(of: cancel))
+        let clearFrame = try reveal(clear, in: widget)
+        let cancelFrame = try reveal(cancel, in: widget)
+        XCTAssertLessThanOrEqual(clearFrame.maxY, cancelFrame.minY)
+        XCTAssertEqual(try click(ShellLocalizer.string("Cancel", []), in: widget), ["notifications cancel-dismiss-all"])
+        set(widget, state: "ready", items: [retained], dismissAll: [
+            "active": true, "total": 1, "completed": 0, "failed": 0, "state": "cancelling"
+        ])
+        widget.layoutPopout()
+        try assertButton(ShellLocalizer.string("Clear All", []), enabled: false, in: widget)
+        try assertButton(ShellLocalizer.string("Cancel", []), enabled: false, in: widget)
+        set(widget, state: "ready", items: [retained], dismissAll: [
+            "active": false, "total": 1, "completed": 1, "failed": 0, "state": "completed"
+        ])
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Cancel", [])))
+    }
+
+    func testEveryProfileDimsBusyActionsWithoutHoverWhileConsumingTheirClicks() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        for profile in ShellProfiles.names(in: shell) {
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(profile: profile, shellDirectory: shell, problems: &problems))
+            XCTAssertEqual(problems, [], profile)
+            let widget = try styledWidget(config, shell: shell)
+            var bar = ShellBarData()
+            bar.style.height = config.barOverride?.settings.height ?? 24
+            widget.render(bar)
+            set(widget, state: "ready", items: [item(id)])
+            widget.layoutPopout()
+            try assertButton(ShellLocalizer.string("Clear All", []), enabled: true, in: widget)
+            XCTAssertEqual(try click(ShellLocalizer.string("Reply", []), in: widget), [])
+            try edit("Retained draft", in: widget)
+            set(widget, state: "ready", items: [item(id)], dismissAll: [
+                "active": true, "total": 1, "completed": 0, "failed": 0, "state": "pending"
+            ])
+            widget.layoutPopout()
+            for title in ["Clear All", "Reply", "Send"] {
+                try assertButton(ShellLocalizer.string(title, []), enabled: false, in: widget)
+            }
+            try assertButton("×", enabled: false, in: widget)
+            XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "Retained draft", profile)
+            try export(widget, name: "\(profile)-dismiss-disabled")
+        }
     }
 
     func testPaginationReachesEveryRetainedItem() throws {
@@ -447,14 +593,28 @@ final class ShellNotificationWidgetTests: XCTestCase {
         return frame
     }
 
-    private func action(_ title: String, in widget: ShellRenderedWidget) throws -> UInt32 {
+    private func control(_ title: String, in widget: ShellRenderedWidget) throws -> ElementHandle {
         var target = try XCTUnwrap(widget.surface.layout.core.elements { widget.text.string($0.text) == title }.first)
-        while target.slot >= 0 {
-            let action = widget.surface.layout.core.content(of: target).action
-            if action != 0 { return action }
-            target = widget.surface.layout.core.parent(of: target)
+        while widget.surface.layout.core.content(of: target).action == 0 {
+            let parent = widget.surface.layout.core.parent(of: target)
+            target = try XCTUnwrap(parent.slot >= 0 ? parent : nil, title)
         }
-        return 0
+        return target
+    }
+
+    private func action(_ title: String, in widget: ShellRenderedWidget) throws -> UInt32 {
+        widget.surface.layout.core.content(of: try control(title, in: widget)).action
+    }
+
+    private func assertButton(_ title: String, enabled: Bool, in widget: ShellRenderedWidget) throws {
+        let target = try control(title, in: widget)
+        let content = widget.surface.layout.core.content(of: target)
+        XCTAssertEqual(widget.surface.layout.core.paint(of: target).opacity, enabled ? 1 : 0.4, accuracy: 0.001, title)
+        XCTAssertEqual(content.hasHoverEffect, enabled, title)
+        if !enabled {
+            XCTAssertNotEqual(content.action & OMNI_ACTION_HANDLER, 0, title)
+            XCTAssertEqual(try click(title, in: widget), [], title)
+        }
     }
 
     @discardableResult

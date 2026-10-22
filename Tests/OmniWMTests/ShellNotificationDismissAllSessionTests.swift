@@ -149,4 +149,94 @@ final class ShellNotificationDismissAllSessionTests: XCTestCase {
         XCTAssertEqual(finishes, [.dispatched])
         XCTAssertEqual(outcome, .dispatchedPanelOpen)
     }
+
+    func testClosedHistoryStopsAfterOneFailureAndFinishesOnce() {
+        let requests = requests()
+        for failedIndex in requests.indices {
+            var resolved: [ShellNotificationActionRequest] = []
+            var progress: [ShellNotificationActionOutcome] = []
+            var finishes: [ShellNotificationActionOutcome] = []
+            let outcome = ShellNotificationDismissAll.perform(
+                requests,
+                begin: { nil },
+                dismiss: { request in
+                    resolved.append(request)
+                    return resolved.count == failedIndex + 1 ? .historyClosed : .dispatched
+                },
+                finish: { result in
+                    finishes.append(result)
+                    return result
+                },
+                progress: { progress.append($0) }
+            )
+            XCTAssertEqual(resolved, Array(requests.prefix(failedIndex + 1)))
+            XCTAssertEqual(progress, Array(repeating: .dispatched, count: failedIndex) + [.historyClosed])
+            XCTAssertEqual(finishes, [.historyClosed])
+            XCTAssertEqual(outcome, .historyClosed)
+        }
+    }
+
+    func testDismissReadsActionsAndPressesTheSameTargetAfterOneResolution() throws {
+        let target = UUID()
+        let close = "Name:Close\nTarget:close"
+        var resolutions = 0
+        var actionTargets: [UUID] = []
+        var pressedTargets: [UUID] = []
+        var pressedActions: [String] = []
+        let outcome = try ShellNotificationAction.dismiss(
+            resolve: {
+                resolutions += 1
+                return resolutions == 1 ? target : UUID()
+            },
+            actions: { resolved in
+                actionTargets.append(resolved)
+                return ["Name:Show Details\nTarget:details", close]
+            },
+            press: { resolved, action in
+                pressedTargets.append(resolved)
+                pressedActions.append(action)
+                return true
+            }
+        )
+        XCTAssertEqual(resolutions, 1)
+        XCTAssertEqual(actionTargets, [target])
+        XCTAssertEqual(pressedTargets, [target])
+        XCTAssertEqual(pressedActions, [close])
+        XCTAssertEqual(outcome, .dispatched)
+    }
+
+    func testMissingOrAmbiguousAdvertisedCloseNeverPresses() throws {
+        let close = "Name:Close\nTarget:close"
+        let cases: [([String], ShellNotificationActionOutcome)] = [
+            (["Name:Close All\nTarget:clear"], .unsupported),
+            ([close, close], .ambiguous)
+        ]
+        for (advertised, expected) in cases {
+            var resolutions = 0
+            var presses = 0
+            let outcome = try ShellNotificationAction.dismiss(
+                resolve: {
+                    resolutions += 1
+                    return UUID()
+                },
+                actions: { _ in advertised },
+                press: { _, _ in
+                    presses += 1
+                    return true
+                }
+            )
+            XCTAssertEqual(resolutions, 1)
+            XCTAssertEqual(presses, 0)
+            XCTAssertEqual(outcome, expected)
+        }
+    }
+
+    func testRejectedCloseDoesNotReportDispatch() throws {
+        let outcome = try ShellNotificationAction.dismiss(
+            resolve: { UUID() },
+            actions: { _ in ["Name:Close\nTarget:close"] },
+            press: { _, _ in false }
+        )
+        XCTAssertEqual(outcome, .failed)
+    }
 }

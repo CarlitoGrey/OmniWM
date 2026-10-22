@@ -346,7 +346,6 @@ extension ShellWidgetHost {
         guard state.package != nil, let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) else {
             return
         }
-        if state.name == "notifications" { resources.notifications.clearFinishedDismissAll() }
         let popout = ShellPopout(
             widget: state.name,
             key: key,

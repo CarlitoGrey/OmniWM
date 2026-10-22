@@ -20688,6 +20688,28 @@
           }
         }
       }
+    },
+    "macOS kept notifications: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS kept notifications: %lld"
+          }
+        }
+      }
+    },
+    "Notification Center closed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notification Center closed."
+          }
+        }
+      }
     }
   },
   "version" : "1.0"
