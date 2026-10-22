@@ -6,6 +6,8 @@ import Foundation
 
 enum ShellNotificationsCommand: Equatable, Sendable {
     case refresh
+    case dismissAll
+    case cancelDismissAll
     case open(bundle: String)
     case dismiss(bundle: String, id: UUID)
     case reply(bundle: String, id: UUID, text: String)
@@ -13,6 +15,10 @@ enum ShellNotificationsCommand: Equatable, Sendable {
     init?(words: [String]) {
         if words == ["refresh"] {
             self = .refresh
+        } else if words == ["dismiss-all"] {
+            self = .dismissAll
+        } else if words == ["cancel-dismiss-all"] {
+            self = .cancelDismissAll
         } else if words.count == 2, words[0] == "open", Self.validBundle(words[1]) {
             self = .open(bundle: words[1])
         } else if words.count == 3, words[0] == "dismiss", Self.validBundle(words[1]),
@@ -28,7 +34,7 @@ enum ShellNotificationsCommand: Equatable, Sendable {
         }
     }
 
-    private static func validBundle(_ value: String) -> Bool {
+    fileprivate static func validBundle(_ value: String) -> Bool {
         !value.isEmpty && value.utf8.count <= 255 && value.utf8.allSatisfy {
             (48 ... 57).contains($0) || (65 ... 90).contains($0) || (97 ... 122).contains($0)
                 || $0 == 45 || $0 == 46 || $0 == 95
@@ -96,10 +102,18 @@ final class ShellNotificationsController {
     typealias Loader = @Sendable (URL) async -> ShellNotificationsData
     typealias ActionPerformer = @MainActor @Sendable (ShellNotificationActionRequest) async
         -> ShellNotificationActionOutcome
+    typealias AppNameResolver = @MainActor @Sendable (String) -> String?
+    typealias DismissAllPerformer = @MainActor @Sendable (
+        [ShellNotificationActionRequest],
+        @escaping @MainActor @Sendable (ShellNotificationActionOutcome) -> Void
+    ) async -> ShellNotificationActionOutcome
 
     private let url: URL
     private let load: Loader
     private let performAction: ActionPerformer
+    private let performDismissAll: DismissAllPerformer
+    private let resolveName: AppNameResolver
+    private var appNames: [String: String] = [:]
     private var observation: ShellDirectoryObservation?
     private(set) var task: Task<Void, Never>?
     private(set) var actionTask: Task<Void, Never>?
@@ -111,24 +125,62 @@ final class ShellNotificationsController {
     private(set) var current = ShellNotificationsData(state: "loading")
     var onChange: (@MainActor (ShellNotificationsData) -> Void)?
 
-    init(url: URL = ShellNotificationStore.defaultURL, load: Loader? = nil, perform: ActionPerformer? = nil) {
+    init(
+        url: URL = ShellNotificationStore.defaultURL,
+        load: Loader? = nil,
+        perform: ActionPerformer? = nil,
+        dismissAll: DismissAllPerformer? = nil,
+        resolveName: AppNameResolver? = nil
+    ) {
         self.url = url
         let worker = ShellNotificationsWorker()
         self.load = load ?? { await worker.read(at: $0) }
+        self.resolveName = resolveName ?? { bundle in
+            guard let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle) else { return nil }
+            let name = FileManager.default.displayName(atPath: url.path)
+            return name.hasSuffix(".app") ? String(name.dropLast(4)) : name
+        }
         let accessibility = ShellNotificationAccessibility()
         performAction = perform ?? { request in
-            guard let notificationPID = NSRunningApplication.runningApplications(
-                withBundleIdentifier: "com.apple.notificationcenterui"
-            ).first?.processIdentifier,
-                let menuPID = NSRunningApplication.runningApplications(
-                    withBundleIdentifier: "com.apple.MenuBarAgent"
-                ).first?.processIdentifier
-            else {
+            guard let (notificationPID, menuPID) = Self.nativeProcesses() else {
                 ShellNotificationTrace.record("native.processes.missing", target: request.id)
                 return .unavailable
             }
             return await accessibility.perform(request, notificationPID: notificationPID, menuPID: menuPID)
         }
+        performDismissAll = dismissAll ?? { requests, progress in
+            guard let (notificationPID, menuPID) = Self.nativeProcesses() else { return .unavailable }
+            let updates = AsyncStream<ShellNotificationActionOutcome>.makeStream()
+            let consumer = Task {
+                for await outcome in updates.stream { progress(outcome) }
+            }
+            let native = Task {
+                let outcome = await accessibility.dismissAll(
+                    requests, notificationPID: notificationPID, menuPID: menuPID,
+                    progress: { updates.continuation.yield($0) }
+                )
+                updates.continuation.finish()
+                return outcome
+            }
+            return await withTaskCancellationHandler {
+                let outcome = await native.value
+                await consumer.value
+                return outcome
+            } onCancel: {
+                native.cancel()
+            }
+        }
+    }
+
+    private static func nativeProcesses() -> (pid_t, pid_t)? {
+        guard let notificationPID = NSRunningApplication.runningApplications(
+            withBundleIdentifier: "com.apple.notificationcenterui"
+        ).first?.processIdentifier,
+            let menuPID = NSRunningApplication.runningApplications(
+                withBundleIdentifier: "com.apple.MenuBarAgent"
+            ).first?.processIdentifier
+        else { return nil }
+        return (notificationPID, menuPID)
     }
 
     isolated deinit {
@@ -197,7 +249,25 @@ final class ShellNotificationsController {
 
     private func completeRead(_ value: ShellNotificationsData, reason: RefreshReason, start: TimeInterval) {
         var next = value
+        let retainedBundles = Set(value.items.compactMap { $0.fields?["bundle"]?.string })
+        next.apps = value.apps.map { app in
+            guard var fields = app.fields, let bundle = fields["bundle"]?.string,
+                  retainedBundles.contains(bundle), fields["name"]?.string?.isEmpty != false
+            else { return app }
+            let name: String
+            if let cached = appNames[bundle] {
+                name = cached
+            } else {
+                if let resolved = resolveName(bundle), !resolved.isEmpty { name = resolved }
+                else { name = bundle }
+                appNames[bundle] = name
+            }
+            guard name != bundle else { return app }
+            fields["name"] = .text(name)
+            return .object(fields)
+        }
         next.action = current.action
+        next.dismissAll = current.dismissAll
         let changed = current != next
         let duration = ProcessInfo.processInfo.systemUptime - start
         lastRead = ReadDiagnostics(reason: reason, completed: Date(), duration: duration, changed: changed)
@@ -217,6 +287,8 @@ final class ShellNotificationsController {
 
     @discardableResult
     func perform(_ command: ShellNotificationsCommand) -> Bool {
+        if command == .dismissAll { return dismissAll() }
+        if command == .cancelDismissAll { return cancelDismissAll() }
         let bundle: String
         let id: UUID
         let kind: String
@@ -230,7 +302,9 @@ final class ShellNotificationsController {
             id = identifier
             kind = "reply"
         case .refresh,
-             .open:
+             .open,
+             .dismissAll,
+             .cancelDismissAll:
             return false
         }
         ShellNotificationTrace.record(
@@ -392,5 +466,123 @@ final class ShellNotificationsController {
                 + " target=\(id) targetRetained=\(value.complete ? String(retained) : "unknown")"
         }
         return summary
+    }
+}
+
+extension ShellNotificationsController {
+    func clearFinishedDismissAll() {
+        guard let fields = current.dismissAll?.fields, fields["active"] != .bool(true) else { return }
+        current.dismissAll = nil
+        onChange?(current)
+    }
+
+    private func dismissAll() -> Bool {
+        guard isListening, actionTask == nil else { return false }
+        guard current.complete, current.state == "ready" || current.state == "empty" else {
+            publishDismissAll(total: current.items.count, state: "failed", outcome: .unavailable)
+            return false
+        }
+        var targets: [(bundle: String, id: UUID)] = []
+        var peers: [String: Set<UUID>] = [:]
+        var identifiers = Set<UUID>()
+        for value in current.items {
+            guard let item = value.fields, let bundle = item["bundle"]?.string,
+                  ShellNotificationsCommand.validBundle(bundle),
+                  let id = item["id"]?.string.flatMap(UUID.init(uuidString:))
+            else {
+                publishDismissAll(total: current.items.count, state: "failed", outcome: .unavailable)
+                return false
+            }
+            guard identifiers.insert(id).inserted else {
+                publishDismissAll(total: current.items.count, state: "failed", outcome: .ambiguous)
+                return false
+            }
+            targets.append((bundle, id))
+            peers[bundle, default: []].insert(id)
+        }
+        let requests = targets.map {
+            ShellNotificationActionRequest(
+                bundle: $0.bundle,
+                id: $0.id,
+                peers: peers[$0.bundle] ?? [],
+                operation: .dismiss
+            )
+        }
+        guard !requests.isEmpty else {
+            publishDismissAll(total: 0, state: "completed", outcome: .dispatched)
+            return true
+        }
+        let generation = self.generation
+        actionTask = Task { [weak self, performDismissAll] in
+            let outcome: ShellNotificationActionOutcome
+            if Task.isCancelled {
+                outcome = .cancelled
+            } else {
+                outcome = await performDismissAll(requests) { [weak self] result in
+                    guard let self, isListening, self.generation == generation else { return }
+                    recordDismissAllProgress(result)
+                }
+            }
+            guard let self, isListening, self.generation == generation else { return }
+            actionTask = nil
+            finishDismissAll(outcome)
+            refresh(.action)
+        }
+        publishDismissAll(total: requests.count, active: true, state: "pending")
+        return true
+    }
+
+    private func cancelDismissAll() -> Bool {
+        guard isListening, current.dismissAll?.fields?["active"] == .bool(true), let actionTask else { return false }
+        actionTask.cancel()
+        updateDismissAll(state: "cancelling")
+        return true
+    }
+
+    private func recordDismissAllProgress(_ outcome: ShellNotificationActionOutcome) {
+        guard var fields = current.dismissAll?.fields, fields["active"] == .bool(true) else { return }
+        fields["completed"] = .number((fields["completed"]?.number ?? 0) + 1)
+        if outcome != .dispatched {
+            fields["failed"] = .number((fields["failed"]?.number ?? 0) + 1)
+        }
+        current.dismissAll = .object(fields)
+        ShellNotificationTrace.record("batch.progress", fields: "outcome=\(outcome.rawValue)")
+        onChange?(current)
+    }
+
+    private func finishDismissAll(_ outcome: ShellNotificationActionOutcome) {
+        let fields = current.dismissAll?.fields ?? [:]
+        let complete = fields["completed"] == fields["total"]
+        let failed = fields["failed"]?.number ?? 0
+        let state: String
+        switch outcome {
+        case .cancelled: state = "cancelled"
+        case .failedPanelOpen where fields["state"]?.string == "cancelling": state = "cancelled"
+        case .dispatched where complete,
+             .dispatchedPanelOpen where complete: state = failed == 0 ? "completed" : "partial"
+        default: state = "failed"
+        }
+        updateDismissAll(active: false, state: state, outcome: outcome)
+    }
+
+    private func updateDismissAll(active: Bool? = nil, state: String, outcome: ShellNotificationActionOutcome? = nil) {
+        guard var fields = current.dismissAll?.fields else { return }
+        if let active { fields["active"] = .bool(active) }
+        fields["state"] = .text(state)
+        if let outcome { fields["outcome"] = .text(outcome.rawValue) }
+        current.dismissAll = .object(fields)
+        ShellNotificationTrace.record("batch.status", fields: "state=\(state)")
+        onChange?(current)
+    }
+
+    private func publishDismissAll(
+        total: Int, active: Bool = false, state: String, outcome: ShellNotificationActionOutcome? = nil
+    ) {
+        current.dismissAll = .object([
+            "total": .number(Double(total)), "completed": .number(0), "failed": .number(0),
+            "active": .bool(active), "state": .text(state), "outcome": outcome.map { .text($0.rawValue) } ?? .null
+        ])
+        ShellNotificationTrace.record("batch.status", fields: "state=\(state) total=\(total)")
+        onChange?(current)
     }
 }

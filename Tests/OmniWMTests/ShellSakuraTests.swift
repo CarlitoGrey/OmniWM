@@ -37,7 +37,10 @@ final class ShellSakuraTests: XCTestCase {
             ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
         )
         XCTAssertEqual(config.center, ["clock"])
-        XCTAssertEqual(config.trailing, ["privacy", "media", "wifi", "battery-details", "control-center"])
+        XCTAssertEqual(
+            config.trailing,
+            ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
+        )
         XCTAssertEqual(config.barOverride?.settings.height, 40)
         XCTAssertEqual(config.barOverride?.settings.fullWidth, true)
         XCTAssertEqual(config.barOverride?.settings.reserveLayoutSpace, true)
@@ -264,6 +267,7 @@ final class ShellSakuraTests: XCTestCase {
         )
         var bar = ShellBarData()
         bar.style.height = 40
+        bar.style.hidesMenuBar = true
         bar.style.vertical = vertical
         bar.style.position = vertical ? "left" : "top"
         bar.style.backgrounds = false

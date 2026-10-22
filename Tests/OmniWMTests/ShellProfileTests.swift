@@ -166,7 +166,10 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(config.theme, .native)
         XCTAssertEqual(config.leading, ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"])
         XCTAssertEqual(config.center, ["active-window"])
-        XCTAssertEqual(config.trailing, ["privacy", "wifi", "battery-details", "control-center", "clock"])
+        XCTAssertEqual(
+            config.trailing,
+            ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
+        )
         XCTAssertEqual(config.hiddenBarWidget, "hidden-bar")
         XCTAssertEqual(config.systemStatsWidget, "system-stats")
         let island = try XCTUnwrap(config.island)
@@ -186,8 +189,7 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(bar.solidBlackBackground, false)
         XCTAssertEqual(bar.showItemBackgrounds, false)
         XCTAssertEqual(bar.showAccentHighlights, true)
-        let workspaces = try XCTUnwrap(config.widgetSettings["workspaces"])
-        XCTAssertEqual(try ShellServiceValue.decode(workspaces).fields?["compact"]?.boolean, true)
+        XCTAssertNil(config.widgetSettings["workspaces"])
         let defaults = shell.appendingPathComponent("default/widgets", isDirectory: true)
         let system = shell.appendingPathComponent("system/widgets", isDirectory: true)
         let widgets = try FileManager.default.contentsOfDirectory(atPath: defaults.path).sorted()
@@ -205,7 +207,7 @@ final class ShellDefaultsTests: XCTestCase {
         }
     }
 
-    func testLakeInstallsPopulatedBarLanesAndReservedOpaquePlacement() throws {
+    func testLakeInstallsPopulatedBarLanesAndReservedMaterialPlacement() throws {
         let shell = root.appendingPathComponent("shell", isDirectory: true)
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         try write("profile = \"lake\"\n", to: "shell.toml", in: shell)
@@ -223,8 +225,8 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(bar.height, 32)
         XCTAssertEqual(bar.reserveLayoutSpace, true)
         XCTAssertEqual(bar.transparentBackground, false)
-        XCTAssertEqual(bar.backgroundOpacity, 1)
-        XCTAssertEqual(bar.solidBlackBackground, true)
+        XCTAssertNil(bar.backgroundOpacity)
+        XCTAssertNil(bar.solidBlackBackground)
         XCTAssertEqual(
             config.widget("workspaces"),
             shell.appendingPathComponent("default/widgets/workspaces/init.luau")

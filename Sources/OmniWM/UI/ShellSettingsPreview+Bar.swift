@@ -37,6 +37,7 @@ extension ShellSettingsPreview {
         context.scaleBy(x: scale, y: scale)
         drawBackground(in: context, size: size, thickness: thickness, request: request)
         try await drawShader(in: context, size: size, scale: scale, request: request)
+        drawOutline(in: context, size: size, thickness: thickness, request: request)
         let offsets = offsets(of: images, sizes: sizes, length: length, request: request)
         drawWidgets(images, in: context, size: size, offsets: offsets, vertical: vertical)
         guard let image = context.makeImage() else {
@@ -46,15 +47,24 @@ extension ShellSettingsPreview {
     }
 
     @MainActor
-    private static func drawBackground(
-        in context: CGContext, size: CGSize, thickness: CGFloat, request: Request
-    ) {
-        let backgroundStyle = WorkspaceBarSnapshot(
+    private static func backgroundStyle(thickness: CGFloat, request: Request) -> WorkspaceBarSnapshot.BackgroundStyle {
+        WorkspaceBarSnapshot(
             projection: .init(items: [], scratchpads: []), backgroundOpacity: request.style.opacity,
             transparentBackground: request.style.transparent, solidBlackBackground: request.style.solidBlack,
             barHeight: thickness, barFill: request.config.barOverride?.barFill,
             barBorder: request.config.barOverride?.barBorder
         ).backgroundStyle
+    }
+
+    private static func cornerRadius(request: Request) -> CGFloat {
+        request.fullWidth || request.style.solidBlack ? 0 : WorkspaceBarGeometry.cornerRadius
+    }
+
+    @MainActor
+    private static func drawBackground(
+        in context: CGContext, size: CGSize, thickness: CGFloat, request: Request
+    ) {
+        let backgroundStyle = backgroundStyle(thickness: thickness, request: request)
         let fill: NSColor? = switch backgroundStyle {
         case .transparent: nil
         case .solidBlack: .black
@@ -65,7 +75,7 @@ extension ShellSettingsPreview {
         }
         if let fill {
             context.setFillColor(fill.cgColor)
-            let radius: CGFloat = request.fullWidth || request.style.solidBlack ? 0 : WorkspaceBarGeometry.cornerRadius
+            let radius = cornerRadius(request: request)
             context.addPath(CGPath(
                 roundedRect: CGRect(origin: .zero, size: size),
                 cornerWidth: radius,
@@ -74,6 +84,32 @@ extension ShellSettingsPreview {
             ))
             context.fillPath()
         }
+    }
+
+    @MainActor
+    private static func drawOutline(in context: CGContext, size: CGSize, thickness: CGFloat, request: Request) {
+        let style = backgroundStyle(thickness: thickness, request: request)
+        guard !request.fullWidth || style != .material,
+              let outline = style.outline(
+                  contrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? .increased : .standard,
+                  colorScheme: request.dark ? .dark : .light
+              ),
+              let appearance = NSAppearance(named: request.dark ? .darkAqua : .aqua)
+        else { return }
+        var color: CGColor?
+        appearance.performAsCurrentDrawingAppearance { color = NSColor(outline.color).cgColor }
+        guard let color else { return }
+        let inset = outline.width / 2
+        let radius = max(0, cornerRadius(request: request) - inset)
+        context.setStrokeColor(color)
+        context.setLineWidth(outline.width)
+        context.addPath(CGPath(
+            roundedRect: CGRect(origin: .zero, size: size).insetBy(dx: inset, dy: inset),
+            cornerWidth: radius,
+            cornerHeight: radius,
+            transform: nil
+        ))
+        context.strokePath()
     }
 
     @MainActor

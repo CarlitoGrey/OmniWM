@@ -4,7 +4,7 @@
 theme = "native"
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
 center = ["active-window"]
-trailing = ["privacy", "wifi", "battery-details", "control-center", "clock"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
 hiddenBarWidget = "hidden-bar"
 systemStatsWidget = "system-stats"
 
@@ -14,9 +14,6 @@ displays = "all"
 width = 620
 height = 200
 fullscreen = "hide"
-
-[widgets.workspaces]
-compact = true
 
 [workspaceBar]
 position = "belowMenuBar"

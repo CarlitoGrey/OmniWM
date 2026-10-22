@@ -25,6 +25,28 @@ actor ShellNotificationAccessibility {
         let session = Session(request: request, notificationPID: notificationPID, menuPID: menuPID)
         return session.perform()
     }
+
+    func dismissAll(
+        _ requests: [ShellNotificationActionRequest],
+        notificationPID: pid_t,
+        menuPID: pid_t,
+        progress: @Sendable (ShellNotificationActionOutcome) -> Void
+    ) -> ShellNotificationActionOutcome {
+        guard let first = requests.first else { return .dispatched }
+        guard AXIsProcessTrusted() else { return .denied }
+        let session = Session(request: first, notificationPID: notificationPID, menuPID: menuPID)
+        return ShellNotificationDismissAll.perform(
+            requests,
+            begin: { session.prepare() },
+            dismiss: { request in
+                session.request = request
+                session.deadline = ProcessInfo.processInfo.systemUptime + 6
+                return session.execute()
+            },
+            finish: { session.finish($0) },
+            progress: progress
+        )
+    }
 }
 
 extension ShellNotificationAccessibility {
@@ -44,7 +66,7 @@ extension ShellNotificationAccessibility {
     }
 
     fileprivate final class Session {
-        let request: ShellNotificationActionRequest
+        var request: ShellNotificationActionRequest
         let app: AXUIElement
         let menu: AXUIElement
         let notificationPID: pid_t
@@ -73,12 +95,10 @@ extension ShellNotificationAccessibility {
         }
 
         func perform() -> ShellNotificationActionOutcome {
-            defer {
-                if let observer {
-                    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
-                }
-            }
-            var outcome: ShellNotificationActionOutcome
+            finish(prepare() ?? execute())
+        }
+
+        func prepare() -> ShellNotificationActionOutcome? {
             do {
                 try check()
                 enter("observe")
@@ -95,6 +115,19 @@ extension ShellNotificationAccessibility {
                     openedHistory = true
                     openedWindow = try wait { $0.history }.historyWindow
                 }
+                return nil
+            } catch let error as ActionFailure {
+                return error.outcome
+            } catch is ExpiredElement {
+                return .notFound
+            } catch {
+                return .failed
+            }
+        }
+
+        func execute() -> ShellNotificationActionOutcome {
+            do {
+                try check()
                 enter("individual")
                 let target = try individual()
                 switch request.operation {
@@ -103,14 +136,23 @@ extension ShellNotificationAccessibility {
                 case let .reply(text, title, sendTitle):
                     try reply(target, text: text, title: title, sendTitle: sendTitle)
                 }
-                outcome = .dispatched
+                return .dispatched
             } catch let error as ActionFailure {
-                outcome = error.outcome
+                return error.outcome
             } catch is ExpiredElement {
-                outcome = .notFound
+                return .notFound
             } catch {
-                outcome = .failed
+                return .failed
             }
+        }
+
+        func finish(_ result: ShellNotificationActionOutcome) -> ShellNotificationActionOutcome {
+            defer {
+                if let observer {
+                    CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+                }
+            }
+            var outcome = result
             trace("native.effect.end", fields: "outcome=\(outcome.rawValue) openedHistory=\(openedHistory)")
             if openedHistory {
                 enter("restoreHistory")

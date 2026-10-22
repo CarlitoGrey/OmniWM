@@ -223,13 +223,10 @@ end
 local function chrome(pill, workspace: BarWorkspace, style: BarStyle, m: Metrics, dropTarget: boolean)
     local focused = workspace.focused
     pill.borderWidth = dropTarget and 1.5 or 1
-    if m.indicator == "pills" and m.capsule then
-        pill.radius = m.item / 2
-        pill.fill = if focused then "accent/0.16" else "surface"
-        pill.hover = "foreground/0.08"
-        pill.border = if dropTarget then "accent" elseif focused then "accent/0.6" else "border"
-        pill.borderWidth = if dropTarget then 1.5 elseif focused then 1 else 0.5
-    elseif m.indicator == "pills" then
+    if m.indicator == "pills" then
+        if m.capsule then
+            pill.radius = m.item / 2
+        end
         pill.material = (style.backgrounds and focused) and "regular" or nil
         pill.hoverMaterial = style.backgrounds and "regular" or nil
         pill.border = (dropTarget or (style.accents and focused)) and "accent" or nil
@@ -319,9 +316,6 @@ function render(ctx: Context)
     end
     if grouped then
         pills.radius = m.across / 2
-        pills.fill = "surface"
-        pills.border = "border"
-        pills.borderWidth = 0.5
         pills[if m.vertical then "w" else "h"] = m.across
         pills.pad = 2
     end

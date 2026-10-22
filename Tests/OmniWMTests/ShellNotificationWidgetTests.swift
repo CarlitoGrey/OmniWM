@@ -35,7 +35,8 @@ final class ShellNotificationWidgetTests: XCTestCase {
         state: String,
         items: [[String: Any]] = [],
         complete: Bool = true,
-        action: [String: Any]? = nil
+        action: [String: Any]? = nil,
+        dismissAll: [String: Any]? = nil
     ) {
         widget.set("notifications") {
             var value: [String: Any] = [
@@ -43,6 +44,7 @@ final class ShellNotificationWidgetTests: XCTestCase {
                 "apps": [["bundle": "com.example.fixture", "name": "Fixture App"]]
             ]
             if let action { value["action"] = action }
+            if let dismissAll { value["dismissAll"] = dismissAll }
             write(value, into: &$0)
         }
     }
@@ -95,51 +97,250 @@ final class ShellNotificationWidgetTests: XCTestCase {
         XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("No retained notifications", [])))
     }
 
-    func testFullUnicodeBodyAndReadOnlyMetadataRemainAccessible() throws {
+    func testCardsKeepReadableCommunicationAndHideRawMetadata() throws {
         let widget = try ShellRenderedWidget("notifications")
-        let body = String(repeating: "Body ✓ 中文 العربية 👩🏽‍💻 e\u{301}\n", count: 192) + "END-fixture"
-        set(widget, state: "ready", items: [item(body: body)])
-        let tree = widget.renderPopout()
-        let text = widget.strings(OMNI_VIEW_POPOUT)
-        XCTAssertEqual(text.filter { $0.contains("Body ✓") }.joined(), body)
-        XCTAssertTrue(text.contains("Fixture Sender"))
-        XCTAssertTrue(text.contains("Fixture Conversation"))
-        XCTAssertTrue(text.contains("Fixture Recipient"))
-        XCTAssertTrue(text.contains("/fixture/retained.png"))
-        let details = try XCTUnwrap(tree.first { $0.content.action & OMNI_ACTION_HANDLER != 0 })
-        _ = widget.invoke(details.content.action, view: OMNI_VIEW_POPOUT)
-        let expanded = widget.renderPopout()
-        let metadata = widget.strings(OMNI_VIEW_POPOUT).joined(separator: "\n")
-        XCTAssertTrue(metadata.contains("actions.1.id: reply"))
-        XCTAssertTrue(metadata.contains("actions.1.textInputButtonTitle: Send reply"))
-        XCTAssertTrue(metadata.contains("userInfo.nested.value: preserved"))
-        XCTAssertTrue(metadata.contains("userInfo.nested.title: Ordinary data title"))
-        XCTAssertFalse(metadata.contains("DO-NOT-DISPLAY-BINARY"))
-        XCTAssertFalse(expanded.map { widget.text.string($0.content.action) }
-            .contains { $0.hasPrefix("notifications reply") })
+        set(widget, state: "ready", items: [item()])
+        widget.layoutPopout()
+        let strings = widget.strings(OMNI_VIEW_POPOUT)
+        XCTAssertTrue(strings.contains("Fixture Sender"))
+        XCTAssertTrue(strings.contains("Fixture Conversation"))
+        XCTAssertFalse(strings.contains(ShellLocalizer.string("Attachment", [])))
+        for hidden in [
+            "Fixture Recipient", "/fixture/retained.png", "public.png", "conversation-1", "request-1",
+            "DO-NOT-DISPLAY-BINARY", "Ordinary data title", "Details", "Refresh"
+        ] {
+            XCTAssertFalse(strings.contains { $0.contains(hidden) }, hidden)
+        }
+        var retained = item()
+        retained["communication"] = [
+            "sender": ["displayName": "Fixture title ✓"],
+            "conversation": ["displayName": "Fixture subtitle"],
+            "identifier": "DO-NOT-DISPLAY-ID"
+        ]
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertEqual(widget.strings(OMNI_VIEW_POPOUT).filter { $0 == "Fixture title ✓" }.count, 1)
+        XCTAssertEqual(widget.strings(OMNI_VIEW_POPOUT).filter { $0 == "Fixture subtitle" }.count, 1)
+        retained["communication"] = ["sender": ["identifier": "RAW-SENDER"], "conversationIdentifier": "RAW-GROUP"]
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("RAW-") })
+        retained["communication"] = [
+            "sender": ["displayName": "", "name": 42, "handle": "sender@example.com"],
+            "displayName": "Project group"
+        ]
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("sender@example.com"))
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Project group"))
     }
 
-    func testLargeMetadataTextIsPagedWithoutLosingItsEnd() throws {
+    func testAttachmentsWithoutReadyHostImageResourcesKeepReadableIndicators() throws {
         let widget = try ShellRenderedWidget("notifications")
-        var notification = item()
-        var metadata = try XCTUnwrap(notification["metadata"] as? [String: Any])
-        metadata["largeScalar"] = String(repeating: "A", count: 20_000) + "END-metadata"
-        notification["metadata"] = metadata
-        notification["communication"] = [String: Any]()
-        notification["userInfo"] = [String: Any]()
-        set(widget, state: "ready", items: [notification])
-        let initial = widget.renderPopout()
-        let details = try XCTUnwrap(initial.first { $0.content.action & OMNI_ACTION_HANDLER != 0 })
-        _ = widget.invoke(details.content.action, view: OMNI_VIEW_POPOUT)
-        var page = widget.renderPopout()
-        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("END-metadata") })
-        for _ in 0 ..< 2 {
-            XCTAssertLessThan(page.count, 256)
-            let next = try XCTUnwrap(page.last { $0.content.action & OMNI_ACTION_HANDLER != 0 })
-            _ = widget.invoke(next.content.action, view: OMNI_VIEW_POPOUT)
-            page = widget.renderPopout()
+        var retained = item()
+        retained["attachments"] = [
+            ["available": true, "image": "/fixture/private.png", "path": "/fixture/private.png", "type": "public.png"],
+            ["available": true, "image": ["id": "fake", "kind": "image", "state": "ready"]],
+            ["available": false]
+        ]
+        set(widget, state: "ready", items: [retained])
+        let tree = widget.renderPopout()
+        XCTAssertEqual(tree.filter { $0.kind == .image }.count, 1)
+        XCTAssertFalse(tree.contains { $0.kind == .bitmap })
+        let strings = widget.strings(OMNI_VIEW_POPOUT)
+        XCTAssertEqual(strings.filter { $0 == ShellLocalizer.string("Attachment", []) }.count, 1)
+        XCTAssertFalse(strings.contains("Attachment unavailable"))
+        retained["attachments"] = [["available": false], ["available": false]]
+        set(widget, state: "ready", items: [retained])
+        _ = widget.renderPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Attachment", [])))
+        XCTAssertFalse(strings.contains { $0.contains("/fixture/") || $0.contains("public.png") })
+    }
+
+    func testShortWideGlyphBodyKeepsAllWrappedLinesReachable() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let body = String(repeating: "W", count: 150)
+        set(widget, state: "ready", items: [item(body: body)])
+        let tree = widget.renderPopout()
+        let text = try XCTUnwrap(tree.first { widget.text.string($0.content.text) == body })
+        XCTAssertEqual(text.content.lines, 255)
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Show More", [])))
+        widget.layoutPopout()
+        let handle = try XCTUnwrap(widget.surface.layout.core.elements { widget.text.string($0.text) == body }.first)
+        let frame = try reveal(handle, in: widget)
+        XCTAssertGreaterThan(frame.height, 3 * 13)
+    }
+
+    func testShowMoreUsesCodePointsAndExceedsThreeExplicitLines() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        for body in ["On my way\nSee you soon", "One\nTwo\nThree", String(repeating: "界", count: 61)] {
+            set(widget, state: "ready", items: [item(body: body)])
+            let tree = widget.renderPopout()
+            let text = try XCTUnwrap(tree.first { widget.text.string($0.content.text) == body })
+            XCTAssertEqual(text.content.lines, 255, body)
+            XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Show More", [])), body)
         }
-        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("END-metadata") })
+        set(widget, state: "ready", items: [item(body: "One\nTwo\nThree\nFour")])
+        widget.layoutPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Show More", [])))
+        XCTAssertEqual(try click(ShellLocalizer.string("Show More", []), in: widget), [])
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("One\nTwo\nThree\nFour"))
+        var invalid = item()
+        invalid["id"] = "invalid-body"
+        invalid["body"] = Data([0xFF, 0xFE])
+        set(widget, state: "ready", items: [invalid])
+        _ = widget.renderPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Data (2 bytes)"))
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Show More", [])))
+    }
+
+    func testComposerPaddingGapUnusedWidthAndErrorClicksStayInsideReply() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        set(widget, state: "ready", items: [item(id)])
+        widget.layoutPopout()
+        XCTAssertEqual(try click(ShellLocalizer.string("Reply", []), in: widget), [])
+        let draft = "Keep this reply"
+        let input = try edit(draft, in: widget)
+        let composer = widget.surface.layout.core.parent(of: input.handle)
+        let composerFrame = try reveal(composer, in: widget)
+        let inputFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: input.handle))
+        let cancelLabel = try XCTUnwrap(widget.surface.layout.core.elements {
+            widget.text.string($0.text) == ShellLocalizer.string("Cancel", [])
+        }.first)
+        let cancelFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: cancelLabel))
+        for point in [
+            CGPoint(x: composerFrame.minX + 2, y: composerFrame.midY),
+            CGPoint(x: inputFrame.midX, y: inputFrame.maxY + 3),
+            CGPoint(x: composerFrame.maxX - 8, y: cancelFrame.midY)
+        ] {
+            XCTAssertTrue(composerFrame.contains(point))
+            XCTAssertFalse(inputFrame.contains(point))
+            XCTAssertEqual(try deliver(at: point, in: widget), [])
+            XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, draft)
+        }
+        try edit(" \t", in: widget)
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [])
+        XCTAssertEqual(try click(ShellLocalizer.string("Reply cannot be empty.", []), in: widget), [])
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, " \t")
+    }
+
+    func testRelativeAgeAndBatchCountsAreFormattedAndCancellationHasOneMessage() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        widget.set("seconds") { $0.number(1_000_300) }
+        for (state, failed, outcome, expected) in [
+            ("pending", 0, "dispatched", "Clearing notifications: 1 of 1"),
+            ("partial", 1, "dispatched", "Clear All finished. Failed: 1"),
+            ("completed", 0, "dispatched", "Dismissal requested: 1"),
+            ("cancelled", 0, "cancelled", "Clear All cancelled. Processed 1 of 1; 0 failed.")
+        ] {
+            set(widget, state: "ready", items: [item()], dismissAll: [
+                "active": state == "pending", "total": 1, "completed": 1, "failed": failed,
+                "state": state, "outcome": outcome
+            ])
+            _ = widget.renderPopout()
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertTrue(strings.contains("5 min ago"), state)
+            XCTAssertTrue(strings.contains(expected), state)
+            XCTAssertFalse(strings.contains { $0.contains("%lld") }, state)
+            if state == "cancelled" {
+                XCTAssertEqual(strings.filter { $0.contains("cancelled") }.count, 1)
+                XCTAssertFalse(strings.contains(ShellLocalizer.string("Notification action cancelled.", [])))
+            }
+        }
+    }
+
+    func testShowMoreAndTextPagingReachEveryUnicodeBodyCharacter() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let body = String(repeating: "Body ✓ 中文 العربية 👩🏽‍💻 e\u{301}\n", count: 1000) + "END-fixture"
+        set(widget, state: "ready", items: [item(body: body)])
+        widget.layoutPopout()
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("END-fixture") })
+        XCTAssertEqual(try click(ShellLocalizer.string("Show More", []), in: widget), [])
+        var observed = ""
+        repeat {
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            observed += strings.filter { $0.contains("Body ✓") || $0.contains("END-fixture") }.joined()
+            XCTAssertLessThan(widget.renderPopout().count, 256)
+            if observed.contains("END-fixture") { break }
+            XCTAssertEqual(try click(ShellLocalizer.string("Next Text", []), in: widget), [])
+        } while observed.utf8.count <= body.utf8.count
+        XCTAssertEqual(observed, body)
+        XCTAssertEqual(try click(ShellLocalizer.string("Show Less", []), in: widget), [])
+        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("END-fixture") })
+    }
+
+    func testCardBackgroundOpensAppAndNestedControlsConsumeTheClick() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let id = "01234567-89ab-cdef-0123-456789abcdef"
+        let retained = item(id, body: String(repeating: "Long notification body. ", count: 20))
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertEqual(try click("Fixture title ✓", in: widget), ["notifications open com.example.fixture"])
+        XCTAssertEqual(try click(ShellLocalizer.string("Show More", []), in: widget), [])
+        XCTAssertEqual(try click("×", in: widget), ["notifications dismiss com.example.fixture \(id)"])
+        XCTAssertEqual(try click(ShellLocalizer.string("Reply", []), in: widget), [])
+        let input = try XCTUnwrap(widget.surface.textInputs.values.first)
+        let frame = try reveal(input.handle, in: widget)
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        XCTAssertNil(widget.surface.command(at: point))
+        let delivered = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, delivered + 1)
+        XCTAssertEqual(widget.invoke(try XCTUnwrap(widget.actions.last), view: OMNI_VIEW_POPOUT), [])
+        let edited = try edit("Draft survives batch updates", in: widget)
+        let editedFrame = try reveal(edited.handle, in: widget)
+        let editedPoint = CGPoint(x: editedFrame.midX, y: editedFrame.midY)
+        let beforeDraftClick = widget.actions.count
+        widget.surface.press(at: editedPoint)
+        widget.surface.release(at: editedPoint)
+        XCTAssertEqual(widget.actions.count, beforeDraftClick + 1)
+        XCTAssertEqual(widget.invoke(try XCTUnwrap(widget.actions.last), view: OMNI_VIEW_POPOUT), [])
+        widget.layoutPopout()
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "Draft survives batch updates")
+        XCTAssertEqual(try click(ShellLocalizer.string("Cancel", []), in: widget), [])
+        XCTAssertEqual(try click(ShellLocalizer.string("Reply", []), in: widget), [])
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "Draft survives batch updates")
+        set(widget, state: "ready", items: [retained], dismissAll: [
+            "active": true, "total": 1, "completed": 0, "failed": 0, "state": "pending"
+        ])
+        widget.layoutPopout()
+        XCTAssertEqual(try click("×", in: widget), [])
+        XCTAssertEqual(try click(ShellLocalizer.string("Reply", []), in: widget), [])
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [])
+        XCTAssertEqual(try XCTUnwrap(widget.surface.textInputs.values.first).text, "Draft survives batch updates")
+    }
+
+    func testClearAllHeaderTracksProgressCancellationAndFailureWithoutRemovingItems() throws {
+        let widget = try ShellRenderedWidget("notifications")
+        let retained = item()
+        set(widget, state: "ready", items: [retained])
+        widget.layoutPopout()
+        XCTAssertEqual(try click(ShellLocalizer.string("Clear All", []), in: widget), ["notifications dismiss-all"])
+        for state in ["pending", "cancelling", "cancelled", "partial", "completed", "failed"] {
+            let active = ["pending", "cancelling"].contains(state)
+            set(widget, state: "ready", items: [retained], dismissAll: [
+                "active": active, "total": 12, "completed": 9, "failed": 2, "state": state,
+                "outcome": "failedPanelOpen"
+            ])
+            widget.layoutPopout()
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Fixture title ✓"), state)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(
+                "The action failed. Close Notification Center and try again.", []
+            )), state)
+            XCTAssertEqual(
+                try click(ShellLocalizer.string(active ? "Cancel" : "Clear All", []), in: widget),
+                [active ? "notifications cancel-dismiss-all" : "notifications dismiss-all"], state
+            )
+        }
+        set(widget, state: "incomplete", items: [retained], complete: false)
+        widget.layoutPopout()
+        XCTAssertEqual(try click(ShellLocalizer.string("Clear All", []), in: widget), [])
+        XCTAssertEqual(try click("×", in: widget), [])
+        set(widget, state: "empty")
+        widget.layoutPopout()
+        XCTAssertEqual(try click(ShellLocalizer.string("Clear All", []), in: widget), [])
     }
 
     func testPaginationReachesEveryRetainedItem() throws {
@@ -192,7 +393,8 @@ final class ShellNotificationWidgetTests: XCTestCase {
             CGRect(widget.surface.layout.core.absoluteFrame(of: $0)).minY
                 < CGRect(widget.surface.layout.core.absoluteFrame(of: $1)).minY
         }
-        var target = try XCTUnwrap(last ? labels.last : labels.first, title)
+        let label = try XCTUnwrap(last ? labels.last : labels.first, title)
+        var target = label
         while widget.surface.layout.core.content(of: target).action == 0 {
             target = widget.surface.layout.core.parent(of: target)
             guard target.slot >= 0 else {
@@ -201,14 +403,30 @@ final class ShellNotificationWidgetTests: XCTestCase {
             }
         }
         let action = widget.surface.layout.core.content(of: target).action
-        let frame = try reveal(target, in: widget)
+        let frame = try reveal(label, in: widget)
         let point = CGPoint(x: frame.midX, y: frame.midY)
+        return try deliver(at: point, in: widget, expected: action)
+    }
+
+    private func deliver(
+        at point: CGPoint,
+        in widget: ShellRenderedWidget,
+        expected: UInt32? = nil
+    ) throws -> [String] {
         let delivered = widget.actions.count
         widget.surface.press(at: point)
         widget.surface.release(at: point)
-        XCTAssertEqual(widget.actions.count, delivered + 1, title)
-        XCTAssertEqual(widget.actions.last, action, title)
-        let requests = widget.invoke(action, view: OMNI_VIEW_POPOUT)
+        XCTAssertEqual(widget.actions.count, delivered + 1)
+        let action = try XCTUnwrap(widget.actions.last)
+        if let expected { XCTAssertEqual(action, expected) }
+        let requests: [String]
+        if action & OMNI_ACTION_HANDLER != 0 {
+            requests = widget.invoke(action, view: OMNI_VIEW_POPOUT)
+        } else {
+            let command = widget.text.string(action)
+            XCTAssertNotNil(ShellAction(command))
+            requests = [command]
+        }
         widget.layoutPopout()
         return requests
     }
@@ -270,7 +488,7 @@ final class ShellNotificationWidgetTests: XCTestCase {
         set(widget, state: "ready", items: [retained])
         widget.layoutPopout()
         XCTAssertEqual(
-            widget.text.string(try action(ShellLocalizer.string("Dismiss", []), in: widget)),
+            widget.text.string(try action("×", in: widget)),
             "notifications dismiss com.example.fixture \(id)"
         )
         try click(ShellLocalizer.string("Reply", []), in: widget)
@@ -288,16 +506,15 @@ final class ShellNotificationWidgetTests: XCTestCase {
         XCTAssertEqual(input.text, draft)
         set(widget, state: "ready", items: [retained], action: nativeAction(id, state: "pending"))
         widget.layoutPopout()
-        XCTAssertEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0)
-        XCTAssertEqual(try action(ShellLocalizer.string("Dismiss", []), in: widget), 0)
+        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [])
+        XCTAssertEqual(try click("×", in: widget), [])
         XCTAssertEqual(input.text, draft)
         for state in ["notFound", "denied", "ambiguous", "failed", "timeout", "failedPanelOpen"] {
             set(widget, state: "ready", items: [retained], action: nativeAction(id, state: state))
             widget.layoutPopout()
             XCTAssertEqual(input.text, draft, state)
-            XCTAssertNotEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0, state)
+            XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [command], state)
         }
-        XCTAssertEqual(try click(ShellLocalizer.string("Send", []), in: widget), [command])
         set(widget, state: "ready", items: [retained], action: nativeAction(id, state: "dispatchedPanelOpen"))
         widget.layoutPopout()
         XCTAssertTrue(widget.surface.textInputs.isEmpty)
@@ -332,7 +549,7 @@ final class ShellNotificationWidgetTests: XCTestCase {
         retained["actions"] = [reply]
         set(widget, state: "incomplete", items: [retained], complete: false)
         widget.layoutPopout()
-        XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Dismiss", [])))
+        XCTAssertEqual(try click("×", in: widget), [])
         XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Reply", [])))
         set(widget, state: "ready", items: [retained])
         widget.layoutPopout()
@@ -420,8 +637,14 @@ final class ShellNotificationWidgetTests: XCTestCase {
                 XCTAssertEqual(input.editor?.placeholder, "Write a reply", profile)
                 input.view.displayIfNeeded()
                 try export(widget, name: "\(profile)-reply-\(dark ? "dark" : "light")", dark: dark)
-                XCTAssertNotEqual(try action(ShellLocalizer.string("Send", []), in: widget), 0, profile)
-                XCTAssertNotEqual(try action(ShellLocalizer.string("Cancel", []), in: widget), 0, profile)
+                let targetID = try XCTUnwrap(UUID(uuidString: id))
+                XCTAssertEqual(
+                    try click(ShellLocalizer.string("Send", []), in: widget).compactMap(ShellAction.init),
+                    [.notifications(.reply(bundle: "com.example.fixture", id: targetID, text: "Reply ✓ 中文 العربية 👩🏽‍💻"))],
+                    profile
+                )
+                XCTAssertEqual(try click(ShellLocalizer.string("Cancel", []), in: widget), [], profile)
+                XCTAssertTrue(widget.surface.textInputs.isEmpty, profile)
             }
         }
     }
@@ -474,7 +697,7 @@ final class ShellNotificationWidgetTests: XCTestCase {
         }
     }
 
-    func testNotificationProfilesKeepStorageStatesAndDeliveredDetailsPaging() throws {
+    func testNotificationProfilesKeepStorageStatesAndDeliveredCardPaging() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
@@ -495,7 +718,8 @@ final class ShellNotificationWidgetTests: XCTestCase {
                     state == "empty",
                     profile
                 )
-                for action in ["notifications refresh", "notifications settings"] {
+                XCTAssertFalse(strings.contains(ShellLocalizer.string("Refresh", [])))
+                for action in ["notifications settings"] {
                     let target = try XCTUnwrap(widget.surface.layout.core
                         .elements { widget.text.string($0.action) == action }.first)
                     let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: target))
@@ -518,14 +742,15 @@ final class ShellNotificationWidgetTests: XCTestCase {
             XCTAssertGreaterThanOrEqual(bounds.width, 392, profile)
             XCTAssertLessThanOrEqual(bounds.width, 480, profile)
             try export(widget, name: "\(profile)-ready")
-            try click(ShellLocalizer.string("Details", []), in: widget)
-            XCTAssertTrue(
-                widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("actions.1.textInputButtonTitle: Send reply") },
+            XCTAssertEqual(
+                try click(ShellLocalizer.string("Clear All", []), in: widget),
+                ["notifications dismiss-all"],
                 profile
             )
-            try export(widget, name: "\(profile)-details")
-            try click(ShellLocalizer.string("Next", []), in: widget)
-            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("metadata.field") }, profile)
+            XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains { $0.contains("metadata.field") })
+            XCTAssertEqual(
+                try click("Fixture title ✓", in: widget), ["notifications open com.example.fixture"], profile
+            )
             try click(ShellLocalizer.string("Next", []), in: widget, last: true)
             XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Notification body 8 ✓ 中文 العربية 👩🏽‍💻"), profile)
             try export(widget, name: "\(profile)-last-page")

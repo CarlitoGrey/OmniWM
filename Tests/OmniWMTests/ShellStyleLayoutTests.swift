@@ -69,15 +69,21 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
-    func testSystemPresetKeepsCompactWorkspaceButtonsAndTargetsAcrossOrientations() throws {
+    func testSystemCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         XCTAssertTrue(try ShellProfiles.select("system", in: shell))
         let config = ShellConfig.resolve(shellDirectory: shell)
+        XCTAssertNil(config.widgetSettings["workspaces"])
         for vertical in [false, true] {
             for labels in [false, true] {
                 let widget = try makeWidget("workspaces", config: config, shell: shell)
+                widget.set("settings") {
+                    $0.map(1)
+                    $0.key("compact")
+                    $0.bool(true)
+                }
                 var bar = fixture(config, height: 32, vertical: vertical)
                 bar.style.labels = labels
                 widget.render(bar)

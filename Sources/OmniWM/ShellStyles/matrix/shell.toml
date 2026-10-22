@@ -1,7 +1,7 @@
 theme = "matrix"
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
 center = ["clock"]
-trailing = ["privacy", "media", "wifi", "battery-details", "control-center"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
 hiddenBarWidget = "hidden-bar"
 systemStatsWidget = "system-stats"
 
@@ -11,7 +11,6 @@ fps = 30
 values = [0.38, 1, 12, 1]
 
 [widgets.workspaces]
-compact = true
 indicator = "numbers"
 
 [widgets.active-window]
@@ -32,4 +31,3 @@ showLabels = true
 xOffset = 0
 yOffset = 0
 barFill = "background"
-barBorder = "border"

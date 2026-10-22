@@ -37,8 +37,7 @@ function popout(ctx: Context)
     local hidden = ctx.data.hiddenBar
     local cell = hidden and hidden.cell or 20
     if not hidden or #hidden.items == 0 then
-        return ui.stack{ w = 150, h = cell + 8, material = "clear", radius = 10, fill = "surface", border = "border",
-            borderWidth = 1,
+        return ui.stack{ w = 150, h = cell + 8,
             ui.text{ text = omniwm.l10n("No hidden items"), size = 11, weight = "medium", color = "mutedForeground" } }
     end
     local vertical = hidden.vertical
@@ -64,6 +63,5 @@ function popout(ctx: Context)
         line[#line + 1] = vertical and ui.box{ w = 1, h = 2 } or ui.box{ w = 2, h = 1 }
         lines[#lines + 1] = vertical and ui.column(line) or ui.row(line)
     end
-    return ui.stack{ pad = 4, material = "clear", radius = 10, fill = "surface", border = "border", borderWidth = 1,
-        vertical and ui.row(lines) or ui.column(lines) }
+    return ui.stack{ pad = 4, vertical and ui.row(lines) or ui.column(lines) }
 end

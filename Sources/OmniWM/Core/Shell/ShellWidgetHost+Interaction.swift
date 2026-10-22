@@ -135,7 +135,9 @@ extension ShellWidgetHost {
                     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                 }
             case .dismiss,
-                 .reply:
+                 .reply,
+                 .dismissAll,
+                 .cancelDismissAll:
                 ShellNotificationTrace.record(
                     "host.command",
                     fields: "kind=action focusedSurface=\(focusedSurface != nil)"
@@ -344,6 +346,7 @@ extension ShellWidgetHost {
         guard state.package != nil, let screen = NSScreen.screens.first(where: { $0.frame.contains(center) }) else {
             return
         }
+        if state.name == "notifications" { resources.notifications.clearFinishedDismissAll() }
         let popout = ShellPopout(
             widget: state.name,
             key: key,

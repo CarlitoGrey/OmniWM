@@ -221,12 +221,12 @@ final class ShellEffectsTests: XCTestCase {
         XCTAssertNotEqual(before.layout.dx, after.layout.dx)
     }
 
-    func testLibraryAndGalleryAreInstalledAndDiscoverableWithoutChangingLanes() throws {
+    func testLibraryAndGalleryAreInstalledButHiddenFromAddWidgetWithoutChangingLanes() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
         XCTAssertEqual(ShellDefaults.sync(into: directory), [])
         let layout = try ShellBarLayout.load(shellDirectory: directory).get()
-        XCTAssertTrue(layout.addable.contains { $0.name == "effects-lab" })
+        XCTAssertFalse(layout.addable.contains { $0.name == "effects-lab" })
         XCTAssertFalse((layout.leading + layout.center + layout.trailing).contains("effects-lab"))
         XCTAssertEqual(ShellBarLayout.title(of: "effects-lab"), "Effects Lab")
         let config = ShellConfig.resolve(shellDirectory: directory)

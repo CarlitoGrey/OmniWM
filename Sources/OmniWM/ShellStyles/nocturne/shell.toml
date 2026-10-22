@@ -2,8 +2,9 @@
 # Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 theme = "nocturne"
-leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
-trailing = ["calendar", "media", "weather", "volume", "battery", "system-stats", "clock"]
+leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
+center = []
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
 
 [workspaceBar]
 height = 40

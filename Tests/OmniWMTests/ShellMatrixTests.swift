@@ -36,7 +36,10 @@ final class ShellMatrixTests: XCTestCase {
             ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
         )
         XCTAssertEqual(config.center, ["clock"])
-        XCTAssertEqual(config.trailing, ["privacy", "media", "wifi", "battery-details", "control-center"])
+        XCTAssertEqual(
+            config.trailing,
+            ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
+        )
         XCTAssertEqual(config.barOverride?.settings.height, 40)
         XCTAssertEqual(config.barOverride?.settings.fullWidth, true)
         XCTAssertEqual(config.barOverride?.settings.reserveLayoutSpace, true)
@@ -93,6 +96,13 @@ final class ShellMatrixTests: XCTestCase {
     func testCompactWorkspacesKeepMenuDropAndClickTargets() throws {
         for vertical in [false, true] {
             let rendered = try widget("workspaces")
+            rendered.set("settings") {
+                $0.map(2)
+                $0.key("indicator")
+                $0.string("numbers")
+                $0.key("compact")
+                $0.bool(true)
+            }
             rendered.render(bar(vertical: vertical))
             XCTAssertEqual(Set(rendered.surface.targetFrames().map { rendered.text.string($0.target) }), [
                 "workspace 1", "workspace 2"
@@ -324,6 +334,7 @@ final class ShellMatrixTests: XCTestCase {
         )
         var bar = ShellBarData()
         bar.style.height = 40
+        bar.style.hidesMenuBar = true
         bar.style.vertical = vertical
         bar.style.position = vertical ? "left" : "top"
         bar.style.backgrounds = false

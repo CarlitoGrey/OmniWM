@@ -90,6 +90,20 @@ final class ShellMenuWidgetTests: XCTestCase {
         XCTAssertFalse(widget.tree().contains { widget.text.string($0.content.action) == "menu app" })
     }
 
+    func testMenuWidgetsShowOnlyWhenTheBarReplacesTheMenuBar() throws {
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for name in ["apple-menu", "app-menu"] {
+            let widget = try makeWidget(name, config: config, scale: 2)
+            setApp(widget, bundle: "com.apple.finder")
+            var bar = bar(config, height: 32, vertical: false)
+            widget.render(bar)
+            XCTAssertGreaterThan(widget.surface.size.width, 0, name)
+            bar.style.hidesMenuBar = false
+            widget.render(bar)
+            XCTAssertEqual(widget.surface.size, .zero, name)
+        }
+    }
+
     private func renderMenus(
         _ config: ShellConfig,
         height: Double,
@@ -207,6 +221,7 @@ final class ShellMenuWidgetTests: XCTestCase {
         bar.style.transparent = settings?.transparentBackground ?? false
         bar.style.backgrounds = settings?.showItemBackgrounds ?? true
         bar.style.solidBlack = settings?.solidBlackBackground ?? false
+        bar.style.hidesMenuBar = true
         return bar
     }
 }

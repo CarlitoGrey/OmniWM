@@ -2,6 +2,10 @@
 # Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
-trailing = ["system-stats"]
+center = ["active-window"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
 hiddenBarWidget = "hidden-bar"
 systemStatsWidget = "system-stats"
+
+[workspaceBar]
+systemStatsButton = true

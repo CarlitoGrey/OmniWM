@@ -1,6 +1,6 @@
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
 center = ["active-window"]
-trailing = ["hidden-bar", "clock", "volume", "battery"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
 
 [workspaceBar]
 position = "belowMenuBar"
@@ -8,8 +8,6 @@ height = 32
 fullWidth = true
 reserveLayoutSpace = true
 transparentBackground = false
-backgroundOpacity = 1
-solidBlackBackground = true
 
 [widgets.workspaces]
 indicator = "underline"

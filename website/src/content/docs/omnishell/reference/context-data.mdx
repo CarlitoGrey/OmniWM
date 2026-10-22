@@ -242,6 +242,14 @@ Weather supplies current conditions, 24 hourly entries, and seven daily entries;
 
 <LuauDeclaration name="BluetoothDevice" />
 
+<LuauDeclaration name="Notifications" />
+
+<LuauDeclaration name="NotificationItem" />
+
+<LuauDeclaration name="NotificationAction" />
+
+<LuauDeclaration name="NotificationAttachment" />
+
 ## Island snapshots
 
 The panel envelope stays fixed while the Luau content expands or collapses. Coordinates begin at its top-left; size and notch dimensions are in points. `navigation.windows` follows Niri column/row order, then floating windows. `column` is one-based for Niri, zero otherwise. Titles use cached metadata and can be empty; fall back to `name`. Use `omniwm.run("window focus " .. id)` to focus a window.

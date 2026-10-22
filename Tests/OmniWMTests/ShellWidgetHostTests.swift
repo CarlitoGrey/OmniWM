@@ -166,7 +166,8 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         try FileManager.default.createDirectory(at: widget, withIntermediateDirectories: true)
         try Data("function render(ctx) return ui.text{ text = \"hello\" } end".utf8)
             .write(to: widget.appendingPathComponent("init.luau"))
-        try Data("profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\n".utf8)
+        try Data("profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\n"
+            .utf8)
             .write(to: config.appendingPathComponent("shell/shell.toml"))
         controller = WMController(settings: settings)
     }
@@ -236,7 +237,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
             try Data(contentsOf: XCTUnwrap(ShellConfig.bundledWidget("clock")))
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: shell.appendingPathComponent("widgets").path))
-        let expected = ["apple-menu", "app-menu", "omniwm"]
+        let expected = ["omniwm", "active-window", "notifications"]
         await until {
             let ids = manager.barsByMonitor[monitor.id]?.model.snapshot.shellWidgets.map(\.id) ?? []
             return Set(ids).isSuperset(of: expected)
@@ -412,7 +413,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 260, h = 30 } end
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -496,6 +497,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         profiles.default.hiddenBarWidget = "drawer"
         """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
@@ -595,7 +597,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 260, h = 30 } end
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -659,6 +661,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: widget.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.controls]
         widgets = ["test"]
@@ -691,6 +694,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: widget.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.dashboard]
         edge = "top"
@@ -752,7 +756,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 50, h = 30 } end
         """.utf8).write(to: stats.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\", \"stats\"]\nprofiles.default.systemStatsWidget = \"stats\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\", \"stats\"]\nprofiles.default.systemStatsWidget = \"stats\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -806,6 +810,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = []
         [profiles.default.workspaceBar]
         height = 31
@@ -2881,6 +2886,7 @@ final class ShellWidgetClickTests: XCTestCase {
         """.utf8).write(to: second.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test", "second"]
         [profiles.default.drawer.controls]
         edge = "right"
@@ -3950,6 +3956,7 @@ extension ShellWidgetClickTests {
         let shell = harness.root.appendingPathComponent("shell")
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.controls]
         widgets = ["test"]

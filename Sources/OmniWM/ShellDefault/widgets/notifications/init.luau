@@ -5,9 +5,12 @@ local presentation = require("../lib/notification-style")
 
 local WIDTH = 392
 local PAGE = 8
-local DETAILS = 24
 local TEXT_PAGE = 8
-local button = presentation.button
+local function consume() end
+
+local function button(title, action)
+    return presentation.button(title, action or consume)
+end
 
 local function replyAction(item)
     local reply = nil
@@ -131,12 +134,13 @@ local function composer(ctx, item, action, width, busy)
         next.state.reply = nil
         next.state.replyError = nil
     end
-    local rows = { w = width, pad = 6, gap = 6, center = false,
+    local rows = { w = width, pad = 6, gap = 6, center = false, onClick = consume,
         ui.input{ key = "notification-reply-" .. id, w = width - 12, h = 72, multiline = true, maxLength = 1024,
             text = draft, placeholder = if type(action.textInputPlaceholder) == "string" then action.textInputPlaceholder else nil,
             focus = true, color = "foreground",
             onChange = function(next, event)
-                next.state.drafts[id] = event.text or ""
+                if event.text == nil then return end
+                next.state.drafts[id] = event.text
                 next.state.replyError = nil
             end,
             onCommit = send, onCancel = cancel },
@@ -195,161 +199,127 @@ local function text(rows, value, width, style, color, ctx, key)
 end
 
 local function label(value)
-    if type(value) == "string" then
-        return value
-    end
+    if type(value) == "string" then return value end
     if type(value) == "table" then
-        return value.displayName or value.name or value.handle or value.identifier
+        for _, shown in { value.displayName, value.name, value.handle } do
+            if type(shown) == "string" and shown ~= "" then return shown end
+        end
     end
     return nil
 end
 
-local function detailLines(item, app)
-    local lines = {}
-    local function visit(value, path, depth)
-        if type(value) ~= "table" then
-            local shown = if type(value) == "string" and not utf8.len(value)
-                then omniwm.l10n("Data (%lld bytes)", #value) else tostring(value)
-            lines[#lines + 1] = { path = path, value = shown }
-            return
-        end
-        if value.type == "data" and type(value.bytes) == "string" and type(value.byteLength) == "number" then
-            local size = value.byteLength or (if type(value.bytes) == "string" then #value.bytes else 0)
-            lines[#lines + 1] = { path = path, value = omniwm.l10n("Data (%lld bytes)", size) }
-            if value.resolved then
-                visit(value.resolved, path .. ".resolved", depth + 1)
-            elseif value.decoded then
-                visit(value.decoded, path .. ".decoded", depth + 1)
-            end
-            return
-        end
-        local keys = {}
-        for key in value do
-            keys[#keys + 1] = key
-        end
-        table.sort(keys, function(a, b)
-            return if type(a) == "number" and type(b) == "number" then a < b else tostring(a) < tostring(b)
-        end)
-        if #keys == 0 then
-            lines[#lines + 1] = { path = path, value = "{}" }
-        end
-        for _, key in keys do
-            local name = path .. "." .. tostring(key)
-            if (key == "rawPayload" or key == "raw" or key == "bytes") and type(value[key]) == "string" then
-                lines[#lines + 1] = { path = name, value = omniwm.l10n("Data (%lld bytes)", #value[key]) }
-            elseif key == "base64" and type(value[key]) == "string" then
-                lines[#lines + 1] = { path = name, value = omniwm.l10n("Encoded data (%lld characters)", #value[key]) }
-            elseif depth < 64 then
-                visit(value[key], name, depth + 1)
-            else
-                lines[#lines + 1] = { path = name, value = omniwm.l10n("Nested metadata") }
-            end
-        end
-    end
-    for _, key in { "id", "bundle", "requestId", "date", "thread", "category", "actions", "attachments", "userInfo", "communication", "metadata" } do
-        if item[key] ~= nil then
-            visit(item[key], key, 0)
-        end
-    end
-    if app then
-        visit(app, "app", 0)
-    end
-    return lines
-end
-
-local function inspector(ctx, item, width, app)
-    local lines = detailLines(item, app)
-    local pages = math.max(1, math.ceil(#lines / DETAILS))
-    local page = math.clamp(ctx.state.detailsPage or 1, 1, pages)
-    local rows = { w = width, gap = 3, center = false, pad = 6 }
-    for index = (page - 1) * DETAILS + 1, math.min(page * DETAILS, #lines) do
-        local line = lines[index]
-        text(rows, line.path .. ": " .. line.value, width - 12, "small", "secondaryForeground", ctx, item.id .. ":detail:" .. tostring(index))
-    end
-    if pages > 1 then
-        rows[#rows + 1] = ui.row{ gap = 5,
-            button(omniwm.l10n("Previous"), function(state) state.state.detailsPage = math.max(1, page - 1) end),
-            presentation.text{ text = tostring(page) .. " / " .. tostring(pages), style = "small" },
-            button(omniwm.l10n("Next"), function(state) state.state.detailsPage = math.min(pages, page + 1) end) }
-    end
-    return presentation.group(rows, true)
+local function relativeTime(ctx, date)
+    if type(date) ~= "number" then return "" end
+    local age = math.max(0, (ctx.data.seconds or date) - date)
+    if age < 60 then return omniwm.l10n("Now") end
+    if age < 3600 then return omniwm.l10n("%lld min ago", math.floor(age / 60)) end
+    if age < 86400 then return omniwm.l10n("%lld hr ago", math.floor(age / 3600)) end
+    if age < 172800 then return omniwm.l10n("Yesterday") end
+    return omniwm.l10n("%lld days ago", math.floor(age / 86400))
 end
 
 local function notification(ctx, item)
     local width = WIDTH - 24
     local content = width - 16
-    local rows = { key = item.id, w = width, gap = 5, pad = 8, center = false }
+    local id = string.lower(item.id)
+    local value = ctx.data.notifications
+    local action = value.action
+    local busy = (action and action.state == "pending") or (value.dismissAll and value.dismissAll.active)
+    local rows = { key = item.id, w = width, gap = 5, pad = 8, center = false,
+        onClick = "notifications open " .. item.bundle }
     local app = nil
-    for _, value in ctx.data.notifications.apps or {} do
-        if value.bundle == item.bundle then
-            app = value
+    for _, candidate in value.apps or {} do
+        if candidate.bundle == item.bundle then
+            app = candidate
             break
         end
     end
     local name = if app then app.name or item.bundle else item.bundle
-    local timestamp = if type(item.date) == "number" then ctx.format.date(item.date, "MMM d, HH:mm") else nil
     rows[#rows + 1] = ui.row{ w = content, gap = 6,
         ui.icon{ app = item.bundle, w = 18, h = 18, placeholder = "app" },
-        presentation.text{ text = name, style = "small", grow = 1, maxWidth = content - 120 },
-        presentation.text{ text = timestamp or "", style = "small", color = "secondaryForeground" } }
+        presentation.text{ text = name, style = "small", grow = 1, maxWidth = content - 150 },
+        presentation.text{ text = relativeTime(ctx, item.date), style = "small", color = "secondaryForeground" },
+        button("×", if value.complete == true and not busy then "notifications dismiss " .. item.bundle .. " " .. id else nil) }
+    local seen = {}
+    for _, shown in { item.title, item.subtitle } do
+        if type(shown) == "string" then seen[shown] = true end
+    end
     local communication = item.communication
     if type(communication) == "table" then
-        text(rows, label(communication.sender), content, "small", "secondaryForeground", ctx, item.id .. ":sender")
-        text(rows, label(communication.conversation) or communication.displayName or communication.conversationIdentifier
-            or communication.identifier, content, "small", "secondaryForeground", ctx, item.id .. ":conversation")
-        local recipients = {}
-        for _, recipient in communication.recipients or {} do
-            local name = label(recipient)
-            if type(name) == "string" and name ~= "" then
-                recipients[#recipients + 1] = name
+        for index, shown in { label(communication.sender), label(communication.conversation) or communication.displayName } do
+            if type(shown) == "string" and shown ~= "" and not seen[shown] then
+                seen[shown] = true
+                text(rows, shown, content, "small", "secondaryForeground", ctx, item.id .. ":communication:" .. index)
             end
         end
-        text(rows, table.concat(recipients, ", "), content, "small", "secondaryForeground", ctx, item.id .. ":recipients")
     end
     text(rows, item.title, content, "bold", nil, ctx, item.id .. ":title")
     text(rows, item.subtitle, content, "body", "secondaryForeground", ctx, item.id .. ":subtitle")
-    text(rows, item.body, content, "body", nil, ctx, item.id .. ":body")
-    for _, attachment in item.attachments or {} do
-        if type(attachment.image) == "string" and attachment.image ~= "" then
-            rows[#rows + 1] = ui.image{ image = attachment.image, w = content, h = 144, radius = 6 }
+    local body = item.body
+    if type(body) == "string" and body ~= "" then
+        local expanded = (ctx.state.expanded or {})[id] == true
+        local length = utf8.len(body) or #body
+        local newlines = select(2, string.gsub(body, "\n", "\n"))
+        local collapsible = length > 180 or newlines >= 3
+        if expanded or not collapsible then
+            text(rows, body, content, "body", nil, ctx, item.id .. ":body")
+        elseif utf8.len(body) then
+            local last = utf8.offset(body, 181) or (#body + 1)
+            rows[#rows + 1] = presentation.text{ text = string.sub(body, 1, last - 1), maxWidth = content, lines = 3 }
+        else
+            text(rows, body, content, "body", nil)
         end
-        text(rows, (attachment.type or omniwm.l10n("Attachment")) .. " · "
-            .. (if attachment.available then omniwm.l10n("Available") else omniwm.l10n("Unavailable")), content, "small", "secondaryForeground")
-        text(rows, attachment.path, content, "small", "secondaryForeground")
-    end
-    local expanded = ctx.state.details == item.id
-    rows[#rows + 1] = ui.row{ gap = 6,
-        button(if expanded then omniwm.l10n("Hide Details") else omniwm.l10n("Details"), function(state)
-            state.state.details = if expanded then nil else item.id
-            state.state.detailsPage = 1
-        end),
-        button(omniwm.l10n("Open App"), "notifications open " .. item.bundle) }
-    local value = ctx.data.notifications
-    local action = value.action
-    local id = string.lower(item.id)
-    local busy = action and action.state == "pending"
-    if value.complete == true then
-        local reply = replyAction(item)
-        local actions = { gap = 6,
-            button(omniwm.l10n("Dismiss"), if busy then nil else "notifications dismiss " .. item.bundle .. " " .. id) }
-        if reply then
-            actions[#actions + 1] = button(omniwm.l10n("Reply"), function(next)
-                next.state.reply = if next.state.reply == id then nil else id
-                next.state.replyError = nil
+        if collapsible then
+            rows[#rows + 1] = button(if expanded then omniwm.l10n("Show Less") else omniwm.l10n("Show More"), function(next)
+                next.state.expanded = next.state.expanded or {}
+                next.state.expanded[id] = not expanded
             end)
         end
-        rows[#rows + 1] = ui.row(actions)
-        if reply and ctx.state.reply == id then
+    end
+    local attachmentIndicator = false
+    for _, attachment in item.attachments or {} do
+        local image = attachment.image
+        if type(image) == "userdata" and image.kind == "image" and image.state == "ready" then
+            rows[#rows + 1] = ui.image{ image = image, w = content, h = 144, radius = 6 }
+        elseif attachment.available == true then
+            attachmentIndicator = true
+        end
+    end
+    if attachmentIndicator then
+        text(rows, omniwm.l10n("Attachment"), content, "small", "secondaryForeground")
+    end
+    local reply = if value.complete == true then replyAction(item) else nil
+    if reply then
+        rows[#rows + 1] = button(omniwm.l10n("Reply"), if busy then nil else function(next)
+            next.state.reply = if next.state.reply == id then nil else id
+            next.state.replyError = nil
+        end)
+        if ctx.state.reply == id then
             rows[#rows + 1] = composer(ctx, item, reply, content, busy)
         end
     end
     if action and action.id == id and action.bundle == item.bundle then
         text(rows, actionMessage(action), content, "small", "secondaryForeground")
     end
-    if expanded then
-        rows[#rows + 1] = inspector(ctx, item, content, app)
-    end
     return presentation.group(rows)
+end
+
+local function batchMessage(batch)
+    if not batch then return nil end
+    if batch.state == "pending" then
+        return omniwm.l10n("Clearing notifications: %lld of %lld", batch.completed, batch.total)
+    elseif batch.state == "cancelling" then
+        return omniwm.l10n("Stopping after the current notification…")
+    elseif batch.state == "cancelled" then
+        return omniwm.l10n("Clear All cancelled. Processed %lld of %lld; %lld failed.", batch.completed, batch.total, batch.failed)
+    elseif batch.state == "partial" then
+        return omniwm.l10n("Clear All finished. Failed: %lld", batch.failed)
+    elseif batch.state == "completed" then
+        return omniwm.l10n("Dismissal requested: %lld", batch.completed)
+    elseif batch.state == "failed" then
+        return omniwm.l10n("Clear All could not finish.")
+    end
+    return nil
 end
 
 local function status(value)
@@ -397,7 +367,10 @@ function popout(ctx)
     local rows = { w = WIDTH, h = 520, pad = 12, gap = 10, center = false, scroll = true,
         ui.row{ w = WIDTH - 24, gap = 5,
             presentation.text{ text = omniwm.l10n("Notifications"), style = "bold", grow = 1 },
-            button(omniwm.l10n("Refresh"), "notifications refresh"),
+            button(if value and value.dismissAll and value.dismissAll.active then omniwm.l10n("Cancel") else omniwm.l10n("Clear All"),
+                if value and value.dismissAll and value.dismissAll.active then "notifications cancel-dismiss-all"
+                elseif value and value.complete == true and #items > 0 and not (value.action and value.action.state == "pending")
+                    then "notifications dismiss-all" else nil),
             button(omniwm.l10n("Settings"), "notifications settings") } }
     local issue = status(value)
     if issue then
@@ -407,6 +380,13 @@ function popout(ctx)
     end
     if value and value.error and value.error ~= "" then
         text(rows, value.error, WIDTH - 24, "small", "secondaryForeground")
+    end
+    if value and value.dismissAll then
+        local batch = value.dismissAll
+        text(rows, batchMessage(batch), WIDTH - 24, "small", "secondaryForeground")
+        if batch.outcome and batch.outcome ~= "dispatched" and batch.outcome ~= "cancelled" then
+            text(rows, actionMessage({ state = batch.outcome, kind = "dismiss" }), WIDTH - 24, "small", "secondaryForeground")
+        end
     end
     for index = (page - 1) * PAGE + 1, math.min(page * PAGE, #items) do
         rows[#rows + 1] = notification(ctx, items[index])

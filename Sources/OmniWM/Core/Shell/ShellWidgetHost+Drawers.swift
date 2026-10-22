@@ -88,6 +88,8 @@ extension ShellWidgetHost {
         guard !members.isEmpty, let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId }) else {
             return false
         }
+        if members
+            .contains(where: { $0.state.name == "notifications" }) { resources.notifications.clearFinishedDismissAll() }
         let bar = widgets.values.lazy.flatMap(\.instances)
             .first { $0.key.monitor == monitor && $0.key.placement == .bar }?.value.surface?.view
             .window
@@ -144,6 +146,8 @@ extension ShellWidgetHost {
         guard let drawer else { return }
         for section in drawer.sections { releaseShellFocus(from: section.surface, restore: true) }
         self.drawer = nil
+        if drawer.sections
+            .contains(where: { $0.widget == "notifications" }) { resources.notifications.clearFinishedDismissAll() }
         finishClosingDrawer()
         let finished = drawer.close(animated: animated) { [weak self, weak drawer] in
             guard let self, closingDrawer === drawer else { return }
@@ -177,6 +181,7 @@ extension ShellWidgetHost {
         guard let popout else { return }
         releaseShellFocus(from: popout.surface, restore: true)
         self.popout = nil
+        if popout.widget == "notifications" { resources.notifications.clearFinishedDismissAll() }
         finishClosing()
         let finished = popout.close(animated: animated) { [weak self, weak popout] in
             guard let self, closingPopout === popout else { return }

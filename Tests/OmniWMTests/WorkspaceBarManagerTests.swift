@@ -28,7 +28,7 @@ final class WorkspaceBarManagerTests: XCTestCase {
         )
         let shell = root.appendingPathComponent("config/shell", isDirectory: true)
         try FileManager.default.createDirectory(at: shell, withIntermediateDirectories: true)
-        try Data("profiles.default.leading = []\nprofiles.default.trailing = []\n".utf8)
+        try Data("profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = []\n".utf8)
             .write(to: shell.appendingPathComponent("shell.toml"))
         controller = WMController(settings: settings)
     }
@@ -45,9 +45,12 @@ final class WorkspaceBarManagerTests: XCTestCase {
         try FileManager.default.createDirectory(at: widget, withIntermediateDirectories: true)
         try Data("function render(ctx) return ui.box{ w = 10 * #ctx.data.bar.workspaces, h = 10 } end".utf8)
             .write(to: widget.appendingPathComponent("init.luau"))
-        try Data("profiles.default.leading = []\nprofiles.default.trailing = [\"count\"]\n".utf8)
-            .write(to: widget.deletingLastPathComponent().deletingLastPathComponent()
-                .appendingPathComponent("shell.toml"))
+        try Data(
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"count\"]\n"
+                .utf8
+        )
+        .write(to: widget.deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("shell.toml"))
         let manager = makeManager()
         defer { manager.cleanup() }
         func width(after bar: DesiredBarSurface, is expected: CGFloat) async throws -> NSRect? {

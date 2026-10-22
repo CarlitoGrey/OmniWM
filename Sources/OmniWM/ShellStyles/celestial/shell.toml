@@ -4,7 +4,7 @@
 theme = "celestial"
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
 center = ["active-window"]
-trailing = ["hidden-bar", "clock", "status", "system-stats", "power"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock", "power"]
 
 [workspaceBar]
 position = "left"

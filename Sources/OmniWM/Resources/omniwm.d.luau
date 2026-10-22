@@ -97,6 +97,7 @@ export type BarStyle = {
     keyboardMode: "normal" | "paused" | "prefix" | "window",
     previews: boolean,
     hideInFullscreen: boolean,
+    hidesMenuBar: boolean,
 }
 
 export type HiddenBarItem = {
@@ -283,6 +284,14 @@ export type Notifications = {
         bundle: string,
         kind: "reply" | "dismiss",
         state: string,
+    }?,
+    dismissAll: {
+        total: number,
+        completed: number,
+        failed: number,
+        active: boolean,
+        state: "pending" | "cancelling" | "cancelled" | "completed" | "partial" | "failed",
+        outcome: string?,
     }?,
 }
 
