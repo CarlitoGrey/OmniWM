@@ -8,6 +8,26 @@ import XCTest
 
 @MainActor
 final class ShellSettingsOptionRowTests: XCTestCase {
+    func testWorkspaceIndicatorChoiceTitlesRenderInChinese() throws {
+        let schema = try XCTUnwrap(ShellRootSettings.load(
+            "workspaces", directories: [try XCTUnwrap(ShellDefaults.bundled)]
+        ))
+        var option = try XCTUnwrap(schema.options["indicator"])
+        let titles = ["胶囊", "下划线", "圆点", "数字", "极简"]
+        XCTAssertEqual(option.choices, ["pills", "underline", "dots", "numbers", "minimal"])
+        for (choice, title) in zip(option.choices, titles) {
+            option.defaultValue = .string(choice)
+            var expected = option
+            expected.choices = titles
+            expected.defaultValue = .string(title)
+            XCTAssertEqual(
+                try snapshot(option, key: "indicator"),
+                try snapshot(expected, key: "indicator"),
+                choice
+            )
+        }
+    }
+
     func testOptionTitlesRenderInChinese() throws {
         let schema = try XCTUnwrap(ShellRootSettings.load(
             "workspaces", directories: [try XCTUnwrap(ShellDefaults.bundled)]
