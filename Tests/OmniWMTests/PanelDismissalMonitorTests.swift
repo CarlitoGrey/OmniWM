@@ -55,13 +55,16 @@ final class PanelDismissalMonitorTests: XCTestCase {
     }
 
     func testAWorkAreaChangeWithoutADisplayChangeKeepsThePanel() async {
-        PanelDismissalMonitor.screenFrames = { [CGRect(x: 0, y: 0, width: 1800, height: 1169)] }
+        let builtIn = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+        let external = CGRect(x: 1800, y: 0, width: 1920, height: 1080)
+        PanelDismissalMonitor.screenFrames = { [builtIn, external] }
         let monitor = PanelDismissalMonitor()
         let dismissed = expectation(description: "panel dismissed")
         dismissed.isInverted = true
         monitor.start(panels: [makePanel()], isExemptWindow: { _ in false }, onDismiss: { dismissed.fulfill() })
         defer { monitor.stop() }
 
+        PanelDismissalMonitor.screenFrames = { [external, builtIn] }
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         await fulfillment(of: [dismissed], timeout: 0.5)
     }
