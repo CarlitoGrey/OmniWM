@@ -65,6 +65,7 @@ extension MouseEventHandler {
         state.nativeTitleBarDragFallbackReleased = false
         var drag = MouseInputState.NativeTitleBarDrag(token: entry.token)
         if released {
+            if settleNativeCrossDisplayMoveIfNeeded(entry, observedFrame: observedFrame) { return true }
             if let pendingFrame = controller.axManager.pendingFrameWrite(for: entry.windowId) {
                 awaitNativeTitleBarDragFrameWrite(
                     pendingFrame,
@@ -93,6 +94,7 @@ extension MouseEventHandler {
             return false
         }
         let observedFrame = terminalNativeWindowFrame(for: entry)
+        if settleNativeCrossDisplayMoveIfNeeded(entry, observedFrame: observedFrame) { return true }
         if let observedFrame,
            nativeWindowFrameMatchesManagedTarget(observedFrame, entry: entry)
         {
@@ -145,7 +147,7 @@ extension MouseEventHandler {
         )
     }
 
-    private func nativeWindowFrameMatchesManagedTarget(
+    func nativeWindowFrameMatchesManagedTarget(
         _ observedFrame: CGRect,
         entry: WindowState
     ) -> Bool {
@@ -169,10 +171,9 @@ extension MouseEventHandler {
     }
 
     func handleNativeTitleBarDragFrameApplySucceeded(_ result: AXFrameApplyResult) {
-        guard var drag = state.nativeTitleBarDrag,
+        guard let controller, var drag = state.nativeTitleBarDrag,
               drag.phase == .awaitingCorrection || drag.phase == .awaitingFrameWrite,
-              drag.token == WindowToken(pid: result.pid, windowId: result.windowId),
-              let controller
+              drag.token == WindowToken(pid: result.pid, windowId: result.windowId)
         else { return }
         guard let entry = controller.workspaceManager.entry(for: drag.token),
               entry.mode == .tiling
@@ -186,6 +187,7 @@ extension MouseEventHandler {
             return
         }
         drag.phase = .awaitingCorrection
+        drag.pendingExcludedCorrection = false
         var retainUnreadableFrameChange = false
         if drag.receivedFrameChange {
             let observedFrame = terminalNativeWindowFrame(for: entry)
