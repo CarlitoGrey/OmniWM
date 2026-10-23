@@ -73,7 +73,7 @@ extension ShellWidgetPackage {
             else { throw ShellHTTPFailure("configuration_failed") }
             let request = try ShellHTTPRequest(bytes: value)
             let policy: ShellHTTPPolicy
-            if id.owner.owner == 0 { policy = .unrestricted }
+            if id.owner.owner == 0 { policy = .hosts(rootNetwork) }
             else if let component, !component.isEmpty {
                 policy = .resolve(
                     component: component,
