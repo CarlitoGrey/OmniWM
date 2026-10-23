@@ -33,6 +33,11 @@ return require("./skin")({
         return { w = size, h = size, radius = size / 2,
             fill = style.backgrounds and "accent/0.18" or nil, hoverScale = 1.06 }, size
     end,
+    hiddenMenuPanel = function(_, rows)
+        rows.radius, rows.material, rows.fill = 18, "clear", "background"
+        rows.border, rows.borderWidth, rows.center = "border", 1, false
+        return ui.column(rows)
+    end,
     panel = function(ctx, props)
         local width = props.w or 300
         props.w = width - 2

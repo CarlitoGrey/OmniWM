@@ -3433,6 +3433,8 @@ final class ShellWidgetClickTests: XCTestCase {
         )
         let harness = try harness(source, bars: [ShellBarKey(monitor: main): ShellBarData()])
         defer { harness.close() }
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
+        harness.host.rescan()
         let items = (0 ..< 6).map {
             ShellHiddenBarItem(id: "com.example.\($0)#0", name: "\($0)", image: nil, width: 30, height: 16)
         }

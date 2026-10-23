@@ -33,6 +33,7 @@ end
 return require("./skin")({
     base = 40,
     hover = "foreground/0.07",
+    hiddenBarHover = "accent/0.15",
     width = 320,
     widths = { workspaces = 296 },
     size = { text = 14, icon = 24, slot = 28 },
@@ -219,6 +220,37 @@ return require("./skin")({
             table.insert(props, index, ui.box{ w = 276, h = 1, fill = "foreground/0.07" })
         end
         return ui.column(props)
+    end,
+    hiddenMenuRow = function(row, item, kind)
+        if kind == "separator" then
+            row[1].fill = "foreground/0.08"
+        elseif kind == "item" then
+            row[1].size, row[1].weight, row[1].color = 12, "bold", "accent"
+            row[2].size, row[2].weight = 12, "medium"
+            row[2].color = item.enabled and "foreground" or "mutedForeground"
+            row[3].style, row[3].size, row[3].weight, row[3].color = "mono", 11, "medium", "mutedForeground"
+            if item.submenu then
+                row[4].weight, row[4].color = "bold", "mutedForeground"
+            end
+        elseif kind == "back" then
+            row[1].weight, row[1].color = "bold", "accent"
+            row[2].size, row[2].weight, row[2].color = 12, "semibold", "accent"
+        elseif kind == "title" then
+            local label = row[1]
+            if not string.find(label.text, "[\128-\255]") then
+                label.text = string.upper(label.text)
+            end
+            label.size, label.weight, label.color = 10, "bold", "mutedForeground"
+        elseif kind == "empty" then
+            row[1].size, row[1].color = 12, "mutedForeground"
+        elseif kind == "unavailable" then
+            row.size, row.color = 12, "mutedForeground"
+        end
+    end,
+    hiddenMenuPanel = function(_, rows)
+        rows.radius, rows.material, rows.fill = 12, "clear", "surface"
+        rows.border, rows.borderWidth, rows.center = "border", 1, false
+        return ui.column(rows)
     end,
     panel = function(_, props)
         local header = props[1]

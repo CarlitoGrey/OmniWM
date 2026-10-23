@@ -110,6 +110,11 @@ final class ShellStyleLayoutTests: XCTestCase {
                     widget.render(name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
                         : fixture(config, height: height, vertical: vertical))
+                    if ["hidden-bar", "hidden-bar-menu"].contains(name) {
+                        let hidden = hiddenBarFixture(vertical: vertical, menu: name == "hidden-bar-menu")
+                        widget.set("hiddenBar") { hidden.write(into: &$0) }
+                        widget.layoutPopout()
+                    }
                     let background = resources.palette.color(.clear, default: .background)
                     try ShellBundledWidgetTests.writeSnapshot(
                         widget.surface,
@@ -704,6 +709,202 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testSharedHiddenBarsKeepNativeGeometryAndActivationAcrossSkins() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "hidden-bar", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/hidden-bar/init.luau")
+            )
+            for vertical in [false, true] {
+                widget.render(fixture(config, height: 32, vertical: vertical))
+                for cell in [20.0, 24.0] {
+                    let context = "\(profile) vertical=\(vertical) cell=\(cell)"
+                    var hidden = ShellHiddenBarData(cell: cell, vertical: vertical)
+                    widget.set("hiddenBar") { hidden.write(into: &$0) }
+                    widget.layoutPopout()
+                    XCTAssertEqual(widget.surface.size, CGSize(width: 140, height: cell + 4), context)
+                    XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(
+                        "No hidden items",
+                        []
+                    )))
+                    hidden.items = (0 ..< 3).map { index in
+                        ShellHiddenBarItem(
+                            id: "app#\(index)", name: "Hidden App \(index)",
+                            image: index == 0 ? "hidden-bar/fixture" : nil, width: 30, height: 16
+                        )
+                    }
+                    for constrained in [false, true] {
+                        hidden.maxWidth = constrained ? 70 : 600
+                        hidden.maxHeight = constrained ? cell * 2 : 600
+                        widget.set("hiddenBar") { hidden.write(into: &$0) }
+                        widget.layoutPopout()
+                        let expected = vertical
+                            ? CGSize(width: constrained ? 66 : 34, height: constrained ? cell * 2 + 8 : cell * 3 + 8)
+                            : CGSize(width: constrained ? 68 : 98, height: constrained ? cell * 2 + 6 : cell + 4)
+                        XCTAssertEqual(widget.surface.size, expected, "\(context) constrained=\(constrained)")
+                        let actions = widget.surface.layout.core.elements { $0.action != 0 }.sorted { left, right in
+                            let a = widget.surface.layout.core.absoluteFrame(of: left)
+                            let b = widget.surface.layout.core.absoluteFrame(of: right)
+                            return vertical
+                                ? (a.x == b.x ? a.y < b.y : a.x < b.x)
+                                : (a.y == b.y ? a.x < b.x : a.y < b.y)
+                        }
+                        XCTAssertEqual(actions.count, 3, context)
+                        let firstClick = widget.clicks.count
+                        for (index, action) in actions.enumerated() {
+                            let content = widget.surface.layout.core.content(of: action)
+                            XCTAssertEqual(widget.text.string(content.help), "Hidden App \(index)", context)
+                            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: action))
+                            let point = CGPoint(x: frame.midX, y: frame.midY)
+                            widget.surface.press(at: point)
+                            widget.surface.release(at: point)
+                        }
+                        XCTAssertEqual(
+                            widget.clicks.dropFirst(firstClick).map(\.action),
+                            (0 ..< 3).map { "hidden-bar activate app#\($0)" }, context
+                        )
+                        let tree = widget.renderPopout()
+                        XCTAssertEqual(tree.filter { $0.kind == .bitmap }.count, 1, context)
+                        XCTAssertEqual(tree.filter {
+                            $0.kind == .symbol && widget.text.string($0.content.text) == "app.dashed"
+                        }.count, 2, context)
+                    }
+                }
+            }
+        }
+    }
+
+    func testSharedHiddenMenusKeepContentDisabledRowsAndDeliveredActionsAcrossSkins() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "hidden-bar-menu", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/hidden-bar-menu/init.luau")
+            )
+            widget.render(fixture(config, height: 32, vertical: false))
+            var hidden = hiddenBarFixture(vertical: false, menu: true)
+            widget.set("hiddenBar") { hidden.write(into: &$0) }
+            widget.layoutPopout()
+            XCTAssertEqual(widget.surface.size, CGSize(width: 240, height: 165), profile)
+            let tree = widget.renderPopout()
+            let scroll = try XCTUnwrap(tree.first { $0.content.scrolls }, profile)
+            XCTAssertEqual(scroll.layout.padding, 8, profile)
+            XCTAssertEqual(scroll.layout.gap, 0, profile)
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            for string in [
+                "Checked item",
+                "Disabled item",
+                "More options",
+                "✓",
+                "⌘K",
+                ShellLocalizer.string("Back", [])
+            ] {
+                XCTAssertTrue(strings.contains(string), "\(profile): \(string)")
+            }
+            XCTAssertTrue(strings.contains(profile == "wayline" ? "OPTIONS" : "Options"), profile)
+            XCTAssertTrue(
+                tree.contains { $0.kind == .symbol && widget.text.string($0.content.text) == "chevron.right" },
+                profile
+            )
+            XCTAssertTrue(
+                tree.contains { $0.kind == .symbol && widget.text.string($0.content.text) == "chevron.left" },
+                profile
+            )
+            XCTAssertTrue(tree.contains { $0.layout.height == 9 }, profile)
+            let actions = widget.surface.layout.core.elements { $0.action != 0 }.sorted {
+                widget.surface.layout.core.absoluteFrame(of: $0).y < widget.surface.layout.core.absoluteFrame(of: $1).y
+            }
+            XCTAssertEqual(actions.map {
+                widget.text.string(widget.surface.layout.core.content(of: $0).action)
+            }, ["hidden-bar-menu back", "hidden-bar-menu checked", "hidden-bar-menu submenu"], profile)
+            for action in actions {
+                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: action))
+                let point = CGPoint(x: frame.midX, y: frame.midY)
+                widget.surface.press(at: point)
+                widget.surface.release(at: point)
+            }
+            XCTAssertEqual(
+                widget.clicks.map(\.action),
+                ["hidden-bar-menu back", "hidden-bar-menu checked", "hidden-bar-menu submenu"], profile
+            )
+            let disabled = try XCTUnwrap(widget.surface.layout.core.elements {
+                widget.text.string($0.text) == "Disabled item"
+            }.first, profile)
+            let disabledRow = widget.surface.layout.core.parent(of: disabled)
+            let disabledContent = widget.surface.layout.core.content(of: disabledRow)
+            XCTAssertEqual(disabledContent.action, 0, profile)
+            XCTAssertFalse(disabledContent.hasHoverEffect, profile)
+            let disabledFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: disabledRow))
+            let disabledPoint = CGPoint(x: disabledFrame.midX, y: disabledFrame.midY)
+            widget.surface.press(at: disabledPoint)
+            widget.surface.release(at: disabledPoint)
+            XCTAssertEqual(widget.clicks.count, 3, profile)
+            if profile == "wayline" {
+                let shortcut = try XCTUnwrap(tree.first { widget.text.string($0.content.text) == "⌘K" }, profile)
+                XCTAssertEqual(shortcut.content.style & OMNI_STYLE_BASE_MASK, 2, profile)
+                let mark = try XCTUnwrap(tree.first { widget.text.string($0.content.text) == "✓" }, profile)
+                XCTAssertEqual(mark.content.color.role & 0xFF, UInt16(ShellRole.accent.rawValue + 1), profile)
+            }
+            hidden.menu = HiddenBarMenuPage(title: "Réglages", rows: [], backID: nil)
+            widget.set("hiddenBar") { hidden.write(into: &$0) }
+            widget.layoutPopout()
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Réglages"), profile)
+            XCTAssertTrue(
+                widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("No menu items available", [])),
+                profile
+            )
+            XCTAssertTrue(widget.surface.layout.core.elements { $0.action != 0 }.isEmpty, profile)
+            hidden.menu = nil
+            widget.set("hiddenBar") { hidden.write(into: &$0) }
+            widget.layoutPopout()
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])), profile)
+        }
+    }
+
+    func testSharedHiddenMenusScrollToTheLastActionWithinScreenBoundsAcrossSkins() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "hidden-bar-menu", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/hidden-bar-menu/init.luau")
+            )
+            widget.render(fixture(config, height: 32, vertical: false))
+            let hidden = ShellHiddenBarData(maxWidth: 240, maxHeight: 140, menu: HiddenBarMenuPage(
+                title: nil,
+                rows: (0 ..< 30).map {
+                    hiddenMenuFixtureRow("item-\($0)", title: "Item \($0)")
+                }, backID: nil
+            ))
+            widget.set("hiddenBar") { hidden.write(into: &$0) }
+            widget.layoutPopout()
+            XCTAssertEqual(widget.surface.size, CGSize(width: 240, height: 140), profile)
+            let first = CGPoint(x: 60, y: 18)
+            widget.surface.press(at: first)
+            widget.surface.release(at: first)
+            XCTAssertEqual(widget.clicks.last?.action, "hidden-bar-menu item-0", profile)
+            XCTAssertTrue(widget.surface.scroll(
+                at: first, event: ShellEvent(button: .none), content: CGPoint(x: 0, y: 10000)
+            ), profile)
+            let last = CGPoint(x: 60, y: 121)
+            widget.surface.press(at: last)
+            widget.surface.release(at: last)
+            XCTAssertEqual(widget.clicks.last?.action, "hidden-bar-menu item-29", profile)
+        }
+    }
+
     func testSystemCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -952,6 +1153,37 @@ final class ShellStyleLayoutTests: XCTestCase {
             let name = "\(config.profile)-\(Int(height))-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")-\(Int(scale))x"
             try write(previews, name: name, scale: scale, dark: dark, solidBlack: bar.style.solidBlack)
         }
+    }
+
+    private func hiddenBarFixture(vertical: Bool, menu: Bool) -> ShellHiddenBarData {
+        ShellHiddenBarData(
+            enabled: true, available: true,
+            items: (0 ..< 5).map {
+                ShellHiddenBarItem(id: "app#\($0)", name: "Hidden App \($0)", image: nil, width: 24, height: 16)
+            },
+            maxWidth: 240, maxHeight: menu ? 220 : 60, cell: 24, vertical: vertical,
+            menu: menu ? HiddenBarMenuPage(title: "Options", rows: [
+                hiddenMenuFixtureRow("checked", title: "Checked item", mark: "✓", shortcut: "⌘K"),
+                hiddenMenuFixtureRow("disabled", title: "Disabled item", enabled: false),
+                hiddenMenuFixtureRow("separator", title: "", enabled: false, separator: true),
+                hiddenMenuFixtureRow("submenu", title: "More options", submenu: true)
+            ], backID: "back") : nil
+        )
+    }
+
+    private func hiddenMenuFixtureRow(
+        _ id: String,
+        title: String,
+        enabled: Bool = true,
+        mark: String? = nil,
+        shortcut: String? = nil,
+        submenu: Bool = false,
+        separator: Bool = false
+    ) -> HiddenBarMenuRow {
+        HiddenBarMenuRow(
+            id: id, title: title, enabled: enabled, mark: mark,
+            shortcut: shortcut, submenu: submenu, separator: separator
+        )
     }
 
     private func makeWidget(

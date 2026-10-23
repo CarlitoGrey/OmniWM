@@ -81,6 +81,11 @@ return require("./skin")({
         props.name = nil
         return surface.icon(name, props)
     end,
+    hiddenMenuPanel = function(_, rows)
+        rows.radius, rows.material, rows.fill = tokens.rounding.extraLarge, "clear", "background"
+        rows.shadow, rows.shadowRadius, rows.center = "shadow/0.35", 10, false
+        return ui.column(rows)
+    end,
     panel = function(_, props)
         props.w = props.w or 300
         props.pad = props.pad or tokens.padding.medium

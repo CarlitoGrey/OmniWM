@@ -189,11 +189,14 @@ final class ShellHiddenBarMenuTests: XCTestCase {
     }
 
     private func source() throws -> ShellWidgetSource {
-        let url = try XCTUnwrap(ShellConfig.bundledWidget("hidden-bar-menu"))
-        return ShellWidgetSource(
-            chunk: "=hidden-bar-menu",
-            main: try String(contentsOf: url, encoding: .utf8),
-            modules: []
-        )
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let folder = shell.appendingPathComponent(ShellDefaults.profile, isDirectory: true)
+        return try ShellWidgetSourceLoader.build(.init(
+            name: "hidden-bar-menu", shellDirectory: shell,
+            sourceURL: folder.appendingPathComponent("widgets/hidden-bar-menu/init.luau"),
+            directories: [shell, folder], profile: ShellDefaults.profile
+        ))
     }
 }

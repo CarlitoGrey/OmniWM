@@ -643,11 +643,24 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
+    func testHiddenBarStripLeavesItsSurfaceToTheNativeDrawer() throws {
+        let data = try fullData { $0.style.height = 32 }
+        for style in ["default", "celestial", "lake", "matrix", "nocturne", "sakura", "system", "wayline"] {
+            try renderStyle(style, widget: "hidden-bar", data: data, inspect: { view, nodes, _ in
+                guard view == OMNI_VIEW_POPOUT else { return }
+                let root = try XCTUnwrap(nodes.first, style)
+                XCTAssertEqual(root.fill, 0, style)
+                XCTAssertEqual(root.fill_role, 0, style)
+                XCTAssertFalse(nodes.contains { UInt32($0.flags) & OMNI_NODE_MATERIAL_MASK != 0 }, style)
+            })
+        }
+    }
+
     func testSystemPopoutsUseOneNativeGlassSurfaceWithFullAndMissingData() throws {
         let full = try fullData { $0.style.height = 32 }
         let variants = [full, full.filter { (Self.essentials + ["hiddenBar"]).contains($0.0) }]
         let widgets = [
-            "battery-details", "bluetooth", "calendar", "control-center", "hidden-bar", "hidden-bar-menu",
+            "battery-details", "bluetooth", "calendar", "control-center", "hidden-bar-menu",
             "input-source", "media", "stats", "system-stats", "volume", "weather", "world-clock", "wifi"
         ]
         for widget in widgets {
