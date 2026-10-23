@@ -175,6 +175,7 @@ struct SettingsExport: Equatable {
         var workspaceSwipeEnabled: Bool
         var workspaceSwipeFingerCount: GestureFingerCount
         var workspaceSwipeAxis: WorkspaceSwipeAxis
+        var workspaceSwipeEdgeBehavior: WorkspaceSwipeEdgeBehavior? = .cycle
         var overviewGestureEnabled: Bool? = false
         var overviewGestureFingerCount: ThreeOrFourFingerCount? = .four
         var windowMoveEnabled: Bool? = false

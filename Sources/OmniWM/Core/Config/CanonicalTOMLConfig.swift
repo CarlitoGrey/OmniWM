@@ -229,6 +229,7 @@ extension CanonicalTOMLConfig {
 
     private func gesturesForExport() -> SettingsExport.Gestures {
         var gestures = gestures
+        gestures.workspaceSwipeEdgeBehavior = gestures.workspaceSwipeEdgeBehavior ?? .cycle
         gestures.overviewGestureEnabled = gestures.overviewGestureEnabled ?? false
         gestures.overviewGestureFingerCount = gestures.overviewGestureFingerCount ?? .four
         gestures.windowMoveEnabled = gestures.windowMoveEnabled ?? false
