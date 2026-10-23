@@ -59,14 +59,19 @@ final class PanelDismissalMonitorTests: XCTestCase {
         let external = CGRect(x: 1800, y: 0, width: 1920, height: 1080)
         PanelDismissalMonitor.screenFrames = { [builtIn, external] }
         let monitor = PanelDismissalMonitor()
-        let dismissed = expectation(description: "panel dismissed")
-        dismissed.isInverted = true
-        monitor.start(panels: [makePanel()], isExemptWindow: { _ in false }, onDismiss: { dismissed.fulfill() })
+        var dismissals = 0
+        monitor.start(panels: [makePanel()], isExemptWindow: { _ in false }, onDismiss: { dismissals += 1 })
         defer { monitor.stop() }
+        let compared = expectation(description: "observer compared the display frames")
+        PanelDismissalMonitor.screenFrames = {
+            compared.fulfill()
+            return [external, builtIn]
+        }
 
-        PanelDismissalMonitor.screenFrames = { [external, builtIn] }
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
-        await fulfillment(of: [dismissed], timeout: 0.5)
+        await fulfillment(of: [compared], timeout: 5)
+
+        XCTAssertEqual(dismissals, 0)
     }
 
     func testLocalEscapeDismissesAndIsConsumed() throws {
