@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import AppKit
 import CoreGraphics
 import Foundation
 @testable import OmniWM
@@ -351,5 +352,39 @@ final class HiddenBarActivationResolveTests: XCTestCase {
                 MenuBarAppCandidate(bundleID: bundleID, pid: 41)
             ]
         ))
+    }
+
+    func testAnItemUnderOneOfOurWindowsIsPressedInsteadOfClicked() async throws {
+        let panel = NSPanel(
+            contentRect: CGRect(x: 200, y: 200, width: 120, height: 40),
+            styleMask: [.borderless, .nonactivatingPanel],
+            backing: .buffered,
+            defer: false
+        )
+        panel.level = .screenSaver
+        panel.orderFrontRegardless()
+        defer { panel.close() }
+        var bounds = CGRect.null
+        for _ in 0 ..< 50 where bounds.isNull {
+            let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(panel.windowNumber))
+                as? [[String: Any]]
+            if let dictionary = info?.first?[kCGWindowBounds as String] as? NSDictionary,
+               info?.first?[kCGWindowIsOnscreen as String] as? Bool == true
+            {
+                bounds = CGRect(dictionaryRepresentation: dictionary) ?? .null
+            } else {
+                try await Task.sleep(for: .milliseconds(20))
+            }
+        }
+        let center = CGPoint(x: bounds.midX, y: bounds.midY)
+        XCTAssertTrue(HiddenBarClickForwarder.isCoveredByOwnWindow(center))
+
+        panel.orderOut(nil)
+        var covered = true
+        for _ in 0 ..< 50 where covered {
+            covered = HiddenBarClickForwarder.isCoveredByOwnWindow(center)
+            if covered { try await Task.sleep(for: .milliseconds(20)) }
+        }
+        XCTAssertFalse(covered)
     }
 }
