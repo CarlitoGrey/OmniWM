@@ -440,7 +440,7 @@ extension ShellWidgetHost {
     }
 
     func hasFallback(_ state: WidgetState) -> Bool {
-        ShellConfig.bundledWidget(state.name).map { $0 != state.sourceURL } ?? false
+        state.fallback == nil && config.builtInWidget(state.name, replacing: state.sourceURL) != nil
     }
 
     func trip(_ state: WidgetState, _ failure: ShellScriptFailure) {

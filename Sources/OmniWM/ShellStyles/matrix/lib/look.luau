@@ -28,6 +28,22 @@ return require("./skin")({
     heading = legacy.heading,
     button = legacy.button,
     primaryButton = { w = 36, h = 36, radius = 2, fill = "accent", color = "accentForeground" },
+    clockBar = function(ctx, m)
+        if ctx.data.bar.style.vertical then
+            return nil
+        end
+        local scale = legacy.scale(ctx)
+        local row = { gap = 8 * scale, hover = legacy.hover }
+        if m.showIcon then
+            row[#row + 1] = ui.symbol{ name = "calendar", size = 12 * scale }
+        end
+        if m.showDate then
+            row[#row + 1] = text{ text = string.upper(m.date), size = 12 * scale, color = "secondaryForeground" }
+            row[#row + 1] = text{ text = "//", size = 12 * scale, color = "accent" }
+        end
+        row[#row + 1] = text{ text = m.time, size = 12 * scale, weight = "medium", reserve = "00:00 PM" }
+        return legacy.bar(ctx, row)
+    end,
     workspaceMarker = function(ctx, workspace, style, m)
         if m.indicator ~= "numbers" or (m.compact and not style.labels) then
             return nil

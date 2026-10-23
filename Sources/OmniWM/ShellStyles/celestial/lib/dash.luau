@@ -114,17 +114,19 @@ local function weekday(year: number, month: number, day: number): number
     return (y + y // 4 - y // 100 + y // 400 + MONTH_OFFSETS[month] + day) % 7
 end
 
-local function calendar(ctx: Context)
-    local data = ctx.data.calendar
-    local month = data and data.month
+local function calendar(ctx: Context, m)
+    m = m or require("./calendar").model(ctx, true)
+    local month = m and m.month
     local width = CALENDAR - 2 * tokens.padding.large
     local column = { gap = tokens.spacing.extraSmall, center = false, pad = tokens.padding.large }
     if not month then
+        local action = m and m.action
         column[#column + 1] = ui.stack{ w = width, h = BOTTOM - 2 * tokens.padding.large,
             ui.row{ h = 40, radius = 20, fill = "secondaryContainer", pad = tokens.padding.medium,
-                hover = "secondaryContainerForeground/0.08", onClick = "calendar authorize",
-                ui.text{ text = omniwm.l10n("Allow Calendar Access"), font = "sans", size = tokens.label.large,
-                    color = "secondaryContainerForeground" } } }
+                hover = m and "secondaryContainerForeground/0.08" or nil,
+                onClick = action and action.command or m and m.open,
+                ui.text{ text = action and action.text or (m and omniwm.l10n("Open Calendar") or omniwm.l10n("Unavailable")),
+                    font = "sans", size = tokens.label.large, color = "secondaryContainerForeground" } } }
         return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { ui.column(column) })
     end
     local cell = math.floor(width / 7)
@@ -134,10 +136,10 @@ local function calendar(ctx: Context)
         return day == 0 or day == 6
     end
     column[#column + 1] = ui.row{ w = width,
-        surface.button("chevron_left", "text", { onClick = "calendar month previous", glyph = tokens.icon.small }),
-        ui.stack{ grow = 1, h = 32, radius = 16, hover = "accent/0.08", onClick = "calendar month today",
+        surface.button("chevron_left", "text", { onClick = m.previous, glyph = tokens.icon.small }),
+        ui.stack{ grow = 1, h = 32, radius = 16, hover = "accent/0.08", onClick = m.today,
             ui.text{ text = month.title, font = "sans", size = tokens.title.small, weight = "medium", color = "accent" } },
-        surface.button("chevron_right", "text", { onClick = "calendar month next", glyph = tokens.icon.small }) }
+        surface.button("chevron_right", "text", { onClick = m.next, glyph = tokens.icon.small }) }
     local names = { gap = 0 }
     for index, name in month.weekdays do
         names[index] = ui.stack{ w = cell, ui.text{ text = name, font = "sans", size = tokens.body.small,
@@ -164,9 +166,7 @@ local function calendar(ctx: Context)
         end
         column[#column + 1] = ui.row(line)
     end
-    return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { onScroll = function(_, event)
-        omniwm.run(event.dy > 0 and "calendar month previous" or "calendar month next")
-    end, ui.column(column) })
+    return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { onScroll = m.scroll, ui.column(column) })
 end
 
 local function ring(value: number?, icon: string, tint: string)

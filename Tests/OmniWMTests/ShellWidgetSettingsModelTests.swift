@@ -72,14 +72,18 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
         let defaults = try XCTUnwrap(ShellDefaults.bundled)
         let styles = try XCTUnwrap(ShellDefaults.bundledStyles)
         let clock = try XCTUnwrap(ShellRootSettings.load("clock", directories: [defaults]))
-        let celestial = try XCTUnwrap(ShellRootSettings.load(
-            "clock",
-            directories: [styles.appendingPathComponent("celestial")]
-        ))
         XCTAssertEqual(clock.options["date"]?.defaultValue, .bool(true))
-        XCTAssertEqual(celestial.options["date"]?.defaultValue, .bool(false))
-        XCTAssertNil(clock.options["icon"])
-        XCTAssertEqual(celestial.options["icon"]?.defaultValue, .bool(true))
+        XCTAssertEqual(clock.options["icon"]?.defaultValue, .bool(false))
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        var problems: [String] = []
+        let config = try XCTUnwrap(ShellConfig.load(shellDirectory: shell, problems: &problems))
+        XCTAssertTrue(problems.isEmpty, problems.joined(separator: "\n"))
+        let celestial = try ShellServiceValue.decode(XCTUnwrap(config.widgetSettings["clock"])).fields
+        XCTAssertEqual(celestial?["date"]?.boolean, false)
+        XCTAssertEqual(celestial?["icon"]?.boolean, true)
         let title = try XCTUnwrap(ShellRootSettings.load(
             "active-window",
             directories: [styles.appendingPathComponent("celestial")]

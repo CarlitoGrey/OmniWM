@@ -95,13 +95,16 @@ local function caps(text)
     return if string.find(text, "[\128-\255]") then text else string.upper(text)
 end
 
-local function chip(size, vertical, color, glyph)
+local function chip(size, vertical, color, glyph, alone)
     local radius = math.floor(size * 0.24)
-    return ui.stack{ w = size, h = size,
-        ui.box{ w = size, h = size, radius = radius, fill = color },
-        ui.box{ align = vertical and "bottom" or "trailing", w = vertical and size or radius,
-            h = vertical and radius or size, fill = color },
-        ui.symbol(glyph) }
+    local props = { w = size, h = size,
+        ui.box{ w = size, h = size, radius = radius, fill = color } }
+    if not alone then
+        props[#props + 1] = ui.box{ align = vertical and "bottom" or "trailing", w = vertical and size or radius,
+            h = vertical and radius or size, fill = color }
+    end
+    props[#props + 1] = ui.symbol(glyph)
+    return ui.stack(props)
 end
 
 local function frame(width, bandHeight, header, body, attach)
@@ -198,6 +201,169 @@ local function mediaLyrics(lyrics)
         ui.column(rows) }, MEDIA_INNER, width)
 end
 
+local CALENDAR_CELL = 38
+local CALENDAR_GRID = CALENDAR_CELL * 7
+local CALENDAR_WIDTH = CALENDAR_GRID + 16 + 32
+local CALENDAR_INNER = CALENDAR_WIDTH - 32
+local CALENDAR_CARD = CALENDAR_INNER - 20
+
+local function clockBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local radius = math.floor(size * 0.24)
+    local rows = { gap = 0, radius = radius, fill = "elevatedSurface", hoverOpacity = 0.9 }
+    if m.showIcon then
+        rows[#rows + 1] = chip(size, style.vertical, "accent", { name = "clock.fill",
+            size = math.floor(size * 0.54), weight = "semibold", color = "accentForeground" })
+    end
+    if style.vertical then
+        rows.w, rows.gap = size, 2
+        if not m.showIcon then
+            rows[#rows + 1] = ui.box{ w = 1, h = 3 }
+        end
+        rows[#rows + 1] = ui.text{ text = m.hour, style = "mono", size = 14 * scale, weight = "bold", color = "accent" }
+        rows[#rows + 1] = ui.text{ text = m.minute, style = "mono", size = 14 * scale, weight = "semibold", color = "accent" }
+        if m.meridiem then
+            rows[#rows + 1] = ui.text{ text = m.meridiem, style = "mono", size = 9 * scale,
+                color = "secondaryForeground" }
+        end
+        rows[#rows + 1] = ui.box{ w = 1, h = 3 }
+        return ui.column(rows)
+    end
+    rows.h = size
+    rows[#rows + 1] = ui.box{ w = 8, h = 1 }
+    if m.showDate then
+        rows[#rows + 1] = ui.text{ text = m.date, size = 12 * scale, weight = "medium", color = "accent" }
+        rows[#rows + 1] = ui.box{ w = 6, h = 1 }
+    end
+    rows[#rows + 1] = ui.text{ text = m.time, style = "mono", size = 14 * scale, weight = "bold", color = "accent",
+        reserve = "00:00 PM" }
+    rows[#rows + 1] = ui.box{ w = 9, h = 1 }
+    return ui.row(rows)
+end
+
+local function calendarBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local event = m.event
+    local props = { gap = 0, radius = math.floor(size * 0.24), fill = "elevatedSurface", hoverOpacity = 0.9,
+        chip(size, style.vertical, "accent", { name = "calendar", size = math.floor(size * 0.52),
+            weight = "semibold", color = "accentForeground" }, not event) }
+    if style.vertical then
+        props.w = size
+        if event then
+            props.gap = 3
+            props[#props + 1] = ui.box{ w = 6, h = 6, radius = 3, fill = event.color }
+            props[#props + 1] = ui.box{ w = 1, h = 2 }
+        end
+        return ui.column(props)
+    end
+    props.h = size
+    if event then
+        props[#props + 1] = ui.box{ w = 8, h = 1 }
+        props[#props + 1] = ui.box{ w = 6, h = 6, radius = 3, fill = event.color }
+        props[#props + 1] = ui.box{ w = 6, h = 1 }
+        props[#props + 1] = ui.text{ text = event.title, size = 14 * scale, weight = "semibold", color = "accent",
+            maxWidth = 130 }
+        props[#props + 1] = ui.box{ w = 6, h = 1 }
+        props[#props + 1] = ui.text{ text = event.countdown, size = 12 * scale, weight = "medium",
+            color = "secondaryForeground" }
+        props[#props + 1] = ui.box{ w = 9, h = 1 }
+    end
+    return ui.row(props)
+end
+
+local function calendarButton(symbol, command)
+    return ui.stack{ w = 26, h = 26, radius = 7, hover = HOVER, onClick = command,
+        ui.symbol{ name = symbol, size = 11, weight = "bold", color = "secondaryForeground" } }
+end
+
+local function calendarGrid(month, scroll)
+    local rows = { w = CALENDAR_GRID + 16, gap = 0, pad = 8, radius = 9, fill = "elevatedSurface",
+        center = false, onScroll = scroll }
+    local header = { gap = 0 }
+    for _, symbol in month.weekdays do
+        header[#header + 1] = ui.stack{ w = CALENDAR_CELL, h = 22,
+            ui.text{ text = symbol, size = 12, weight = "bold", color = "mutedForeground" } }
+    end
+    rows[#rows + 1] = ui.row(header)
+    local week = { gap = 0 }
+    for _ = 1, month.offset do
+        week[#week + 1] = ui.box{ w = CALENDAR_CELL, h = CALENDAR_CELL }
+    end
+    for day = 1, month.days do
+        local today = day == month.today
+        week[#week + 1] = ui.stack{ w = CALENDAR_CELL, h = CALENDAR_CELL,
+            ui.stack{ w = 28, h = 28, radius = 7, fill = if today then "accent" else nil,
+                ui.text{ text = tostring(day), style = "mono", size = 14, weight = if today then "bold" else "semibold",
+                    color = if today then "accentForeground" else "secondaryForeground" } },
+            if month.marked[day] then ui.box{ align = "bottom", dy = -3, w = 4, h = 4, radius = 2,
+                fill = if today then "accentForeground" else "accent" } else nil }
+        if #week == 7 then
+            rows[#rows + 1] = ui.row(week)
+            week = { gap = 0 }
+        end
+    end
+    if #week > 0 then
+        rows[#rows + 1] = ui.row(week)
+    end
+    return ui.column(rows)
+end
+
+local function calendarAgenda(event)
+    local width = if event.countdown then CALENDAR_CARD - 104 else CALENDAR_CARD - 24
+    local row = { w = CALENDAR_CARD, gap = 10, pad = 0, radius = 7, hover = HOVER, onClick = event.open,
+        ui.box{ w = 1, h = 44 },
+        ui.box{ w = 3, h = 28, radius = 1.5, fill = event.color },
+        ui.column{ gap = 2, center = false,
+            ui.text{ text = event.title, size = 14, weight = "semibold", color = "foreground", maxWidth = width },
+            ui.text{ text = event.day .. " · " .. event.when, size = 12, weight = "medium", color = "mutedForeground",
+                maxWidth = width } } }
+    if event.countdown then
+        row[#row + 1] = ui.box{ grow = 1, h = 1 }
+        row[#row + 1] = ui.text{ text = event.countdown, size = 12, weight = "semibold", color = "accent", maxWidth = 70 }
+    end
+    return ui.row(row)
+end
+
+local function calendarAction(symbol, text, command, color)
+    return ui.row{ w = CALENDAR_CARD, h = 40, gap = 10, radius = 7, hover = HOVER, onClick = command,
+        statsTile(symbol, color),
+        ui.text{ text = text, size = 14, weight = "semibold", color = "foreground", maxWidth = CALENDAR_CARD - 40,
+            lines = 2 } }
+end
+
+local function calendarPanel(_, m)
+    local header = { w = CALENDAR_INNER, gap = 2,
+        ui.symbol{ name = "calendar", size = 13, weight = "semibold", color = "accent" },
+        ui.box{ w = 6, h = 1 },
+        ui.text{ text = m.month and m.month.title or omniwm.l10n("Calendar"), size = 14, weight = "bold",
+            color = "foreground", grow = 1 } }
+    local body = { w = CALENDAR_WIDTH, pad = 16, gap = 10, center = false }
+    if m.month then
+        header[#header + 1] = calendarButton("chevron.left", m.previous)
+        header[#header + 1] = calendarButton("circle.fill", m.today)
+        header[#header + 1] = calendarButton("chevron.right", m.next)
+        body[#body + 1] = calendarGrid(m.month, m.scroll)
+    end
+    local rows = {}
+    for _, event in m.agenda or {} do
+        rows[#rows + 1] = calendarAgenda(event)
+    end
+    if m.agenda and #rows == 0 then
+        rows[#rows + 1] = ui.row{ w = CALENDAR_CARD, h = 40,
+            ui.text{ text = omniwm.l10n("No upcoming events"), size = 14, weight = "medium", color = "mutedForeground" } }
+    elseif m.action then
+        rows[#rows + 1] = calendarAction(m.action.symbol, m.action.text, m.action.command,
+            if m.access == "notDetermined" then "accent" else "warning")
+    end
+    rows[#rows + 1] = calendarAction("arrow.up.forward.app", omniwm.l10n("Open Calendar"), m.open, "accent")
+    body[#body + 1] = dividedCard(rows, CALENDAR_INNER, CALENDAR_CARD)
+    return frame(CALENDAR_WIDTH, 44, ui.row(header), ui.column(body))
+end
+
 return require("./skin")({
     base = 40,
     hover = HOVER,
@@ -206,6 +372,9 @@ return require("./skin")({
     widths = { workspaces = 296, ["system-stats"] = 348 },
     size = { text = 14, icon = 24, slot = 28 },
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    clockBar = clockBar,
+    calendarBar = calendarBar,
+    calendarPanel = calendarPanel,
     mediaBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40

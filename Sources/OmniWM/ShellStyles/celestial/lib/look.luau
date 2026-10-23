@@ -1,6 +1,7 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+local dash = require("./dash")
 local shapes = require("./shapes")
 local icons = require("./icons")
 local mediatab = require("./mediatab")
@@ -57,6 +58,32 @@ local function scratchpadColors(scratchpad, style)
     return tint, chip, hue, fill
 end
 
+local function calendarButton(text, command)
+    local width = dash.calendarWidth
+    return ui.row{ w = width, h = 40, radius = 20, fill = "secondaryContainer",
+        hover = "secondaryContainerForeground/0.08", onClick = command,
+        ui.box{ grow = 1, h = 1 },
+        ui.text{ text = text, font = "sans", size = tokens.label.large, weight = "medium",
+            color = "secondaryContainerForeground", maxWidth = width - 32 },
+        ui.box{ grow = 1, h = 1 } }
+end
+
+local function calendarAgenda(event, first)
+    local width = dash.calendarWidth
+    local textWidth = width - (event.countdown and 140 or 40)
+    return ui.row{ key = event.open, w = width, gap = tokens.spacing.medium, pad = tokens.padding.small,
+        radius = tokens.rounding.large, hover = status.hover, onClick = event.open,
+        fill = first and "secondaryContainer" or nil,
+        ui.box{ w = 4, h = 30, radius = 2, fill = event.color },
+        ui.column{ gap = 2, center = false, grow = 1,
+            ui.text{ text = event.title, font = "sans", size = tokens.body.small, weight = "medium",
+                maxWidth = textWidth },
+            ui.text{ text = event.day .. " · " .. event.when, font = "sans", size = tokens.label.medium,
+                color = "secondaryForeground", maxWidth = textWidth } },
+        event.countdown and ui.text{ text = event.countdown, font = "sans", size = tokens.label.medium,
+            weight = "semibold", color = "accent" } or nil }
+end
+
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
@@ -73,6 +100,74 @@ return require("./skin")({
         local size = glyph.size + tokens.padding.small * scale
         return { w = size, h = size, radius = size / 2,
             hover = (locked and "warning" or "tertiaryAccent") .. "/0.12" }, size
+    end,
+    clockClick = "shell toggle dashboard",
+    clockBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local size = tokens.body.small * 1.1 * scale
+        local tint = "tertiaryAccent"
+        local icon = m.showIcon and surface.icon("calendar_month", { size = tokens.icon.small * scale,
+            color = tint }) or nil
+        if style.vertical then
+            local column = { w = tokens.bar.inner * scale, gap = tokens.spacing.extraSmall * scale,
+                pad = tokens.padding.extraSmall * scale }
+            column[#column + 1] = icon
+            if m.showDate then
+                column[#column + 1] = ui.text{ text = string.match(m.date, "^(%a+)") or m.date, font = "sans",
+                    size = tokens.body.small * 0.9 * scale, color = tint }
+            end
+            column[#column + 1] = ui.column{ gap = 0,
+                ui.text{ text = m.hour, font = "sans", size = size, weight = "medium", color = tint },
+                ui.text{ text = m.minute, font = "sans", size = size, weight = "medium", color = tint },
+                m.meridiem and ui.text{ text = m.meridiem, font = "sans", size = tokens.body.small * 0.9 * scale,
+                    color = tint } or nil }
+            return ui.column(column)
+        end
+        local row = { h = tokens.bar.inner * scale, gap = tokens.spacing.small * scale,
+            pad = tokens.padding.small * scale }
+        row[#row + 1] = icon
+        if m.showDate then
+            row[#row + 1] = ui.text{ text = m.date, font = "sans", size = size, color = tint }
+        end
+        row[#row + 1] = ui.text{ text = m.time, font = "sans", size = size, weight = "medium", color = tint,
+            reserve = "00:00 PM" }
+        return ui.row(row)
+    end,
+    calendarBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local items = { surface.icon("calendar_month", { size = tokens.icon.medium * scale,
+            color = "secondaryAccent" }) }
+        local event = m.event
+        if event then
+            items[#items + 1] = ui.box{ w = 6, h = 6, radius = 3, fill = event.color }
+            if not style.vertical then
+                items[#items + 1] = ui.text{ text = event.title, font = "sans", size = tokens.label.large * scale,
+                    weight = "medium", maxWidth = 130 }
+                items[#items + 1] = ui.text{ text = event.countdown, font = "sans", size = tokens.label.medium * scale,
+                    weight = "semibold", color = "accent" }
+            end
+        end
+        return surface.pill(style, items, { hover = status.hover })
+    end,
+    calendarPanel = function(ctx, m)
+        local rows = { dash.calendar(ctx, m) }
+        if m.agenda then
+            for index, event in m.agenda do
+                rows[#rows + 1] = calendarAgenda(event, index == 1)
+            end
+            if #m.agenda == 0 then
+                rows[#rows + 1] = ui.text{ text = omniwm.l10n("No upcoming events"), font = "sans",
+                    size = tokens.body.small, color = "secondaryForeground" }
+            end
+        elseif m.action and m.month then
+            rows[#rows + 1] = calendarButton(m.action.text, m.action.command)
+        end
+        if m.month then
+            rows[#rows + 1] = calendarButton(omniwm.l10n("Open Calendar"), m.open)
+        end
+        return status.panel(dash.calendarWidth + 2 * tokens.padding.large, rows)
     end,
     volumeBar = function(ctx, m)
         if not m.volume then

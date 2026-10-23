@@ -1817,14 +1817,17 @@ final class ShellWidgetClickTests: XCTestCase {
 
     func testBrokenOverrideOfABundledWidgetFallsBackUntilItIsFixed() async throws {
         executionTimeAllowance = 60
-        let harness = try harness(
-            "function render(ctx) return ui.box{ w = 10, h = 10 } end",
-            files: ["shell.toml": "profiles.default.trailing = [\"test\", \"clock\"]\n"]
-        )
+        let harness = try harness("function render(ctx) return ui.box{ w = 10, h = 10 } end")
         defer { harness.close() }
+        try Data("profiles.default.trailing = [\"test\", \"clock\"]\n".utf8)
+            .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
+        harness.host.rescan()
         var layoutChanges = harness.layoutChanges.makeAsyncIterator()
-        try await layoutChanges.change()
         let clock = { harness.host.slots(for: Harness.monitor).first { $0.id == "clock" } }
+        while clock()?.size.width ?? 0 == 0 {
+            try await layoutChanges.change()
+        }
         let source = harness.root.appendingPathComponent("shell/widgets/clock/init.luau")
         try FileManager.default.createDirectory(
             at: source.deletingLastPathComponent(),
@@ -1832,16 +1835,70 @@ final class ShellWidgetClickTests: XCTestCase {
         )
         try Data("function render(ctx) return ui.box{ w = 33, h = 10 }".utf8).write(to: source)
         harness.host.rescan()
-        while clock()?.failure == nil || clock()?.size.width ?? 0 == 0 {
+        while clock()?.failure?.message.hasPrefix("Using the built-in clock:") != true || clock()?.size
+            .width ?? 0 == 0
+        {
             try await layoutChanges.change()
         }
         XCTAssertNotEqual(clock()?.size.width, 33)
-        XCTAssertTrue(clock()?.failure?.source.path.hasSuffix("widgets/clock/init.luau") == true)
+        XCTAssertEqual(clock()?.failure?.source.resolvingSymlinksInPath(), source.resolvingSymlinksInPath())
 
         try Data("function render(ctx) return ui.box{ w = 33, h = 10 } end".utf8).write(to: source)
         harness.host.rescan()
         while clock()?.size.width != 33 || clock()?.failure != nil {
             try await layoutChanges.change()
+        }
+    }
+
+    func testBrokenManagedWidgetFallbackReportsFailureWithoutReloading() async throws {
+        for userOverride in [false, true] {
+            let context = "userOverride=\(userOverride)"
+            let harness = try harness("function render(ctx) return ui.box{ w = 10, h = 10 } end")
+            defer { harness.close() }
+            let shell = harness.root.appendingPathComponent("shell")
+            XCTAssertEqual(ShellDefaults.sync(into: shell), [], context)
+            let library = shell.appendingPathComponent("lib/look.luau")
+            try FileManager.default.createDirectory(
+                at: library.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("return {".utf8).write(to: library)
+            if userOverride {
+                let source = shell.appendingPathComponent("widgets/clock/init.luau")
+                try FileManager.default.createDirectory(
+                    at: source.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+                try Data("local look = require(\"../lib/look\")\nfunction render(ctx) return look.bar(ctx, {}) end"
+                    .utf8)
+                    .write(to: source)
+            }
+            try Data("""
+            profiles.default.leading = []
+            profiles.default.center = []
+            profiles.default.trailing = ["test", "clock"]
+            """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
+            harness.host.rescan()
+            var changes = harness.layoutChanges.makeAsyncIterator()
+            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != "failed" {
+                try await changes.change()
+            }
+            let state = try XCTUnwrap(harness.host.widgets["clock"], context)
+            XCTAssertNotNil(state.fallback, context)
+            XCTAssertNotNil(state.lastFailure, context)
+            XCTAssertNil(state.package, context)
+            XCTAssertNil(state.loadingPackage, context)
+            XCTAssertFalse(harness.host.hasFallback(state), context)
+            let expected = userOverride
+                ? shell.appendingPathComponent("default/widgets/clock/init.luau")
+                : try XCTUnwrap(ShellConfig.bundledWidget("clock"), context)
+            XCTAssertEqual(state.sourceURL.resolvingSymlinksInPath(), expected.resolvingSymlinksInPath(), context)
+            let generation = state.generation
+            let nextGeneration = harness.host.nextGeneration
+            harness.host.rescan(reloadConfiguration: false)
+            XCTAssertTrue(harness.host.widgets["clock"] === state, context)
+            XCTAssertEqual(state.generation, generation, context)
+            XCTAssertEqual(harness.host.nextGeneration, nextGeneration, context)
+            XCTAssertNotNil(state.lastFailure, context)
+            XCTAssertNil(state.loadingPackage, context)
         }
     }
 
@@ -2825,6 +2882,7 @@ final class ShellWidgetClickTests: XCTestCase {
         let clockWidth = { harness.host.slots(for: Harness.monitor).first { $0.id == "clock" }?.size.width ?? 0 }
         try Data("profiles.default.trailing = [\"test\", \"clock\"]\n".utf8)
             .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         while clockWidth() == 0 {
             try await layoutChanges.change()

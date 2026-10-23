@@ -79,7 +79,12 @@ final class ShellStyleLayoutTests: XCTestCase {
         let tab = ProcessInfo.processInfo.environment["OMNIWM_STEP_TAB"] ?? "audio"
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
-        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let environment = ProcessInfo.processInfo.environment
+        XCTAssertEqual(ShellDefaults.sync(
+            into: shell,
+            from: environment["OMNIWM_STEP_FROM"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundled,
+            styles: environment["OMNIWM_STEP_STYLES"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundledStyles
+        ), [])
         if !shared, let baseline = ProcessInfo.processInfo.environment["OMNIWM_STEP_BASE_SOURCE"] {
             try Data(contentsOf: URL(fileURLWithPath: baseline))
                 .write(to: shell.appendingPathComponent("default/widgets/\(name)/init.luau"))
@@ -114,6 +119,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                     }
                     if name == "media" || (name == "control-center" && tab == "media") {
                         mediaFixture(widget)
+                    }
+                    if ["clock", "calendar"].contains(name) || (name == "control-center" && tab == "calendar") {
+                        calendarFixture(widget)
                     }
                     widget.render(name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
@@ -166,6 +174,35 @@ final class ShellStyleLayoutTests: XCTestCase {
                                     )
                                 }
                             }
+                        }
+                    }
+                    if name == "calendar" || (name == "clock" && shared)
+                        || (name == "control-center" && tab == "calendar"), !vertical
+                    {
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                        if !dark {
+                            for state in ["notDetermined", "denied", "nomonth", "loading"] {
+                                if state == "loading" {
+                                    widget.set("calendar") { $0.null() }
+                                } else {
+                                    calendarFixture(
+                                        widget,
+                                        access: state == "nomonth" ? "full" : state,
+                                        month: state != "nomonth"
+                                    )
+                                }
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "\(name)-\(profile)-popout-\(state)",
+                                    dark: false, directory: directory, background: background
+                                )
+                            }
+                            calendarFixture(widget)
                         }
                     }
                     if name == "media", !vertical {
@@ -241,6 +278,311 @@ final class ShellStyleLayoutTests: XCTestCase {
         try useSharedLibraries("audio", in: shell)
         XCTAssertTrue(privateAudio.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
         XCTAssertEqual(try Data(contentsOf: shared), sharedBefore)
+    }
+
+    func testSharedClockBarsKeepOptionsTimeAndGesturesWithoutCalendarDemand() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            let widget = try makeWidget(
+                "clock", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/clock/init.luau")
+            )
+            calendarFixture(widget)
+            for vertical in [false, true] {
+                for date in [false, true] {
+                    for icon in [false, true] {
+                        let context = "\(profile) vertical=\(vertical) date=\(date) icon=\(icon)"
+                        widget.set("settings") {
+                            ShellServiceValue.object(["date": .bool(date), "icon": .bool(icon)]).write(to: &$0)
+                        }
+                        widget.render(fixture(config, height: height, vertical: vertical))
+                        var stats = omni_render_stats()
+                        var error = [CChar](repeating: 0, count: 256)
+                        XCTAssertEqual(
+                            omni_instance_render(
+                                widget.instance,
+                                OMNI_VIEW_BAR,
+                                100_000_000,
+                                &stats,
+                                &error,
+                                error.count
+                            ),
+                            OMNI_OK, context
+                        )
+                        XCTAssertEqual(stats.deps & (ShellDataKey.calendar.bit | ShellDataKey.seconds.bit), 0, context)
+                        let strings = widget.strings()
+                        XCTAssertEqual(
+                            strings.contains("calendar") || strings.contains("calendar_month") || strings
+                                .contains("clock.fill"),
+                            icon, context
+                        )
+                        if vertical {
+                            for value in ["09", "41", "am"] {
+                                XCTAssertTrue(strings.contains(value), context + ": " + value)
+                            }
+                        } else {
+                            XCTAssertTrue(strings.contains("9:41 AM"), context)
+                            XCTAssertEqual(
+                                strings.contains(profile == "matrix" ? "FRI OCT 23" : "Fri Oct 23"),
+                                date,
+                                context
+                            )
+                            if profile == "matrix" {
+                                XCTAssertEqual(strings.contains("//"), date, context)
+                            }
+                        }
+                        let element = try XCTUnwrap(widget.surface.layout.core.elements {
+                            profile == "celestial"
+                                ? widget.text.string($0.action) == "shell toggle dashboard"
+                                : $0.action == OMNI_ACTION_POPOUT
+                        }.first, context)
+                        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: element))
+                        let point = CGPoint(x: frame.midX, y: frame.midY)
+                        let before = widget.actions.count
+                        widget.surface.press(at: point)
+                        widget.surface.release(at: point)
+                        XCTAssertEqual(widget.actions.count, before + 1, context)
+                        if profile == "celestial" {
+                            XCTAssertEqual(widget.clicks.last?.action, "shell toggle dashboard", context)
+                            let beforeRight = widget.actions.count
+                            widget.surface.press(at: point, button: .right)
+                            widget.surface.release(at: point, event: ShellEvent(button: .right))
+                            XCTAssertEqual(widget.actions.count, beforeRight + 1, context)
+                            XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                        } else {
+                            XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                        }
+                    }
+                }
+            }
+            widget.set("clock") { $0.string("19:04") }
+            widget.render(fixture(config, height: height, vertical: true))
+            XCTAssertTrue(widget.strings().contains("19"), profile)
+            XCTAssertTrue(widget.strings().contains("04"), profile)
+            XCTAssertFalse(widget.strings().contains("am"), profile)
+            XCTAssertFalse(widget.strings().contains("pm"), profile)
+        }
+    }
+
+    func testSharedVerticalClocksParseSupportedFormatsAndFallbackForRegionalFormats() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let parsed = [
+            ("4:05\u{202F}PM", ["04", "05", "pm"]),
+            ("4:05 pm", ["04", "05", "pm"]),
+            ("16.05", ["16", "05"]),
+            ("19:04", ["19", "04"])
+        ]
+        let fallback = ["오후 4:05", "下午4:05", "4:05\u{202F}μμ", "٤:٠٥ م"]
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let bar = fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: true)
+            let widget = try makeWidget(
+                "clock", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/clock/init.luau")
+            )
+            calendarFixture(widget)
+            widget.set("settings") {
+                ShellServiceValue.object(["date": .bool(false), "icon": .bool(false)]).write(to: &$0)
+            }
+            for (clock, expected) in parsed {
+                widget.set("clock") { $0.string(clock) }
+                widget.render(bar)
+                XCTAssertEqual(widget.strings(), expected, "\(profile) \(clock)")
+            }
+            for clock in fallback {
+                widget.set("clock") { $0.string(clock) }
+                widget.render(bar)
+                let strings = widget.strings()
+                XCTAssertEqual(strings.count, 2, "\(profile) \(clock)")
+                XCTAssertTrue(strings.allSatisfy {
+                    $0.range(of: "^[0-9]{2}$", options: .regularExpression) != nil
+                }, "\(profile) \(clock): \(strings)")
+            }
+        }
+    }
+
+    func testSharedClockAndControlCenterKeepLoadingCalendarPanelsOpenAndDemandCalendarData() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["clock", "control-center"] {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name, config: config, shell: shell,
+                    source: name == "clock" ? shell.appendingPathComponent("default/widgets/clock/init.luau") : nil
+                )
+                widget.set("settings") { ShellServiceValue.object(["tab": .text("calendar")]).write(to: &$0) }
+                calendarFixture(widget)
+                widget.set("calendar") { $0.null() }
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                widget.layoutPopout()
+                XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(
+                    ShellLocalizer.string("Loading…", [])
+                ), context)
+                var stats = omni_render_stats()
+                var error = [CChar](repeating: 0, count: 256)
+                XCTAssertEqual(
+                    omni_instance_render(widget.instance, OMNI_VIEW_POPOUT, 100_000_000, &stats, &error, error.count),
+                    OMNI_OK, context
+                )
+                XCTAssertNotEqual(stats.deps & ShellDataKey.calendar.bit, 0, context)
+                XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0, context)
+                calendarFixture(widget)
+                _ = widget.renderPopout()
+                let strings = widget.strings(OMNI_VIEW_POPOUT)
+                XCTAssertFalse(strings.contains(ShellLocalizer.string("Loading…", [])), context)
+                XCTAssertTrue(strings.contains("October 2026"), context)
+                XCTAssertTrue(strings.contains("Team standup"), context)
+            }
+        }
+    }
+
+    func testCelestialDashboardCalendarDoesNotDemandSecondsWithoutMedia() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("dashboard", config: config, shell: shell)
+        calendarFixture(widget)
+        widget.set("media") { $0.null() }
+        widget.render(fixture(config, height: config.barOverride?.settings.height ?? 60, vertical: false))
+        _ = widget.renderPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("October 2026"))
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Nothing is playing", [])))
+        var stats = omni_render_stats()
+        var error = [CChar](repeating: 0, count: 256)
+        XCTAssertEqual(
+            omni_instance_render(widget.instance, OMNI_VIEW_POPOUT, 100_000_000, &stats, &error, error.count),
+            OMNI_OK
+        )
+        XCTAssertNotEqual(stats.deps & ShellDataKey.calendar.bit, 0)
+        XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0)
+    }
+
+    func testSharedCalendarPanelsDeliverNavigationAgendaAccessAndPreciseScroll() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["clock", "calendar", "control-center"] {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name, config: config, shell: shell,
+                    source: name == "control-center" ? nil : shell
+                        .appendingPathComponent("default/widgets/\(name)/init.luau")
+                )
+                widget.set("settings") {
+                    ShellServiceValue.object(["tab": .text("calendar"), "agendaEvents": .number(2)]).write(to: &$0)
+                }
+                calendarFixture(widget)
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                _ = widget.renderPopout()
+                for label in ["Team standup", "Design review", "Now"] {
+                    XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(label, [])), context)
+                }
+                XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(
+                    ShellLocalizer.string("In %lld min", [.number(25)])
+                ), context)
+                XCTAssertFalse(widget.strings(OMNI_VIEW_POPOUT).contains("Team offsite"), context)
+                for command in [
+                    "calendar month previous", "calendar month today", "calendar month next",
+                    "calendar open standup", "calendar open review", "calendar open"
+                ] {
+                    widget.layoutPopout()
+                    try clickCommand(command, widget: widget, context: context)
+                }
+                widget.layoutPopout()
+                let scrollElement = try XCTUnwrap(
+                    widget.surface.layout.core.elements { $0.scrollAction != 0 }.first, context
+                )
+                let scrollAction = widget.surface.layout.core.content(of: scrollElement).scrollAction
+                let scrollFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: scrollElement))
+                var probe = ShellEvent(button: .none)
+                probe.kind = .scroll
+                let beforeScroll = widget.actions.count
+                XCTAssertTrue(widget.surface.scroll(
+                    at: CGPoint(x: scrollFrame.midX, y: scrollFrame.midY), event: probe
+                ), context)
+                XCTAssertEqual(widget.actions.count, beforeScroll + 1, context)
+                XCTAssertEqual(widget.actions.last, scrollAction, context)
+                let scroll = { (dy: Double, precise: Bool) in
+                    var event = ShellEvent(button: .none)
+                    event.kind = .scroll
+                    event.dy = dy
+                    event.precise = precise
+                    return widget.invoke(scrollAction, view: OMNI_VIEW_POPOUT, event: event)
+                }
+                XCTAssertEqual(scroll(5, true), [], context)
+                XCTAssertEqual(scroll(7, true), ["calendar month previous"], context)
+                XCTAssertEqual(scroll(-6, true), [], context)
+                XCTAssertEqual(scroll(-6, true), ["calendar month next"], context)
+                XCTAssertEqual(scroll(0, false), [], context)
+                XCTAssertEqual(scroll(-2, false), ["calendar month next", "calendar month next"], context)
+                XCTAssertEqual(scroll(1, false), ["calendar month previous"], context)
+                for (access, command) in [
+                    ("notDetermined", "calendar authorize"), ("denied", "calendar settings"), ("full", "calendar open")
+                ] {
+                    calendarFixture(widget, access: access, month: false)
+                    widget.layoutPopout()
+                    try clickCommand(command, widget: widget, context: context + " " + access)
+                    let nodes = widget.renderPopout()
+                    let actions = nodes.map { widget.text.string($0.content.action) }
+                    let celestialPanel = profile == "celestial" && name != "control-center"
+                    XCTAssertEqual(actions.filter { $0 == command }.count, 1, context + " " + access)
+                    XCTAssertEqual(
+                        widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Open Calendar", [])),
+                        !celestialPanel || access == "full", context
+                    )
+                    if access == "full" {
+                        XCTAssertFalse(actions.contains("calendar authorize"), context)
+                        XCTAssertEqual(actions.filter { $0.hasPrefix("calendar open ") }.count, 2, context)
+                    } else if celestialPanel {
+                        XCTAssertFalse(actions.contains("calendar open"), context + " " + access)
+                    }
+                }
+            }
+        }
+    }
+
+    func testSharedCalendarAgendaLimitAndBarCountdownFollowTheModel() throws {
+        let shell = try sharedLibraryShell("calendar")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "calendar", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/calendar/init.luau")
+            )
+            calendarFixture(widget)
+            widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+            for (limit, expected) in [(1.0, 1), (2, 2), (2.7, 3), (12, 4)] {
+                widget.set("settings") {
+                    ShellServiceValue.object(["agendaEvents": .number(limit)]).write(to: &$0)
+                }
+                let events = widget.renderPopout()
+                    .filter { widget.text.string($0.content.action).hasPrefix("calendar open ") }
+                XCTAssertEqual(events.count, expected, "\(profile) agendaEvents=\(limit)")
+            }
+            widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+            XCTAssertTrue(widget.strings().contains("Team standup"), profile)
+            XCTAssertTrue(widget.strings().contains(ShellLocalizer.string("Now", [])), profile)
+            widget.set("seconds") { $0.number(1_000_901) }
+            widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+            XCTAssertTrue(widget.strings().contains("Design review"), profile)
+            XCTAssertTrue(widget.strings().contains(ShellLocalizer.string("In %lld min", [.number(10)])), profile)
+        }
     }
 
     func testSharedMediaBarsKeepSelectionsAndInputThroughEverySkin() throws {
@@ -2118,6 +2460,36 @@ final class ShellStyleLayoutTests: XCTestCase {
             ShellAudioApp(id: "com.apple.Podcasts", name: "Podcasts", playing: false, volume: 45, muted: true)
         ] : []
         widget.set("audioApps") { ShellAudioApps(access: access, apps: apps).write(into: &$0) }
+    }
+
+    private func calendarFixture(_ widget: ShellRenderedWidget, access: String = "full", month: Bool = true) {
+        let now = 1_000_000.0
+        let events = access == "full" ? [
+            ShellCalendarEvent(
+                id: "standup", title: "Team standup", calendar: "Work", color: "#0A84FF",
+                start: now - 600, end: now + 900, allDay: false, location: nil, time: "9:30 AM", day: "Today"
+            ),
+            ShellCalendarEvent(
+                id: "review", title: "Design review", calendar: "Work", color: "#FF9F0A",
+                start: now + 1500, end: now + 4200, allDay: false, location: "Room 4", time: "10:05 AM", day: "Today"
+            ),
+            ShellCalendarEvent(
+                id: "holiday", title: "Team offsite", calendar: "Home", color: "#30D158",
+                start: now + 7200, end: now + 93600, allDay: true, location: nil, time: "", day: "Tomorrow"
+            ),
+            ShellCalendarEvent(
+                id: "dinner", title: "Dinner with friends", calendar: "Home", color: "#BF5AF2",
+                start: now + 90000, end: now + 97200, allDay: false, location: nil, time: "7:00 PM", day: "Tomorrow"
+            )
+        ] : []
+        let calendar = ShellCalendar(access: access, events: events, month: month ? ShellCalendarMonth(
+            title: "October 2026", year: 2026, month: 10, days: 31, offset: 4, today: 23,
+            weekdays: ["S", "M", "T", "W", "T", "F", "S"], marked: [5, 12, 23, 24]
+        ) : nil)
+        widget.set("calendar") { calendar.write(into: &$0) }
+        widget.set("seconds") { $0.number(now) }
+        widget.set("clock") { $0.string("9:41 AM") }
+        widget.set("date") { $0.string("Fri Oct 23") }
     }
 
     private func mediaFixture(

@@ -388,10 +388,184 @@ local function mediaPanel(ctx, m)
         statsCard(card), mediaLyrics(m) }, MEDIA_WIDTH)
 end
 
+local CALENDAR_WIDTH = 320
+local CALENDAR_INNER = CALENDAR_WIDTH - 2 - 24
+local CALENDAR_CARD = CALENDAR_INNER - 20
+local CALENDAR_CELL = math.floor(CALENDAR_CARD / 7)
+
+local function clockBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local rows = { gap = 7, radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14" }
+    if style.vertical then
+        rows.w, rows.gap = size, 0
+        rows[#rows + 1] = ui.box{ w = 1, h = 6 }
+        if m.showIcon then
+            rows[#rows + 1] = ui.symbol{ name = "calendar", size = 12 * scale, color = "secondaryForeground" }
+        end
+        rows[#rows + 1] = ui.text{ text = m.hour, size = 14 * scale, weight = "bold", color = "accent" }
+        rows[#rows + 1] = ui.text{ text = m.minute, size = 14 * scale, weight = "medium" }
+        if m.meridiem then
+            rows[#rows + 1] = ui.text{ text = m.meridiem, size = 9 * scale, color = "secondaryForeground" }
+        end
+        rows[#rows + 1] = ui.box{ w = 1, h = 6 }
+        return ui.column(rows)
+    end
+    rows.h = size
+    rows[#rows + 1] = ui.box{ w = 3, h = 1 }
+    if m.showIcon then
+        rows[#rows + 1] = ui.symbol{ name = "calendar", size = 14 * scale, color = "secondaryForeground" }
+    end
+    if m.showDate then
+        rows[#rows + 1] = ui.text{ text = m.date, size = 12 * scale, weight = "medium", color = "secondaryForeground" }
+        rows[#rows + 1] = ui.box{ w = 3, h = 3, radius = 1.5, fill = "mutedForeground" }
+    end
+    rows[#rows + 1] = ui.text{ text = m.time, size = 14 * scale, weight = "bold", color = "accent", reserve = "00:00 PM" }
+    rows[#rows + 1] = ui.box{ w = 3, h = 1 }
+    return ui.row(rows)
+end
+
+local function calendarTag(text, scale)
+    scale = scale or 1
+    return ui.row{ h = 18 * scale, radius = 9 * scale, fill = "blue/0.2",
+        ui.box{ w = 7 * scale, h = 1 },
+        ui.text{ text = text, size = 12 * scale, weight = "semibold", color = "blue" },
+        ui.box{ w = 7 * scale, h = 1 } }
+end
+
+local function calendarBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local event = m.event
+    local glyph = ui.symbol{ name = "calendar", w = 20 * scale, h = 20 * scale, size = 18 * scale,
+        weight = "semibold", color = "foreground" }
+    local props = { gap = 6, radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14",
+        help = event and event.title or nil }
+    if style.vertical then
+        props.w, props.gap = size, 3
+        props[1], props[2] = ui.box{ w = 1, h = 5 }, glyph
+        if event then
+            props[#props + 1] = ui.box{ w = 6, h = 6, radius = 3, fill = event.color }
+        end
+        props[#props + 1] = ui.box{ w = 1, h = 5 }
+        return ui.column(props)
+    end
+    props.h = size
+    if not event then
+        props.w, props[1] = size, glyph
+        return ui.stack(props)
+    end
+    props[1], props[2] = ui.box{ w = 2, h = 1 }, glyph
+    props[3] = ui.box{ w = 3, h = 14, radius = 1.5, fill = event.color }
+    props[4] = calendarTag(event.countdown, scale)
+    props[5] = ui.box{ w = 0, h = 1 }
+    return ui.row(props)
+end
+
+local function calendarButton(symbol, command)
+    return ui.stack{ w = 26, h = 26, radius = 13, hover = "focus/0.14", onClick = command,
+        ui.symbol{ name = symbol, size = 11, weight = "bold", color = "secondaryForeground" } }
+end
+
+local function calendarGrid(month, scroll)
+    local rows = { gap = 0, center = false, onScroll = scroll }
+    local header = { gap = 0 }
+    for _, symbol in month.weekdays do
+        header[#header + 1] = ui.box{ w = CALENDAR_CELL, h = 20,
+            ui.text{ text = symbol, size = 12, weight = "bold", color = "mutedForeground" } }
+    end
+    rows[#rows + 1] = ui.row(header)
+    local week = { gap = 0 }
+    for _ = 1, month.offset do
+        week[#week + 1] = ui.box{ w = CALENDAR_CELL, h = CALENDAR_CELL }
+    end
+    for day = 1, month.days do
+        local today = day == month.today
+        week[#week + 1] = ui.stack{ w = CALENDAR_CELL, h = CALENDAR_CELL,
+            ui.stack{ w = CALENDAR_CELL - 5, h = CALENDAR_CELL - 5, radius = (CALENDAR_CELL - 5) / 2,
+                fill = if today then "accent" else nil,
+                ui.text{ text = tostring(day), size = 14, weight = if today then "bold" else "medium",
+                    color = if today then "accentForeground" else "foreground" } },
+            if month.marked[day] then ui.box{ align = "bottom", dy = -2, w = 4, h = 4, radius = 2,
+                fill = if today then "accentForeground" else "blue" } else nil }
+        if #week == 7 then
+            rows[#rows + 1] = ui.row(week)
+            week = { gap = 0 }
+        end
+    end
+    if #week > 0 then
+        rows[#rows + 1] = ui.row(week)
+    end
+    return ui.column(rows)
+end
+
+local function calendarCard(props)
+    props.w, props.pad = CALENDAR_INNER, 10
+    return statsCard(props)
+end
+
+local function calendarAgenda(event)
+    local width = if event.countdown then CALENDAR_CARD - 128 else CALENDAR_CARD - 40
+    local rows = { w = CALENDAR_CARD, gap = 9, pad = 4, radius = 10, hover = "focus/0.14", onClick = event.open,
+        ui.box{ w = 4, h = 30, radius = 2, fill = event.color },
+        ui.column{ gap = 2, center = false,
+            ui.text{ text = event.title, size = 14, weight = "semibold", maxWidth = width },
+            ui.text{ text = event.day .. " · " .. event.when, size = 12, color = "secondaryForeground", maxWidth = width } },
+        ui.box{ grow = 1, h = 1 } }
+    if event.countdown then
+        rows[#rows + 1] = calendarTag(event.countdown)
+    end
+    return ui.row(rows)
+end
+
+local function calendarAction(symbol, text, command)
+    return ui.row{ w = CALENDAR_INNER, gap = 8, pad = 6, radius = 10, hover = "focus/0.14", onClick = command,
+        ui.stack{ w = 24, h = 24, radius = 12, fill = "elevatedSurface",
+            ui.symbol{ name = symbol, size = 11, weight = "semibold", color = "secondaryForeground" } },
+        ui.text{ text = text, size = 14, weight = "medium", maxWidth = CALENDAR_INNER - 50, lines = 2 } }
+end
+
+local function calendarPanel(ctx, m)
+    local header = { w = CALENDAR_INNER, gap = 2,
+        ui.box{ w = 2, h = 1 },
+        ui.text{ text = m.month and m.month.title or omniwm.l10n("Calendar"), size = 15, weight = "bold", grow = 1 } }
+    local rows = { gap = 8 }
+    if m.month then
+        header[#header + 1] = calendarButton("chevron.left", m.previous)
+        header[#header + 1] = calendarButton("smallcircle.filled.circle", m.today)
+        header[#header + 1] = calendarButton("chevron.right", m.next)
+        rows[#rows + 1] = ui.row(header)
+        rows[#rows + 1] = calendarCard{ calendarGrid(m.month, m.scroll) }
+    else
+        rows[#rows + 1] = ui.row(header)
+    end
+    if m.agenda then
+        local agenda = { gap = 2 }
+        for _, event in m.agenda do
+            agenda[#agenda + 1] = calendarAgenda(event)
+        end
+        if #agenda == 0 then
+            agenda[1] = ui.text{ text = omniwm.l10n("No upcoming events"), size = 14, color = "secondaryForeground" }
+        end
+        rows[#rows + 1] = calendarCard(agenda)
+    elseif m.action then
+        rows[#rows + 1] = calendarAction(m.action.symbol, m.action.text, m.action.command)
+    end
+    rows[#rows + 1] = calendarAction("arrow.up.forward.app", omniwm.l10n("Open Calendar"), m.open)
+    return framedPanel(ctx, rows, CALENDAR_WIDTH)
+end
+
 return require("./skin")({
     base = 40,
     hover = "focus/0.14",
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    clockBar = clockBar,
+    calendarBar = calendarBar,
+    calendarPanel = calendarPanel,
     width = 300,
     widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },

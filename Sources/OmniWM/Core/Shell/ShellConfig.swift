@@ -60,6 +60,15 @@ struct ShellConfig: Equatable {
         Self.isName(name) ? file("widgets/\(name)/init.luau") : nil
     }
 
+    func builtInWidget(_ name: String, replacing source: URL) -> URL? {
+        guard Self.isName(name) else { return nil }
+        let managed = directories.last?.appendingPathComponent("widgets/\(name)/init.luau")
+        return [managed, Self.bundledWidget(name)].lazy.compactMap(\.self).first {
+            $0.standardizedFileURL != source.standardizedFileURL
+                && FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
+
     func file(_ path: String) -> URL? {
         directories.lazy
             .map { $0.appendingPathComponent(path) }

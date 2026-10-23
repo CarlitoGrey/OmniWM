@@ -4,10 +4,10 @@
 local style = require("../lib/style")
 local audio = require("../lib/audio")
 local media = require("../lib/media")
+local calendar = require("../lib/calendar")
 local HOVER = style.hover
 local CONTENT = style.width
 local INNER = CONTENT - 24
-local CELL = INNER // 7
 local TABS = {
     { id = "overview", symbol = "square.grid.2x2", label = omniwm.l10n("Control Center") },
     { id = "audio", symbol = "speaker.wave.2.fill", label = omniwm.l10n("Audio") },
@@ -17,89 +17,13 @@ local TABS = {
     { id = "system", symbol = "gauge.with.needle", label = omniwm.l10n("System") },
 }
 
-local function button(name: string, command: string, _size: number?)
-    return style.button(name, command)
-end
-
 local function card(props)
     props.w = CONTENT
     return style.group(props)
 end
 
-local function month(calendar)
-    local data = calendar.month
-    local marked = {}
-    for _, day in data.marked do
-        marked[day] = true
-    end
-    local rows = { gap = 0,
-        ui.row{ w = INNER, gap = 4,
-            ui.text{ style = "caption", text = data.title, size = 14, weight = "semibold", grow = 1 },
-            button("chevron.left", "calendar month previous", 11),
-            button("circle.fill", "calendar month today", 8),
-            button("chevron.right", "calendar month next", 11) } }
-    local header = { gap = 0 }
-    for _, symbol in data.weekdays do
-        header[#header + 1] = ui.stack{ w = CELL, h = 20,
-            ui.text{ style = "caption", text = symbol, size = 11, color = "secondaryForeground" } }
-    end
-    rows[#rows + 1] = ui.row(header)
-    local week = { gap = 0 }
-    for _ = 1, data.offset do
-        week[#week + 1] = ui.box{ w = CELL, h = 26 }
-    end
-    for day = 1, data.days do
-        local today = day == data.today
-        week[#week + 1] = ui.stack{ w = CELL, h = 26,
-            ui.stack{ w = 26, h = 24, radius = 2, fill = if today then "accent" else nil,
-                ui.text{ style = "caption", text = tostring(day), size = 13, weight = if today then "semibold" else nil,
-                    color = if today then "accentForeground" else "foreground" } },
-            ui.box{ align = "bottom", w = 4, h = 4, radius = 2, dy = 1,
-                fill = if marked[day] and not today then "accent" else nil } }
-        if #week == 7 then
-            rows[#rows + 1] = ui.row(week)
-            week = { gap = 0 }
-        end
-    end
-    if #week > 0 then
-        rows[#rows + 1] = ui.row(week)
-    end
-    return card(rows)
-end
-
 local function calendarTab(ctx)
-    local calendar = ctx.data.calendar
-    if not calendar or not calendar.month then
-        return card{ ui.text{ style = "caption", text = omniwm.l10n("Unavailable"), size = 13, color = "secondaryForeground" } }
-    end
-    local rows = { gap = 8, center = false, month(calendar) }
-    if calendar.access == "full" then
-        local agenda = { gap = 2 }
-        for _, event in calendar.events do
-            if event["end"] > ctx.data.seconds and #agenda < 3 then
-                agenda[#agenda + 1] = ui.row{ w = INNER, gap = 8, pad = 3, radius = 2, hover = HOVER,
-                    onClick = "calendar open " .. event.id,
-                    ui.box{ w = 3, h = 28, radius = 1.5, fill = event.color },
-                    ui.column{ gap = 1, center = false,
-                        ui.text{ style = "caption", text = event.title, size = 13, maxWidth = INNER - 20 },
-                        ui.text{ style = "caption", text = event.day .. " · " .. (if event.allDay then omniwm.l10n("All day") else event.time),
-                            size = 11, color = "secondaryForeground", maxWidth = INNER - 20 } } }
-            end
-        end
-        if #agenda == 0 then
-            agenda[#agenda + 1] = ui.text{ style = "caption", text = omniwm.l10n("No upcoming events"), size = 13, color = "secondaryForeground" }
-        end
-        rows[#rows + 1] = card(agenda)
-    elseif calendar.access == "notDetermined" then
-        rows[#rows + 1] = ui.row{ w = CONTENT, gap = 6, pad = 6, radius = 2, hover = HOVER, onClick = "calendar authorize",
-            ui.symbol{ name = "calendar.badge.plus", w = 14, h = 14 },
-            ui.text{ style = "caption", text = omniwm.l10n("Allow Calendar Access"), size = 13 } }
-    else
-        rows[#rows + 1] = ui.row{ w = CONTENT, gap = 6, pad = 6, radius = 2, hover = HOVER, onClick = "calendar settings",
-            ui.symbol{ name = "lock.fill", w = 14, h = 14 },
-            ui.text{ style = "caption", text = omniwm.l10n("Open Calendar Privacy Settings"), size = 13, maxWidth = CONTENT - 30, lines = 2 } }
-    end
-    return ui.column(rows)
+    return calendar.content(ctx, CONTENT)
 end
 
 local CONDITIONS = {

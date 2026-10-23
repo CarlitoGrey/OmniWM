@@ -27,6 +27,10 @@ indicator = "pills"
 [widgets.volume]
 step = 5
 
+[widgets.clock]
+date = false
+icon = true
+
 [drawer.dashboard]
 edge = "top"
 widgets = ["dashboard"]
