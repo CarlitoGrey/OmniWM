@@ -52,15 +52,13 @@ final class InputSourceControllerTests: XCTestCase {
             XCTAssertEqual(controller.value, current)
             XCTAssertEqual(reader.reads, 1)
 
-            let published = expectation(description: "No input source published after stopping \(name)")
-            published.isInverted = true
-            controller.onChange = { _ in published.fulfill() }
+            controller.onChange = { _ in XCTFail("Input source published after stopping \(name)") }
             center.post(name: name, object: nil)
             controller.setListening(false)
             let readsAtStop = reader.reads
             XCTAssertNil(controller.value)
 
-            await fulfillment(of: [published], timeout: 0.1)
+            await Task { @MainActor in }.value
             XCTAssertNil(controller.value)
             XCTAssertEqual(reader.reads, readsAtStop)
         }
