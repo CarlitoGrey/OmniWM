@@ -41,6 +41,17 @@ local function backdrop(m, offset, length, props)
     return ui.box(props)
 end
 
+local function scratchpadColors(scratchpad, style)
+    local active = (scratchpad.revealed or scratchpad.focused) and style.accents
+    local hue = style.accentColor ~= nil and "accent" or "tertiaryAccent"
+    local container = style.accentColor ~= nil and "accent/0.22" or "tertiaryContainer"
+    local onContainer = style.accentColor ~= nil and "accent" or "tertiaryContainerForeground"
+    local tint = style.textColor ~= nil and "foreground" or active and onContainer or "secondaryForeground"
+    local chip = active and hue .. "/0.3" or "foreground/0.1"
+    local fill = style.backgrounds and (active and container or (scratchpad.visible and "highestSurface" or nil)) or nil
+    return tint, chip, hue, fill
+end
+
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
@@ -200,6 +211,57 @@ return require("./skin")({
         layers.w = m.vertical and m.inner or nil
         layers.h = if m.vertical then nil else m.inner
         return ui.stack(layers)
+    end,
+    scratchpadMetrics = function(_, style)
+        local scale = style.height / 60
+        return { item = (tokens.bar.inner - tokens.padding.small) * scale, icon = 24 * scale, slot = 24 * scale,
+            gap = 1, compactGap = 1, edge = 7, compactEdge = 3, spacing = tokens.spacing.extraSmall * scale }
+    end,
+    scratchpadLabel = function(scratchpad, style, m, text, width)
+        local tint = scratchpadColors(scratchpad, style)
+        return ui.stack{ w = width or (m.vertical and m.item - 6 or nil), h = m.item - 6,
+            ui.text{ text = text, font = "sans",
+                size = if width then math.min(tokens.label.medium * m.scale, width / 2) else tokens.label.medium * m.scale,
+                weight = "medium", color = tint,
+                maxWidth = width } }
+    end,
+    scratchpadCount = function(text, scratchpad, style, m)
+        local tint, chip = scratchpadColors(scratchpad, style)
+        local height = m.item - 8
+        return ui.row{ h = height, radius = height / 2, fill = chip,
+            ui.box{ w = 4, h = 1 },
+            ui.text{ text = text, font = "sans", size = 10, weight = "bold", color = tint },
+            ui.box{ w = 4, h = 1 } }
+    end,
+    scratchpadIcon = function(_, glyph, member, _, style)
+        glyph.opacity = member.focused and 1 or (style.inactive >= 0 and style.inactive or 0.85)
+    end,
+    scratchpadPill = function(node, scratchpad, style, m)
+        local _, _, hue, fill = scratchpadColors(scratchpad, style)
+        local short = scratchpad.compact or m.vertical
+        node.radius = m.item / 2
+        node.animate = "effects"
+        node.fill = fill
+        node.hover = hue .. "/0.12"
+        node[1].w = m.vertical and 1 or (short and 3 or 7)
+        node[1].h = m.vertical and (short and 3 or 7) or 1
+        local trailing = node[#node]
+        trailing.w = m.vertical and 1 or (scratchpad.compact and 2 or 3)
+        trailing.h = m.vertical and (scratchpad.compact and 2 or 3) or 1
+        table.insert(node, 3, ui.box{ w = m.vertical and 1 or (short and 2 or 4),
+            h = m.vertical and (short and 2 or 4) or 1 })
+    end,
+    scratchpadGroup = function(_, items, style, m)
+        if #items == 0 then
+            return ui.row{}
+        end
+        local capsule = tokens.bar.inner * m.scale
+        items.radius = capsule / 2
+        items.pad = tokens.padding.extraSmall * m.scale
+        items.w = m.vertical and capsule or nil
+        items.h = if m.vertical then nil else capsule
+        items.fill = style.backgrounds and "surface" or nil
+        return line(m.vertical, items)
     end,
     pickerHeader = function(header, item)
         header[1].size = tokens.title.small

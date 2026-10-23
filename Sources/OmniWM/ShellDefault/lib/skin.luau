@@ -88,6 +88,22 @@ local function skin(look)
         props.h = props.h or bar.height - 4
         return ui.row(props)
     end
+    look.notificationBadge = look.notificationBadge or function(item, mode, m)
+        local dx = math.max(0, m.margin - 4)
+        local dy = m.margin - math.max(2, m.icon * 0.12)
+        if mode == "dot" then
+            local size = math.max(6, m.icon * 0.35)
+            return ui.box{ align = "topLeading", dx = dx, dy = dy, w = size, h = size, radius = size / 2, fill = "badge" }
+        end
+        local fit = math.min(1, m.scale)
+        local inset = m.icon < 20 and 1 or 3
+        local height = math.max(12 * fit, m.icon * 0.55)
+        return ui.row{ align = "topLeading", dx = dx, dy = dy, h = height, radius = height / 2, fill = "badge",
+            ui.box{ w = inset, h = 1 },
+            look.text{ text = item.badge, style = "mono", size = math.max(10 * fit, m.icon * 0.35), weight = "semibold",
+                color = "#FFFFFFFF", maxWidth = m.slot - inset * 2 },
+            ui.box{ w = inset, h = 1 } }
+    end
     look.panel = look.panel or function(_, props)
         props.pad = props.pad or 14
         props.gap = props.gap or 12

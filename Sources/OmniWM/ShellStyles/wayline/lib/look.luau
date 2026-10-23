@@ -126,6 +126,66 @@ return require("./skin")({
         pills.gap = 6 * m.scale
         return line(m.vertical, pills)
     end,
+    scratchpadMetrics = function(_, _, m)
+        return { item = 30 * m.scale, icon = 24 * m.scale, slot = 24 * m.scale,
+            gap = 2, compactGap = 2, edge = 4, compactEdge = 4, spacing = 2 }
+    end,
+    scratchpadLabel = function(scratchpad, style, m, text, width)
+        local active = (scratchpad.revealed or scratchpad.focused) and style.accents
+        local hue = style.accentColor ~= nil and "accent" or "purple"
+        local color = style.textColor ~= nil and "foreground" or active and hue
+            or (scratchpad.visible and "foreground" or "secondaryForeground")
+        local name = ui.text{ text = text, size = if width then math.min(14 * m.scale, width / 2) else 14 * m.scale,
+            weight = "bold", color = color, maxWidth = width }
+        if scratchpad.visible or active then
+            return name
+        end
+        return line(m.vertical, { gap = 2, name,
+            ui.symbol{ name = "eye.slash", size = 8, weight = "bold", color = "mutedForeground" } })
+    end,
+    scratchpadCount = function(text)
+        return ui.row{ h = 14, radius = 7, fill = "foreground/0.08",
+            ui.box{ w = 4, h = 1 },
+            ui.text{ text = text, style = "mono", size = 9, weight = "bold", color = "secondaryForeground" },
+            ui.box{ w = 4, h = 1 } }
+    end,
+    scratchpadIcon = function(_, glyph, member, scratchpad, style)
+        glyph.opacity = member.focused and 1 or (style.inactive >= 0 and style.inactive
+            or (scratchpad.visible and 0.9 or 0.6))
+    end,
+    scratchpadPill = function(node, scratchpad, style, m)
+        local active = (scratchpad.revealed or scratchpad.focused) and style.accents
+        local hue = style.accentColor ~= nil and "accent" or "purple"
+        node.radius = math.floor(32 * m.scale * 0.24) - 1
+        node.fill = (active and style.backgrounds) and (hue .. "/0.22") or nil
+        node.hover = not active and (hue .. "/0.15") or nil
+        node.border = scratchpad.focused and not style.accents and "foreground/0.4" or nil
+        node.borderWidth = 1
+        if not scratchpad.compact then
+            table.insert(node, 3, spacer(m.vertical, 0))
+        end
+    end,
+    scratchpadGroup = function(_, items, style, m)
+        if #items == 0 then
+            return ui.row{}
+        end
+        local size = 32 * m.scale
+        local radius = math.floor(size * 0.24)
+        local block = ui.stack{ w = size, h = size,
+            ui.box{ w = size, h = size, radius = radius, fill = "purple" },
+            ui.box{ align = m.vertical and "bottom" or "trailing", w = m.vertical and size or radius,
+                h = m.vertical and radius or size, fill = "purple" },
+            ui.symbol{ name = "tray.fill", size = math.floor(size * 0.5), weight = "semibold", color = "accentForeground" } }
+        items.gap = 2
+        items.radius = radius
+        items.fill = style.backgrounds and "elevatedSurface" or nil
+        items.w = m.vertical and size or nil
+        items.h = not m.vertical and size or nil
+        table.insert(items, 1, spacer(m.vertical, 0))
+        table.insert(items, 1, block)
+        items[#items + 1] = spacer(m.vertical, 0)
+        return line(m.vertical, items)
+    end,
     pickerHeader = function(header, item)
         header[1].size = 13
         header[1].weight = "bold"

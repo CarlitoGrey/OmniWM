@@ -141,4 +141,49 @@ return require("./skin")({
         table.insert(row, 1, ui.box{ w = 6, h = 6, radius = 3,
             fill = if window.focused then "accent" else "mutedForeground/0.5" })
     end,
+    scratchpadMetrics = function(_, _, m)
+        return { item = 32 * m.scale, icon = 24 * m.scale, slot = 27 * m.scale,
+            gap = 3, compactGap = 3, edge = 1, compactEdge = 1, spacing = 6 }
+    end,
+    scratchpadLabel = function(scratchpad, style, m, text, width)
+        local active = (scratchpad.revealed or scratchpad.focused) and style.accents
+        local fill, color
+        if active then
+            fill, color = "accent", "accentForeground"
+        elseif scratchpad.visible then
+            fill, color = "blue/0.2", if style.textColor ~= nil then "foreground" else "blue"
+        else
+            fill, color = "foreground/0.07", if style.textColor ~= nil then "foreground" else "mutedForeground"
+        end
+        if not style.backgrounds and not active then
+            fill = nil
+        end
+        local size = 24 * m.scale
+        local label = ui.text{ text = text, size = if width then math.min(14 * m.scale, width / 2) else 14 * m.scale,
+            weight = "bold",
+            color = if style.textColor ~= nil then "foreground" else color, maxWidth = width }
+        if scratchpad.compact or m.vertical then
+            return ui.stack{ w = size, h = size, radius = size / 2, fill = fill, label }
+        end
+        return ui.row{ h = size, gap = 4, radius = size / 2, fill = fill,
+            ui.box{ w = 5, h = 1 },
+            ui.symbol{ name = "tray.fill", size = 9, weight = "bold", color = color },
+            label,
+            ui.box{ w = 6, h = 1 } }
+    end,
+    scratchpadCount = function(text, _, _, m)
+        local size = m.item - 10
+        return ui.row{ h = size, radius = size / 2, fill = "elevatedSurface",
+            ui.box{ w = 4, h = 1 },
+            ui.text{ text = text, style = "mono", size = size - 6, weight = "bold", color = "foreground" },
+            ui.box{ w = 4, h = 1 } }
+    end,
+    scratchpadPill = function(node, scratchpad, style, m)
+        node.radius = m.item / 2 - 1
+        node.fill = if style.backgrounds then "surface" else nil
+        node.hover = "focus/0.14"
+        node.border = if style.backgrounds then "border/0.6" else nil
+        node.borderWidth = 1
+        node[#node] = spacer(m.vertical, if scratchpad.compact then 3 else 1)
+    end,
 })

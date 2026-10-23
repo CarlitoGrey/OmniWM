@@ -35,19 +35,18 @@ enum WorkspaceBarScratchpadLayout {
         barHeight: CGFloat
     ) -> CGFloat {
         guard !items.isEmpty else { return 0 }
-        let itemHeight = max(16, barHeight - 4)
-        let iconSize = max(12, itemHeight - 6)
+        let scale = barHeight / 32
         return items.reduce(0) { width, item in
-            width + estimatedWidth(of: item, iconSize: iconSize)
+            width + estimatedWidth(of: item, scale: scale)
         } + CGFloat(items.count - 1) * 8
     }
 
     private static func estimatedWidth(
         of item: WorkspaceBarScratchpadItem,
-        iconSize: CGFloat
+        scale: CGFloat
     ) -> CGFloat {
-        let fontSize = max(9, iconSize * 0.6)
-        let font = NSFont.systemFont(ofSize: fontSize, weight: .medium)
+        let iconSize = 18 * scale
+        let font = NSFont.systemFont(ofSize: 13 * scale, weight: .medium)
         let labelWidth = (item.name as NSString).size(withAttributes: [.font: font]).width
         switch item.presentation {
         case .expanded:

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 import AppKit
+import CoreText
 import ImageIO
 @testable import OmniWM
 import OmniWMScriptHost
@@ -106,7 +107,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                         name, config: config, shell: shell, resources: resources,
                         source: shared ? shell.appendingPathComponent("default/widgets/\(name)/init.luau") : nil
                     )
-                    widget.render(fixture(config, height: height, vertical: vertical))
+                    widget.render(name == "scratchpads"
+                        ? scratchpadFixture(config, height: height, vertical: vertical)
+                        : fixture(config, height: height, vertical: vertical))
                     let background = resources.palette.color(.clear, default: .background)
                     try ShellBundledWidgetTests.writeSnapshot(
                         widget.surface,
@@ -385,6 +388,148 @@ final class ShellStyleLayoutTests: XCTestCase {
                     Set(widget.surface.targetFrames().map { widget.text.string($0.target) }),
                     ["workspace 2", "workspace 3"]
                 )
+            }
+        }
+    }
+
+    func testSharedScratchpadSkinsKeepToggleFocusLabelsAndBadges() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let base = config.barOverride?.settings.height ?? 32
+            for vertical in [false, true] {
+                let widget = try makeWidget(
+                    "scratchpads", config: config, shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/scratchpads/init.luau")
+                )
+                var menuTargets: [String] = []
+                let strings = widget.text
+                widget.surface.onMenu = { menuTargets.append(strings.string($0.target)) }
+                for height in [base, base * 1.5] {
+                    for compact in [false, true] {
+                        var bar = scratchpadFixture(config, height: height, vertical: vertical)
+                        bar.style.inactive = 0.27
+                        bar.scratchpads = bar.scratchpads.map {
+                            ShellBarScratchpad(
+                                id: $0.id,
+                                name: $0.name,
+                                focused: $0.focused,
+                                revealed: $0.revealed,
+                                visible: $0.visible,
+                                windows: $0.windows,
+                                compact: compact
+                            )
+                        }
+                        var size: CGSize?
+                        for mode in ["off", "dot", "text"] {
+                            let context = "\(profile) vertical=\(vertical) compact=\(compact) height=\(height) badges=\(mode)"
+                            bar.badges = mode
+                            bar.style.accents = true
+                            widget.render(bar)
+                            let currentSize = widget.surface.size
+                            XCTAssertGreaterThan(currentSize.width, 0, context)
+                            XCTAssertGreaterThan(currentSize.height, 0, context)
+                            XCTAssertLessThanOrEqual(vertical ? currentSize.width : currentSize.height, height, context)
+                            if let size { XCTAssertEqual(currentSize, size, context) }
+                            size = currentSize
+                            let tree = widget.tree()
+                            XCTAssertEqual(
+                                Set(tree.filter { $0.content.menu }.map { widget.text.string($0.content.target) }),
+                                ["scratchpad 1", "scratchpad 2", "scratchpad 3"],
+                                context
+                            )
+                            for scratchpad in bar.scratchpads {
+                                let button = try XCTUnwrap(widget.surface.layout.core.elements {
+                                    widget.text.string($0.target) == "scratchpad \(scratchpad.id)"
+                                }.first, context)
+                                let content = widget.surface.layout.core.content(of: button)
+                                XCTAssertTrue(content.menu, context)
+                                XCTAssertFalse(widget.text.string(content.help).isEmpty, context)
+                                XCTAssertEqual(
+                                    widget.text.string(content.action),
+                                    "scratchpad toggle \(scratchpad.id)",
+                                    context
+                                )
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                                let point = CGPoint(x: frame.midX, y: frame.midY)
+                                widget.surface.press(at: point)
+                                widget.surface.release(at: point)
+                                XCTAssertEqual(
+                                    widget.clicks.last?.action,
+                                    "scratchpad toggle \(scratchpad.id)",
+                                    context
+                                )
+                                XCTAssertTrue(widget.surface.openContextMenu(at: point, option: false), context)
+                                XCTAssertEqual(menuTargets.last, "scratchpad \(scratchpad.id)", context)
+                            }
+                            let focused = try XCTUnwrap(tree
+                                .first { widget.text.string($0.content.target) == "scratchpad 1" })
+                            XCTAssertEqual(focused.paint.scale, 1.04, context)
+                            XCTAssertTrue(focused.paint.stroke.isVisible, context)
+                            XCTAssertEqual(focused.paint.strokeWidth, 1.2, context)
+                            let label = try XCTUnwrap(tree.first {
+                                $0.kind == .label && widget.text
+                                    .string($0.content.text) == (vertical ? "T" : "Terminal sessions")
+                            }, context)
+                            if compact, !vertical {
+                                XCTAssertEqual(
+                                    label.content.maxWidth,
+                                    Float(WorkspaceBarScratchpadLayout.compactLabelMaximumWidth),
+                                    context
+                                )
+                                let attributes: [NSAttributedString.Key: Any] = [
+                                    NSAttributedString.Key(kCTFontAttributeName as String): ShellTextStyle
+                                        .font(for: label.content.style)
+                                ]
+                                let line = CTLineCreateWithAttributedString(NSAttributedString(
+                                    string: "Terminal sessions",
+                                    attributes: attributes
+                                ))
+                                let ellipsis = CTLineCreateWithAttributedString(NSAttributedString(
+                                    string: "…",
+                                    attributes: attributes
+                                ))
+                                let truncated = try XCTUnwrap(
+                                    CTLineCreateTruncatedLine(line, Double(label.content.maxWidth), .end, ellipsis),
+                                    context
+                                )
+                                XCTAssertGreaterThan(
+                                    CTLineGetGlyphCount(truncated),
+                                    CTLineGetGlyphCount(ellipsis),
+                                    context
+                                )
+                            }
+                            let labels = tree.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }
+                            XCTAssertTrue(labels.contains(compact ? "6" : "+2"), context)
+                            XCTAssertEqual(labels.contains("999+"), !compact && mode == "text", context)
+                            let icons = tree.filter { $0.kind == .image && $0.content.iconSource == .window }
+                            XCTAssertEqual(icons.count, compact ? 0 : 5, context)
+                            if !compact {
+                                XCTAssertEqual(
+                                    icons.map { widget.text.string($0.content.iconRef) },
+                                    ["0", "1", "2", "3", "4"],
+                                    context
+                                )
+                                XCTAssertEqual(icons.map(\.paint.opacity), [1, 0.27, 0.27, 0.27, 0.27], context)
+                            }
+                        }
+                        bar.style.accents = false
+                        widget.render(bar)
+                    }
+                }
+                var bar = scratchpadFixture(config, height: base, vertical: vertical)
+                bar.island = .active
+                widget.render(bar)
+                XCTAssertEqual(widget.surface.size, .zero, profile)
+                bar.island = .secondary
+                widget.render(bar)
+                XCTAssertFalse(widget.surface.layout.core.elements { $0.menu && $0.target != 0 }.isEmpty, profile)
+                bar.scratchpads = []
+                widget.render(bar)
+                XCTAssertEqual(widget.surface.size, .zero, profile)
             }
         }
     }
@@ -673,6 +818,58 @@ final class ShellStyleLayoutTests: XCTestCase {
             }, OMNI_OK)
         }
         return widget
+    }
+
+    private func scratchpadFixture(_ config: ShellConfig, height: Double, vertical: Bool) -> ShellBarData {
+        var bar = fixture(config, height: height, vertical: vertical)
+        bar.style.accents = true
+        let members = (0 ..< 5).map { index in
+            ShellBarItem(
+                id: "\(index)",
+                bundle: applications[index % applications.count],
+                name: "App \(index)",
+                focused: index == 0,
+                count: index == 1 ? 2 : 1,
+                hidden: 0,
+                badge: ["7", "42", "999+", "3", ""][index],
+                windows: [
+                    ShellBarWindow(
+                        id: "scratch-\(index)",
+                        title: "Window \(index)",
+                        focused: index == 0,
+                        hidden: false
+                    )
+                ]
+            )
+        }
+        bar.scratchpads = [
+            ShellBarScratchpad(
+                id: 1,
+                name: "Terminal sessions",
+                focused: true,
+                revealed: true,
+                visible: true,
+                windows: members
+            ),
+            ShellBarScratchpad(
+                id: 2,
+                name: "Chat",
+                focused: false,
+                revealed: false,
+                visible: false,
+                windows: [members[3]],
+                compact: true
+            ),
+            ShellBarScratchpad(
+                id: 3,
+                name: "Music",
+                focused: false,
+                revealed: false,
+                visible: true,
+                windows: [members[4]]
+            )
+        ]
+        return bar
     }
 
     private func fixture(_ config: ShellConfig, height: Double, vertical: Bool) -> ShellBarData {

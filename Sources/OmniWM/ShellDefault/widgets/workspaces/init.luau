@@ -108,26 +108,7 @@ local function notificationBadge(item: BarItem, mode: string, m: Metrics)
     if mode == "off" or item.badge == "" then
         return nil
     end
-    if look.notificationBadge then
-        local custom = look.notificationBadge(item, mode, m)
-        if custom then
-            return custom
-        end
-    end
-    local dx = math.max(0, m.margin - 4)
-    local dy = m.margin - math.max(2, m.icon * 0.12)
-    if mode == "dot" then
-        local size = math.max(6, m.icon * 0.35)
-        return ui.box{ align = "topLeading", dx = dx, dy = dy, w = size, h = size, radius = size / 2, fill = "badge" }
-    end
-    local inset = m.icon < 20 and 1 or 3
-    local fit = math.min(1, m.scale)
-    local height = math.max(12 * fit, m.icon * 0.55)
-    return ui.row{ align = "topLeading", dx = dx, dy = dy, h = height, radius = height / 2, fill = "badge",
-        ui.box{ w = inset, h = 1 },
-        look.text{ text = item.badge, style = "mono", size = math.max(10 * fit, m.icon * 0.35), weight = "semibold",
-            color = WHITE, maxWidth = m.slot - inset * 2 },
-        ui.box{ w = inset, h = 1 } }
+    return look.notificationBadge(item, mode, m)
 end
 
 local function hiddenIndicator(item: BarItem, m: Metrics)
