@@ -93,6 +93,22 @@ final class ShellWidgetInspectorTests: XCTestCase {
                 if option.styleDefault == option.maximum {
                     XCTAssertEqual(pixels["default"], pixels["maximum"], option.widget)
                 }
+                for value in stride(from: option.minimum, through: option.maximum, by: 1) {
+                    try await configuration.setWidgetValue(.number(value), widget: option.widget, key: option.key)
+                    await display(window)
+                    let reference = try snapshot(
+                        host,
+                        name: "nocturne-inspector-\(option.widget)-\(appearance == .darkAqua ? "dark" : "light")-value-\(value)"
+                    )
+                    let context = "\(option.widget) \(appearance.rawValue) \(value)"
+                    for state in ["default", "reset"] {
+                        if value == option.styleDefault {
+                            XCTAssertEqual(pixels[state], reference, context)
+                        } else {
+                            XCTAssertNotEqual(pixels[state], reference, context)
+                        }
+                    }
+                }
             }
         }
     }
@@ -154,7 +170,6 @@ final class ShellWidgetInspectorTests: XCTestCase {
     }
 
     private func snapshot(_ view: NSView, name: String) throws -> Data {
-        // Keep the header and option controls in a fixed viewport.
         let height = min(view.bounds.height, 300)
         let area = CGRect(
             x: 0,
