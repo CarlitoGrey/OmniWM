@@ -85,6 +85,7 @@ final class MenuBarAutohideHold {
     func setMenuAccess(_ active: Bool) -> Bool {
         guard menuAccess != active else { return true }
         if active {
+            guard request != true else { return true }
             let current = system.preference()
             let previousHold = currentHold(matching: current)
             var hold = previousHold ?? MenuBarHideHold(previous: current)
