@@ -103,7 +103,7 @@ local function chip(size, vertical, color, glyph, alone)
         props[#props + 1] = ui.box{ align = vertical and "bottom" or "trailing", w = vertical and size or radius,
             h = vertical and radius or size, fill = color }
     end
-    props[#props + 1] = ui.symbol(glyph)
+    props[#props + 1] = glyph.kind and glyph or ui.symbol(glyph)
     return ui.stack(props)
 end
 
@@ -165,6 +165,47 @@ local function batteryChip(ctx, state, details)
         color = hue, reserve = state.reserve }
     props[#props + 1] = ui.box{ w = 9, h = 1 }
     return ui.row(props)
+end
+
+local RADIO_WIDTH = 360
+local RADIO_INNER = RADIO_WIDTH - 32
+
+local function radioChip(ctx, library, state)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local glyphSize = 18 * scale
+    local glyph
+    if library.fan then
+        glyph = state.power and library.fan(state.level, glyphSize, "accentForeground", "accentForeground/0.24")
+            or ui.symbol{ name = "wifi.slash", size = glyphSize, color = "accentForeground" }
+    else
+        glyph = library.rune(glyphSize, state.power and "accentForeground" or "accentForeground/0.6")
+    end
+    local node = chip(size, style.vertical, "accent", glyph, true)
+    node.hoverOpacity = 0.9
+    return node
+end
+
+local function radioPanel(ctx, m, library, title)
+    local content = library.content(ctx, RADIO_INNER, m)
+    local header
+    if m then
+        header = table.remove(content, 1)
+        header[1].weight = "bold"
+        if m.power and (not m.devices or #m.devices > 0) then
+            content[1] = statsCard(RADIO_INNER, content[1])
+        end
+    else
+        header = ui.row{ w = RADIO_INNER,
+            ui.text{ text = title, size = 14, weight = "bold", color = "foreground" } }
+        content = statsCard(RADIO_INNER, content)
+    end
+    header.gap = 8
+    table.insert(header, 1, library.fan and ui.symbol{ name = "wifi", size = 13, weight = "semibold", color = "accent" }
+        or library.rune(14, "accent"))
+    return frame(RADIO_WIDTH, 44, header, ui.column{ w = RADIO_WIDTH, pad = 16, gap = 10, center = false,
+        content })
 end
 
 local AUDIO_WIDTH = 360
@@ -607,6 +648,18 @@ return require("./skin")({
     calendarPanel = calendarPanel,
     weatherBar = weatherBar,
     weatherPanel = weatherPanel,
+    wifiBar = function(ctx, state)
+        return radioChip(ctx, require("./wifi"), state)
+    end,
+    bluetoothBar = function(ctx, state)
+        return radioChip(ctx, require("./bluetooth"), state)
+    end,
+    wifiPanel = function(ctx, m)
+        return radioPanel(ctx, m, require("./wifi"), omniwm.l10n("Wi-Fi"))
+    end,
+    bluetoothPanel = function(ctx, m)
+        return radioPanel(ctx, m, require("./bluetooth"), omniwm.l10n("Bluetooth"))
+    end,
     batteryBar = function(ctx, state)
         return batteryChip(ctx, state, false)
     end,

@@ -101,6 +101,15 @@ local function batteryChip(ctx, m, mode)
     return surface.pill(style, items, { help = omniwm.l10n("Battery"), hover = mode and status.hover or nil })
 end
 
+local function iconPill(ctx, name)
+    local style = ctx.data.bar.style
+    local scale = style.height / 60
+    return surface.pill(style, {
+        surface.icon(name, { size = tokens.icon.medium * scale, color = "secondaryAccent",
+            filled = true, animate = "effects" }),
+    }, { hover = status.hover })
+end
+
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
@@ -117,6 +126,14 @@ return require("./skin")({
         return batteryChip(ctx, m, m.mode)
     end,
     batteryPanel = status.battery,
+    wifiBar = function(ctx, m)
+        return iconPill(ctx, status.wifiIcon(m))
+    end,
+    wifiPanel = status.network,
+    bluetoothBar = function(ctx, m)
+        return iconPill(ctx, status.bluetoothStateIcon(m))
+    end,
+    bluetoothPanel = status.bluetooth,
     activeWindowBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 60

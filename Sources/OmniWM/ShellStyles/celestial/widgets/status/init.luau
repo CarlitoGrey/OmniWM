@@ -43,7 +43,8 @@ function render(ctx: Context)
     end
     local bluetooth = data.bluetooth
     if setting(ctx, "bluetooth", true) and bluetooth then
-        local group = { gap = tokens.spacing.medium / 2 * scale, glyph(status.bluetoothIcon(bluetooth), scale) }
+        local group = { gap = tokens.spacing.medium / 2 * scale,
+            glyph(status.bluetoothStateIcon(require("../lib/bluetooth").state(ctx)), scale) }
         for _, device in bluetooth.devices do
             if device.connected then
                 group[#group + 1] = glyph(icons.bluetooth(device.kind), scale)

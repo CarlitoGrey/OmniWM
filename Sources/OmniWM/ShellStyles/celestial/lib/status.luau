@@ -18,16 +18,8 @@ local function wifiIcon(wifi: WiFi?): string
     return icons.wifi(wifi.rssi)
 end
 
-local function bluetoothIcon(bluetooth: Bluetooth): string
-    if not bluetooth.power then
-        return "bluetooth_disabled"
-    end
-    for _, device in bluetooth.devices do
-        if device.connected then
-            return "bluetooth_connected"
-        end
-    end
-    return "bluetooth"
+local function bluetoothStateIcon(m)
+    return not m.power and "bluetooth_disabled" or m.connected > 0 and "bluetooth_connected" or "bluetooth"
 end
 
 local function heading(icon: string, title: string, detail: string?, width: number)
@@ -77,30 +69,20 @@ local function panel(width: number, rows)
     return ui.column{ material = "clear", pad = tokens.padding.small, ui.column(rows) }
 end
 
-local function networkPanel(ctx: Context)
+local function networkPanel(ctx: Context, m)
+    local wifi = require("./wifi")
+    m = m or wifi.model(ctx)
     local width = tokens.bar.popout.network
     local inner = width - 2 * tokens.padding.large
-    local wifi = ctx.data.wifi
-    local rows = {}
-    local status = not wifi and omniwm.l10n("Unavailable") or not wifi.power and omniwm.l10n("Off")
-        or wifi.connected and omniwm.l10n("Connected") or omniwm.l10n("Not Connected")
-    rows[#rows + 1] = heading(wifiIcon(wifi), omniwm.l10n("Wi-Fi"), status, inner)
-    if wifi and wifi.connected then
-        if wifi.ssid then
-            rows[#rows + 1] = ui.text{ text = wifi.ssid, font = "sans", size = tokens.title.medium, weight = "medium",
+    local rows = { heading(wifiIcon(m), omniwm.l10n("Wi-Fi"),
+        m and m.connectionStatus or omniwm.l10n("Unavailable"), inner) }
+    if m then
+        if m.power and m.connected then
+            rows[#rows + 1] = ui.text{ text = m.name, font = "sans", size = tokens.title.medium, weight = "medium",
                 maxWidth = inner }
-        elseif wifi.location ~= "authorized" then
-            rows[#rows + 1] = action(omniwm.l10n("Allow Location Access to show the network name"), "wifi authorize",
-                inner)
-        else
-            rows[#rows + 1] = ui.text{ text = omniwm.l10n("Network name hidden"), font = "sans",
-                size = tokens.body.medium, color = "secondaryForeground" }
         end
-        if wifi.band then
-            rows[#rows + 1] = line(omniwm.l10n("Band"), wifi.band, inner)
-        end
-        if wifi.security then
-            rows[#rows + 1] = line(omniwm.l10n("Security"), wifi.security, inner)
+        for _, detail in m.details do
+            rows[#rows + 1] = line(detail.label, detail.value, inner)
         end
     end
     local network = ctx.data.network
@@ -108,39 +90,40 @@ local function networkPanel(ctx: Context)
         rows[#rows + 1] = line(omniwm.l10n("Download"), ctx.format.bytes(network.down, "file") .. "/s", inner)
         rows[#rows + 1] = line(omniwm.l10n("Upload"), ctx.format.bytes(network.up, "file") .. "/s", inner)
     end
-    rows[#rows + 1] = action(omniwm.l10n("Wi-Fi Settings…"), "wifi settings", inner)
+    if m then
+        for _, entry in m.actions do
+            rows[#rows + 1] = action(entry.text, entry.command, inner, entry.prompt)
+        end
+    else
+        rows[#rows + 1] = action(omniwm.l10n("Wi-Fi Settings…"), wifi.settings, inner)
+    end
     return panel(width, rows)
 end
 
-local function bluetoothPanel(ctx: Context)
+local function bluetoothPanel(ctx: Context, m)
+    m = m or require("./bluetooth").model(ctx)
     local width = tokens.bar.popout.network
     local inner = width - 2 * tokens.padding.large
-    local bluetooth = ctx.data.bluetooth
-    local rows = {}
-    if not bluetooth then
+    if not m then
         return panel(width, { heading("bluetooth_disabled", omniwm.l10n("Bluetooth"), omniwm.l10n("Unavailable"), inner) })
     end
-    local connected = 0
-    for _, device in bluetooth.devices do
-        connected += device.connected and 1 or 0
-    end
-    rows[#rows + 1] = heading(bluetoothIcon(bluetooth), omniwm.l10n("Bluetooth"),
-        bluetooth.power and omniwm.l10n("Bluetooth: %lld connected", connected) or omniwm.l10n("Bluetooth: Off"), inner)
-    if bluetooth.access ~= "granted" then
-        rows[#rows + 1] = action(omniwm.l10n("Allow Bluetooth access to list devices"), "bluetooth authorize", inner)
-    end
-    for _, device in bluetooth.devices do
-        local battery = device.battery or device.left or device.right
+    local rows = { heading(bluetoothStateIcon(m), omniwm.l10n("Bluetooth"), m.granted and m.help or nil, inner) }
+    for _, device in m.devices do
         rows[#rows + 1] = ui.row{ key = device.id, w = inner, gap = tokens.spacing.medium, pad = tokens.padding.small,
             radius = tokens.rounding.large, fill = device.connected and "secondaryContainer" or nil,
             surface.icon(icons.bluetooth(device.kind), { size = tokens.icon.small,
                 color = device.connected and "secondaryContainerForeground" or "secondaryForeground", filled = true }),
-            ui.text{ text = device.name, font = "sans", size = tokens.body.small, grow = 1, maxWidth = inner - 110,
-                color = device.connected and "secondaryContainerForeground" or "foreground" },
-            battery and ui.text{ text = ctx.format.percent(battery / 100), font = "sans", size = tokens.body.small,
-                color = "secondaryForeground" } or nil }
+            ui.column{ gap = 2, center = false, grow = 1,
+                ui.text{ text = device.name, font = "sans", size = tokens.body.small, maxWidth = inner - 110,
+                    color = device.connected and "secondaryContainerForeground" or "foreground" },
+                ui.text{ text = device.status, font = "sans", size = tokens.label.small, color = "secondaryForeground",
+                    maxWidth = inner - 110 } },
+            device.batteryText and ui.text{ text = device.batteryText, font = "sans", size = tokens.body.small,
+                color = device.lowBattery and "error" or "secondaryForeground" } or nil }
     end
-    rows[#rows + 1] = action(omniwm.l10n("Bluetooth Settings…"), "bluetooth settings", inner)
+    for _, entry in m.actions do
+        rows[#rows + 1] = action(entry.text, entry.command, inner, entry.prompt)
+    end
     return panel(width, rows)
 end
 
@@ -236,7 +219,7 @@ return table.freeze({
     hover = HOVER,
     scroll = scroll,
     wifiIcon = wifiIcon,
-    bluetoothIcon = bluetoothIcon,
+    bluetoothStateIcon = bluetoothStateIcon,
     panel = panel,
     pane = pane,
     network = networkPanel,

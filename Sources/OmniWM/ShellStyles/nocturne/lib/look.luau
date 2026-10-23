@@ -442,6 +442,37 @@ local function batteryChip(ctx, state, details)
     return ui.row(props)
 end
 
+local RADIO_WIDTH = 320
+local RADIO_INNER = RADIO_WIDTH - 26
+
+local function radioChip(ctx, library, state)
+    local style = ctx.data.bar.style
+    local size = 32 * style.height / 40
+    return ui.stack{ w = size, h = size, radius = size / 2 - 1,
+        fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14",
+        library.glyph(state, 18 * style.height / 40) }
+end
+
+local function radioPanel(ctx, m, library, title)
+    local content = library.content(ctx, RADIO_INNER, m)
+    local header
+    if m then
+        header = table.remove(content, 1)
+        header.gap = 0
+        header[1].size, header[1].weight = 15, "bold"
+        table.insert(header, 1, ui.box{ w = 2, h = 1 })
+        if m.power and (not m.devices or #m.devices > 0) then
+            content[1] = statsCard(content[1])
+        end
+    else
+        header = ui.row{ w = RADIO_INNER, gap = 0,
+            ui.box{ w = 2, h = 1 }, ui.text{ text = title, size = 15, weight = "bold" } }
+        content = statsCard(content)
+    end
+    return framedPanel(ctx, { gap = 10, header, content }, RADIO_WIDTH)
+end
+
 local CALENDAR_WIDTH = 320
 local CALENDAR_INNER = CALENDAR_WIDTH - 2 - 24
 local CALENDAR_CARD = CALENDAR_INNER - 20
@@ -762,6 +793,18 @@ return require("./skin")({
     calendarPanel = calendarPanel,
     weatherBar = weatherBar,
     weatherPanel = weatherPanel,
+    wifiBar = function(ctx, state)
+        return radioChip(ctx, require("./wifi"), state)
+    end,
+    bluetoothBar = function(ctx, state)
+        return radioChip(ctx, require("./bluetooth"), state)
+    end,
+    wifiPanel = function(ctx, m)
+        return radioPanel(ctx, m, require("./wifi"), omniwm.l10n("Wi-Fi"))
+    end,
+    bluetoothPanel = function(ctx, m)
+        return radioPanel(ctx, m, require("./bluetooth"), omniwm.l10n("Bluetooth"))
+    end,
     batteryBar = function(ctx, state)
         return batteryChip(ctx, state, false)
     end,

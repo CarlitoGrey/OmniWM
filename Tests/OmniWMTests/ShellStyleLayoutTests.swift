@@ -129,6 +129,13 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if ["battery", "battery-details"].contains(name) {
                         batteryFixture(widget)
                     }
+                    if name == "wifi" {
+                        wifiFixture(widget)
+                        networkFixture(widget)
+                    }
+                    if name == "bluetooth" {
+                        bluetoothFixture(widget)
+                    }
                     if name == "active-window" {
                         widget.set("app") { $0.string("Safari") }
                         widget.set("bundle") { $0.string("com.apple.Safari") }
@@ -234,6 +241,25 @@ final class ShellStyleLayoutTests: XCTestCase {
                                 )
                             }
                             calendarFixture(widget)
+                        }
+                    }
+                    if ["wifi", "bluetooth"].contains(name), !vertical {
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                        if !dark {
+                            for state in radioStates(name).dropFirst() + ["unavailable"] {
+                                radioFixture(widget, name: name, state: state)
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "\(name)-\(profile)-popout-\(state)",
+                                    dark: false, directory: directory, background: background
+                                )
+                            }
+                            if name == "wifi" { wifiFixture(widget) } else { bluetoothFixture(widget) }
                         }
                     }
                     if name == "battery-details", !vertical {
@@ -375,6 +401,481 @@ final class ShellStyleLayoutTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testSharedWiFiModelKeepsSignalStatesDetailsAndActions() throws {
+        let shell = try sharedLibraryShell("wifi")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("default/widgets/wifi-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local wifi = require("../lib/wifi")
+        function render(ctx)
+            local m = wifi.model(ctx)
+            if not m then return ui.text{ text = "nil" } end
+            local rows = {}
+            for _, key in {"power", "connected", "ssid", "rssi", "level", "help", "status", "name", "connectionStatus"} do
+                rows[#rows + 1] = ui.text{ text = key .. "=" .. tostring(m[key]) }
+            end
+            for _, detail in m.details do
+                rows[#rows + 1] = ui.text{ text = "detail=" .. detail.label .. ":" .. detail.value }
+            end
+            for _, entry in m.actions do
+                rows[#rows + 1] = ui.text{ text = "action=" .. entry.command .. ":" .. tostring(entry.wrap) .. ":" .. tostring(entry.prompt) }
+            end
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("wifi-model-probe", config: config, shell: shell)
+        let bar = fixture(config, height: 32, vertical: false)
+        for (rssi, level, quality) in [
+            (-81, 0, "Weak"),
+            (-80, 1, "Fair"),
+            (-71, 1, "Fair"),
+            (-70, 2, "Good"),
+            (-61, 2, "Good"),
+            (-60, 3, "Excellent")
+        ] {
+            wifiFixture(
+                widget,
+                ShellWiFi(power: true, connected: true, ssid: "Harbour Home", rssi: rssi, location: "authorized")
+            )
+            widget.render(bar)
+            let strings = widget.strings()
+            XCTAssertTrue(strings.contains("level=\(level)"))
+            XCTAssertTrue(strings.contains("help=Harbour Home"))
+            XCTAssertTrue(strings
+                .contains("detail=" + ShellLocalizer.string("Signal", []) + ":\(rssi) dBm · " + ShellLocalizer.string(
+                    quality,
+                    []
+                )))
+        }
+        for connected in [false, true] {
+            for power in [false, true] {
+                for location in ["authorized", "notDetermined", "denied", "restricted"] {
+                    wifiFixture(widget, ShellWiFi(power: power, connected: connected, location: location))
+                    widget.render(bar)
+                    let strings = widget.strings()
+                    let help = !power ? "Wi-Fi: Off" : connected ? "Wi-Fi: Connected" : "Wi-Fi: Not Connected"
+                    XCTAssertTrue(strings.contains("help=" + ShellLocalizer.string(help, [])))
+                    XCTAssertTrue(strings.contains("name=" + ShellLocalizer.string("Network name hidden", [])))
+                    XCTAssertTrue(strings.contains("level=\(connected ? 0 : -1)"))
+                    XCTAssertTrue(strings.contains("status=" + ShellLocalizer.string(power ? "On" : "Off", [])))
+                    XCTAssertEqual(strings.filter { $0.hasPrefix("detail=") }, [])
+                    var expected = ["action=wifi settings:true:nil"]
+                    if power, location != "authorized" { expected.insert("action=wifi authorize:true:true", at: 0) }
+                    XCTAssertEqual(strings.filter { $0.hasPrefix("action=") }, expected)
+                }
+            }
+        }
+        for channel in [nil, 36] as [Int?] {
+            wifiFixture(
+                widget,
+                ShellWiFi(
+                    power: true,
+                    connected: true,
+                    band: "5 GHz",
+                    channel: channel,
+                    security: "WPA3 Personal",
+                    location: "authorized"
+                )
+            )
+            widget.render(bar)
+            let strings = widget.strings()
+            XCTAssertTrue(strings
+                .contains("detail=" + ShellLocalizer.string("Band", []) + ":5 GHz" + (channel == nil ? "" : " · 36")))
+            XCTAssertTrue(strings.contains("detail=" + ShellLocalizer.string("Security", []) + ":WPA3 Personal"))
+        }
+        networkFixture(widget)
+        var stats = omni_render_stats()
+        var error = [CChar](repeating: 0, count: 256)
+        XCTAssertEqual(
+            omni_instance_render(widget.instance, OMNI_VIEW_BAR, 100_000_000, &stats, &error, error.count),
+            OMNI_OK
+        )
+        XCTAssertEqual(stats.deps & ShellDataKey.network.bit, 0)
+        widget.set("wifi") { $0.null() }
+        widget.render(bar)
+        XCTAssertEqual(widget.strings(), ["nil"])
+    }
+
+    func testSharedBluetoothModelKeepsDeviceKindsBatteriesAndAccessActions() throws {
+        let shell = try sharedLibraryShell("bluetooth")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("default/widgets/bluetooth-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local bluetooth = require("../lib/bluetooth")
+        function render(ctx)
+            local m = bluetooth.model(ctx)
+            if not m then return ui.text{ text = "nil" } end
+            local rows = {}
+            for _, key in {"power", "granted", "connected", "help", "status"} do
+                rows[#rows + 1] = ui.text{ text = key .. "=" .. tostring(m[key]) }
+            end
+            for _, entry in m.devices do
+                rows[#rows + 1] = ui.text{ text = "device=" .. entry.id .. ":" .. entry.kind .. ":" .. entry.symbol }
+                rows[#rows + 1] = ui.text{ text = "battery=" .. tostring(entry.battery) .. ":" .. tostring(entry.batteryText) .. ":" .. tostring(entry.lowBattery) }
+            end
+            for _, entry in m.actions do
+                rows[#rows + 1] = ui.text{ text = "action=" .. entry.command .. ":" .. tostring(entry.wrap) .. ":" .. tostring(entry.prompt) }
+            end
+            rows[#rows + 1] = bluetooth.cell((ctx.data.settings or {}).level or 21)
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("bluetooth-model-probe", config: config, shell: shell)
+        let bar = fixture(config, height: 32, vertical: false)
+        let kinds = ["headphones", "keyboard", "mouse", "gamepad", "phone", "computer", "unknown"]
+        let symbols = [
+            "headphones",
+            "keyboard",
+            "magicmouse",
+            "gamecontroller",
+            "iphone",
+            "laptopcomputer",
+            "dot.radiowaves.left.and.right"
+        ]
+        for (kind, symbol) in zip(kinds, symbols) {
+            bluetoothFixture(
+                widget,
+                ShellBluetooth(
+                    power: true,
+                    access: "granted",
+                    devices: [.init(id: "device", name: "Device", kind: kind, connected: true)]
+                )
+            )
+            widget.render(bar)
+            XCTAssertTrue(widget.strings().contains("device=device:\(kind):\(symbol)"))
+            XCTAssertTrue(widget.strings().contains("battery=nil:nil:false"))
+        }
+        for level in [0, 20, 21, 100] {
+            for connected in [false, true] {
+                bluetoothFixture(
+                    widget,
+                    ShellBluetooth(
+                        power: true,
+                        access: "granted",
+                        devices: [.init(
+                            id: "device",
+                            name: "Device",
+                            kind: "headphones",
+                            connected: connected,
+                            battery: level
+                        )]
+                    )
+                )
+                widget.set("settings") { ShellServiceValue.object(["level": .number(Double(level))]).write(to: &$0) }
+                widget.render(bar)
+                let expected = connected ? "battery=\(level):\(percent(Double(level) / 100)):\(level <= 20)" : "battery=nil:nil:false"
+                XCTAssertTrue(widget.strings().contains(expected))
+                XCTAssertEqual(
+                    widget.tree().filter { $0.paint.fill.role & 0xFF == UInt16(ShellRole.error.rawValue + 1) }.count,
+                    level <= 20 ? 1 : 0
+                )
+            }
+        }
+        for power in [false, true] {
+            for access in ["granted", "denied", "notDetermined", "restricted"] {
+                bluetoothFixture(
+                    widget,
+                    ShellBluetooth(
+                        power: power,
+                        access: access,
+                        devices: [
+                            .init(id: "one", name: "One", kind: "keyboard", connected: true),
+                            .init(id: "two", name: "Two", kind: "mouse", connected: false)
+                        ]
+                    )
+                )
+                widget.render(bar)
+                let strings = widget.strings()
+                XCTAssertTrue(strings.contains("connected=1"))
+                let help = access != "granted" ? ShellLocalizer.string("Bluetooth", [])
+                    : power ? ShellLocalizer.string("Bluetooth: %lld connected", [.number(1)])
+                    : ShellLocalizer.string("Bluetooth: Off", [])
+                XCTAssertTrue(strings.contains("help=" + help))
+                XCTAssertEqual(strings.filter { $0.hasPrefix("device=") }.count, power ? 2 : 0)
+                XCTAssertTrue(strings.contains("status=" + (access == "granted" ? ShellLocalizer.string(
+                    power ? "On" : "Off",
+                    []
+                ) : "nil")))
+                var expected = ["action=bluetooth settings:nil:nil"]
+                if access != "granted" { expected.insert("action=bluetooth authorize:true:true", at: 0) }
+                XCTAssertEqual(strings.filter { $0.hasPrefix("action=") }, expected)
+            }
+        }
+        bluetoothFixture(widget, ShellBluetooth(power: true, access: "granted"))
+        widget.render(bar)
+        XCTAssertTrue(widget.strings().contains("connected=0"))
+        XCTAssertEqual(widget.strings().filter { $0.hasPrefix("device=") }, [])
+        widget.set("bluetooth") { $0.null() }
+        widget.render(bar)
+        XCTAssertEqual(widget.strings(), ["nil"])
+    }
+
+    func testSharedNetworkBarsKeepScaledHooksHelpFreshClicksAndDemand() throws {
+        let shell = try sharedLibraryShell("wifi")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let base = config.barOverride?.settings.height ?? 32
+            for name in ["wifi", "bluetooth"] {
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/\(name)/init.luau")
+                )
+                for height in Set([base, 32]).sorted() {
+                    for vertical in [false, true] {
+                        for backgrounds in [false, true] {
+                            for state in radioStates(name) {
+                                let context = "\(profile)/\(name)/\(state) \(height) vertical=\(vertical) backgrounds=\(backgrounds)"
+                                radioFixture(widget, name: name, state: state)
+                                var bar = fixture(config, height: height, vertical: vertical)
+                                bar.style.backgrounds = backgrounds
+                                widget.render(bar)
+                                XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                                XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                                XCTAssertLessThanOrEqual(
+                                    vertical ? widget.surface.size.width : widget.surface.size.height,
+                                    height,
+                                    context
+                                )
+                                if ["wayline", "nocturne"].contains(profile) {
+                                    XCTAssertEqual(widget.surface.size.width, 32 * height / 40, accuracy: 0.01, context)
+                                    XCTAssertEqual(
+                                        widget.surface.size.height,
+                                        32 * height / 40,
+                                        accuracy: 0.01,
+                                        context
+                                    )
+                                }
+                                if profile == "celestial" {
+                                    XCTAssertEqual(
+                                        vertical ? widget.surface.size.width : widget.surface.size.height,
+                                        40 * height / 60,
+                                        accuracy: 0.01,
+                                        context
+                                    )
+                                }
+                                let button = try XCTUnwrap(
+                                    widget.surface.layout.core.elements { $0.action == OMNI_ACTION_POPOUT }.first,
+                                    context
+                                )
+                                let content = widget.surface.layout.core.content(of: button)
+                                let help = radioHelp(name, state: state)
+                                XCTAssertEqual(widget.text.string(content.help), help, context)
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                                let point = CGPoint(x: frame.midX, y: frame.midY)
+                                let count = widget.actions.count
+                                widget.surface.press(at: point)
+                                widget.surface.release(at: point)
+                                XCTAssertEqual(widget.actions.count, count + 1, context)
+                                XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                                var stats = omni_render_stats()
+                                var error = [CChar](repeating: 0, count: 256)
+                                XCTAssertEqual(
+                                    omni_instance_render(
+                                        widget.instance,
+                                        OMNI_VIEW_BAR,
+                                        100_000_000,
+                                        &stats,
+                                        &error,
+                                        error.count
+                                    ),
+                                    OMNI_OK,
+                                    context
+                                )
+                                XCTAssertNotEqual(
+                                    stats.deps & (name == "wifi" ? ShellDataKey.wifi.bit : ShellDataKey.bluetooth.bit),
+                                    0,
+                                    context
+                                )
+                                XCTAssertEqual(stats.deps & ShellDataKey.network.bit, 0, context)
+                                XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0, context)
+                                XCTAssertEqual(
+                                    stats.deps & (name == "wifi" ? ShellDataKey.bluetooth.bit : ShellDataKey.wifi.bit),
+                                    0,
+                                    context
+                                )
+                            }
+                        }
+                    }
+                }
+                widget.set(name) { $0.null() }
+                widget.render(fixture(config, height: base, vertical: false))
+                XCTAssertEqual(widget.surface.size, .zero, profile + name)
+                if name == "wifi" { wifiFixture(widget) } else { bluetoothFixture(widget) }
+                XCTAssertTrue(
+                    omni_instance_needs_render(
+                        widget.instance,
+                        OMNI_VIEW_BAR,
+                        name == "wifi" ? ShellDataKey.wifi.bit : ShellDataKey.bluetooth.bit
+                    ),
+                    profile + name
+                )
+            }
+        }
+    }
+
+    func testSharedNetworkPanelsKeepStateFeedbackAndDeliveredActions() throws {
+        let shell = try sharedLibraryShell("wifi")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["wifi", "bluetooth"] {
+                let context = profile + "/" + name
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/\(name)/init.luau")
+                )
+                wifiFixture(widget)
+                bluetoothFixture(widget)
+                networkFixture(widget)
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                widget.layoutPopout()
+                let strings = widget.strings(OMNI_VIEW_POPOUT)
+                if name == "wifi" {
+                    for text in [
+                        "Harbour Home",
+                        ShellLocalizer.string("Signal", []),
+                        ShellLocalizer.string("Band", []),
+                        ShellLocalizer.string("Security", []),
+                        "5 GHz · 36",
+                        "WPA3 Personal"
+                    ] {
+                        XCTAssertTrue(strings.contains(text), context + " " + text)
+                    }
+                    if profile == "celestial" { XCTAssertTrue(
+                        strings.contains(ShellLocalizer.string("Download", [])),
+                        context
+                    ) }
+                    wifiFixture(widget, ShellWiFi(power: true, connected: true))
+                } else {
+                    for text in ["AirPods Pro", "Magic Keyboard", "Magic Mouse", percent(0.8), percent(0.15)] {
+                        XCTAssertTrue(strings.contains(text), context + " " + text)
+                    }
+                    bluetoothFixture(widget, ShellBluetooth(power: true, access: "denied"))
+                }
+                widget.layoutPopout()
+                try clickCommand(name + " settings", widget: widget, context: context)
+                if name == "wifi" { XCTAssertTrue(
+                    widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Network name hidden", [])),
+                    context
+                ) }
+                try clickCommand(name + " authorize", widget: widget, context: context)
+                for state in name == "wifi" ? ["off", "disconnected"] : ["off", "empty"] {
+                    radioFixture(widget, name: name, state: state)
+                    widget.layoutPopout()
+                    let feedback = state == "off" ? "Off" : name == "wifi" ? "Not Connected" : "Devices"
+                    if profile == "celestial", name == "bluetooth" {
+                        XCTAssertTrue(
+                            widget.strings(OMNI_VIEW_POPOUT).contains(radioHelp(name, state: state)),
+                            context + state
+                        )
+                    } else {
+                        XCTAssertTrue(
+                            widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(feedback, [])),
+                            context + state
+                        )
+                    }
+                    try clickCommand(name + " settings", widget: widget, context: context + state)
+                }
+                widget.set(name) { $0.null() }
+                widget.layoutPopout()
+                XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                XCTAssertTrue(
+                    widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])),
+                    context
+                )
+            }
+        }
+    }
+
+    func testCelestialStatusNetworkPanelsUseTheSharedModels() throws {
+        let shell = try sharedLibraryShell("wifi")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for part in ["network", "bluetooth"] {
+            let widget = try makeWidget("status", config: config, shell: shell)
+            widget.set("settings") {
+                ShellServiceValue.object([
+                    "network": .bool(part == "network"),
+                    "bluetooth": .bool(part == "bluetooth"),
+                    "battery": .bool(false)
+                ]).write(to: &$0)
+            }
+            wifiFixture(widget)
+            bluetoothFixture(widget)
+            networkFixture(widget)
+            widget.render(fixture(config, height: 60, vertical: false))
+            let title = ShellLocalizer.string(part == "network" ? "Wi-Fi" : "Bluetooth", [])
+            let entry = try XCTUnwrap(widget.surface.layout.core
+                .elements { widget.text.string($0.help) == title && $0.action != 0 }.first)
+            let content = widget.surface.layout.core.content(of: entry)
+            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: entry))
+            let point = CGPoint(x: frame.midX, y: frame.midY)
+            let count = widget.actions.count
+            widget.surface.press(at: point)
+            widget.surface.release(at: point)
+            XCTAssertEqual(widget.actions.count, count + 1, part)
+            XCTAssertEqual(widget.actions.last, content.action, part)
+            XCTAssertEqual(widget.invoke(content.action), [], part)
+            widget.layoutPopout()
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertTrue(strings.contains(part == "network" ? "Harbour Home" : "AirPods Pro"), part)
+            if part == "network" { XCTAssertTrue(strings.contains(ShellLocalizer.string("Download", []))) }
+            try clickCommand(part == "network" ? "wifi settings" : "bluetooth settings", widget: widget, context: part)
+            if part == "network" {
+                widget.set("wifi") { $0.null() }
+                widget.layoutPopout()
+                let missing = widget.strings(OMNI_VIEW_POPOUT)
+                XCTAssertTrue(missing.contains(ShellLocalizer.string("Unavailable", [])))
+                for (key, value) in [("Download", Int64(1_840_000)), ("Upload", Int64(312_000))] {
+                    XCTAssertTrue(missing.contains(ShellLocalizer.string(key, [])))
+                    XCTAssertTrue(missing
+                        .contains(ByteCountFormatter.string(fromByteCount: value, countStyle: .file) + "/s"))
+                }
+                try clickCommand("wifi settings", widget: widget, context: "network unavailable")
+                var stats = omni_render_stats()
+                var error = [CChar](repeating: 0, count: 256)
+                XCTAssertEqual(
+                    omni_instance_render(widget.instance, OMNI_VIEW_POPOUT, 100_000_000, &stats, &error, error.count),
+                    OMNI_OK
+                )
+                XCTAssertNotEqual(stats.deps & ShellDataKey.network.bit, 0)
+            }
+        }
+    }
+
+    func testSharedActionRowsKeepWrapping() throws {
+        let shell = try sharedLibraryShell("wifi")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let folder = shell.appendingPathComponent("default/widgets/actions-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local actions = require("../lib/actions")
+        function render(ctx)
+            return ui.column{ actions.row("gearshape", "No wrap", "wifi settings", 240),
+                actions.row("location.fill", "Wrap", "wifi authorize", 240, true) }
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("actions-probe", config: ShellConfig.resolve(shellDirectory: shell), shell: shell)
+        widget.render(fixture(ShellConfig.resolve(shellDirectory: shell), height: 32, vertical: false))
+        let labels = widget.tree().filter { $0.kind == .label }
+        XCTAssertEqual(labels.map(\.content.maxWidth), [0, 200])
+        XCTAssertEqual(labels.map(\.content.lines), [0, 2])
+        try clickCommand("wifi authorize", widget: widget, context: "actions-probe")
     }
 
     func testSharedBatteryModelKeepsThresholdsPercentModesAndPowerStates() throws {
@@ -959,7 +1460,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                 "calendar",
                 "system-stats",
                 "battery",
-                "battery-details"
+                "battery-details",
+                "wifi",
+                "bluetooth"
             ] {
                 let widget = try makeWidget(name, config: config, shell: shell)
                 widget.set("app") { $0.string("Safari") }
@@ -970,6 +1473,8 @@ final class ShellStyleLayoutTests: XCTestCase {
                 calendarFixture(widget)
                 weatherFixture(widget)
                 batteryFixture(widget)
+                wifiFixture(widget)
+                bluetoothFixture(widget)
                 for state in ["volume", "calendar"].contains(name) ? ["full", "empty"] : ["full"] {
                     if state == "empty" {
                         if name == "volume" { widget.set("volume") { $0.null() } }
@@ -3730,6 +4235,79 @@ final class ShellStyleLayoutTests: XCTestCase {
         ShellFormatter.string(kind: OMNI_FORMAT_PERCENT, value, digits: 0)
     }
 
+    private func radioStates(_ name: String) -> [String] {
+        name == "wifi" ? ["full", "off", "disconnected", "weak", "hidden"] : ["full", "off", "denied", "empty"]
+    }
+
+    private func radioFixture(_ widget: ShellRenderedWidget, name: String, state: String) {
+        if state == "unavailable" {
+            widget.set(name) { $0.null() }
+        } else if name == "wifi" {
+            switch state {
+            case "off": wifiFixture(widget, ShellWiFi(power: false))
+            case "disconnected": wifiFixture(widget, ShellWiFi(power: true, location: "authorized"))
+            case "weak": wifiFixture(widget, ShellWiFi(
+                    power: true, connected: true, ssid: "Harbour Home", rssi: -82, band: "2.4 GHz", channel: 6,
+                    security: "WPA2 Personal", location: "authorized"
+                ))
+            case "hidden": wifiFixture(widget, ShellWiFi(
+                    power: true, connected: true, rssi: -64, band: "5 GHz", channel: 149, security: "WPA3 Personal"
+                ))
+            default: wifiFixture(widget)
+            }
+        } else {
+            switch state {
+            case "off": bluetoothFixture(widget, ShellBluetooth(power: false, access: "granted"))
+            case "denied": bluetoothFixture(widget, ShellBluetooth(power: true, access: "denied"))
+            case "empty": bluetoothFixture(widget, ShellBluetooth(power: true, access: "granted"))
+            default: bluetoothFixture(widget)
+            }
+        }
+    }
+
+    private func radioHelp(_ name: String, state: String) -> String {
+        if name == "wifi" {
+            switch state {
+            case "off": return ShellLocalizer.string("Wi-Fi: Off", [])
+            case "disconnected": return ShellLocalizer.string("Wi-Fi: Not Connected", [])
+            case "hidden": return ShellLocalizer.string("Wi-Fi: Connected", [])
+            default: return "Harbour Home"
+            }
+        }
+        switch state {
+        case "off": return ShellLocalizer.string("Bluetooth: Off", [])
+        case "denied": return ShellLocalizer.string("Bluetooth", [])
+        default: return ShellLocalizer.string("Bluetooth: %lld connected", [.number(state == "empty" ? 0 : 2)])
+        }
+    }
+
+    private func wifiFixture(
+        _ widget: ShellRenderedWidget,
+        _ wifi: ShellWiFi = ShellWiFi(
+            power: true, connected: true, ssid: "Harbour Home", rssi: -55, band: "5 GHz", channel: 36,
+            security: "WPA3 Personal", location: "authorized"
+        )
+    ) {
+        widget.set("wifi") { wifi.write(into: &$0) }
+    }
+
+    private func bluetoothFixture(
+        _ widget: ShellRenderedWidget,
+        _ bluetooth: ShellBluetooth = ShellBluetooth(power: true, access: "granted", devices: [
+            ShellBluetoothDevice(id: "airpods", name: "AirPods Pro", kind: "headphones", connected: true, battery: 80),
+            ShellBluetoothDevice(
+                id: "keyboard",
+                name: "Magic Keyboard",
+                kind: "keyboard",
+                connected: true,
+                battery: 15
+            ),
+            ShellBluetoothDevice(id: "mouse", name: "Magic Mouse", kind: "mouse", connected: false)
+        ])
+    ) {
+        widget.set("bluetooth") { bluetooth.write(into: &$0) }
+    }
+
     private func batteryFixture(
         _ widget: ShellRenderedWidget,
         level: Double = 76,
@@ -3804,6 +4382,12 @@ final class ShellStyleLayoutTests: XCTestCase {
         widget.set("lyrics") { lyrics.write(into: &$0) }
     }
 
+    private func networkFixture(_ widget: ShellRenderedWidget) {
+        widget.set("network") {
+            ShellServiceValue.object(["down": .number(1_840_000), "up": .number(312_000)]).write(to: &$0)
+        }
+    }
+
     private func systemStatsFixture(_ widget: ShellRenderedWidget) {
         widget.set("system") { writer in
             ShellSystemData(
@@ -3830,9 +4414,7 @@ final class ShellStyleLayoutTests: XCTestCase {
         widget.set("memory") { $0.number(58) }
         widget.set("disk") { $0.number(62) }
         widget.set("thermal") { ShellThermal(cpu: 61, gpu: 48, gpuName: "Apple M4 Max GPU").write(into: &$0) }
-        widget.set("network") {
-            ShellServiceValue.object(["down": .number(1_840_000), "up": .number(312_000)]).write(to: &$0)
-        }
+        networkFixture(widget)
         var history = ShellNetworkHistory(received: 18_400_000_000, sent: 2_100_000_000)
         for index in 0 ..< ShellNetworkHistory.length {
             let phase = Double(index) / 4

@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local look = require("./look")
+local actions = require("./actions")
 
 local battery = {}
 
@@ -76,8 +77,7 @@ function battery.content(ctx, width: number?, m)
     width = width or look.width
     m = m or battery.model(ctx)
     if not m then
-        return look.group{ w = width, look.text{ text = omniwm.l10n("Unavailable"), size = 13,
-            color = "secondaryForeground", maxWidth = width - 24 } }
+        return actions.notice(omniwm.l10n("Unavailable"), width)
     end
     local rows = { w = width, gap = 12, center = false,
         look.group{ w = width,
@@ -95,10 +95,7 @@ function battery.content(ctx, width: number?, m)
         end
         rows[#rows + 1] = look.group(details)
     end
-    rows[#rows + 1] = ui.row{ w = width, gap = 8, pad = 6, radius = look.radius(8), hover = look.hover,
-        onClick = m.settings,
-        look.glyph{ name = "gearshape", w = 16, h = 16, color = "secondaryForeground" },
-        look.text{ text = omniwm.l10n("Battery Settings…"), size = 13 } }
+    rows[#rows + 1] = actions.row("gearshape", omniwm.l10n("Battery Settings…"), m.settings, width)
     return ui.column(rows)
 end
 

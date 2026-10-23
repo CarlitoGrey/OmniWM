@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local look = require("./look")
+local actions = require("./actions")
 
 local weather = {}
 local HOURS = 12
@@ -218,8 +219,7 @@ function weather.content(ctx, isCompact: boolean?, width: number?, m)
     width = width or look.width
     m = m or weather.model(ctx, isCompact)
     if not m then
-        return look.group{ w = width, look.text{ text = omniwm.l10n("Unavailable"), size = 13,
-            color = "secondaryForeground", maxWidth = width - 24 } }
+        return actions.notice(omniwm.l10n("Unavailable"), width)
     end
     return if isCompact then compact(m, width) else full(m, width)
 end

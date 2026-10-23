@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local look = require("./look")
+local actions = require("./actions")
 
 local calendar = {}
 local SOON = 12 * 3600
@@ -146,18 +147,11 @@ local function agendaRow(event, width: number)
     return ui.row(row)
 end
 
-local function action(symbol: string, text: string, command: string, width: number)
-    return ui.row{ w = width, gap = 8, pad = 6, radius = look.radius(8), hover = look.hover, onClick = command,
-        look.glyph{ name = symbol, w = 16, h = 16, color = "secondaryForeground" },
-        look.text{ text = text, size = 13, maxWidth = width - 40, lines = 2 } }
-end
-
 function calendar.content(ctx, width: number?, m)
     width = width or look.width
     m = m or calendar.model(ctx)
     if not m then
-        return look.group{ w = width, look.text{ text = omniwm.l10n("Loading…"), size = 13,
-            color = "secondaryForeground", maxWidth = width - 24 } }
+        return actions.notice(omniwm.l10n("Loading…"), width)
     end
     local rows = { w = width, gap = 12, center = false }
     if m.month then
@@ -179,9 +173,9 @@ function calendar.content(ctx, width: number?, m)
         end
         rows[#rows + 1] = look.group(agenda)
     elseif m.action then
-        rows[#rows + 1] = action(m.action.symbol, m.action.text, m.action.command, width)
+        rows[#rows + 1] = actions.row(m.action.symbol, m.action.text, m.action.command, width, true)
     end
-    rows[#rows + 1] = action("arrow.up.forward.app", omniwm.l10n("Open Calendar"), m.open, width)
+    rows[#rows + 1] = actions.row("arrow.up.forward.app", omniwm.l10n("Open Calendar"), m.open, width, true)
     return ui.column(rows)
 end
 

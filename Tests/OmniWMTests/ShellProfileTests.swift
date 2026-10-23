@@ -226,7 +226,9 @@ final class ShellDefaultsTests: XCTestCase {
             "weather",
             "active-window",
             "battery",
-            "battery-details"
+            "battery-details",
+            "wifi",
+            "bluetooth"
         ]
         let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
         XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())
