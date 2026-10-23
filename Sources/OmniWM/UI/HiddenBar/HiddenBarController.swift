@@ -55,7 +55,7 @@ final class HiddenBarController {
         reconcealment.connect(controller: self)
         observation.connect(controller: self)
         iconCache.onChange = { [weak self] in
-            self?.refreshPanelIfVisible()
+            self?.publishGlyphs()
         }
     }
 
@@ -129,7 +129,7 @@ final class HiddenBarController {
         iconCache.prune(keeping: hiddenRunning)
         let unresolved = hiddenRunning.filter { !iconCache.hasResolvedItems(for: $0) }
         capture.reconcile(snapshot: snapshot, captureBundleIDs: Set(unresolved))
-        refreshPanelIfVisible()
+        publishGlyphs()
     }
 
     func setEnabled(_ enabled: Bool) {
@@ -226,10 +226,8 @@ final class HiddenBarController {
         }
     }
 
-    func refreshPanelIfVisible() {
-        if shellDrawer?.isOpen() == true {
-            shellDrawer?.refresh(currentGlyphs())
-        }
+    func publishGlyphs() {
+        shellDrawer?.refresh(currentGlyphs())
     }
 
     func cleanup() {

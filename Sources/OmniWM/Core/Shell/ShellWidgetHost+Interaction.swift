@@ -188,13 +188,19 @@ extension ShellWidgetHost {
     func showHiddenBarMenu(
         _ page: HiddenBarMenuPage,
         anchor: ShellAnchor,
+        on monitor: Monitor.ID,
         onSelect: @escaping @MainActor (String) -> Void,
         onClose: @escaping @MainActor () -> Void
     ) -> Bool {
         closeHiddenBarMenu()
-        guard let popout,
+        let center = CGPoint(x: anchor.frame.midX, y: anchor.frame.midY)
+        guard let screen = popout?.screen ?? NSScreen.screens.first(where: { $0.frame.contains(center) }),
               let url = config.widget("hidden-bar-menu") ?? ShellConfig.bundledWidget("hidden-bar-menu")
         else { return false }
+        var dismiss: (@MainActor @Sendable () -> Void)?
+        if popout == nil {
+            dismiss = { [weak self] in self?.closeHiddenBarMenu() }
+        }
         let state = WidgetState(name: "hidden-bar-menu", sourceURL: url)
         do {
             let source = try widgetSource(of: state)
@@ -203,12 +209,15 @@ extension ShellWidgetHost {
                 page: page,
                 anchor: anchor,
                 parent: popout,
+                key: popout?.key ?? ShellBarKey(monitor: monitor),
+                screen: screen,
                 resources: resources,
                 resourceStore: resourceStore,
                 source: source,
                 directories: folders(of: state),
                 onSelect: onSelect,
-                onFailure: { [weak self] in self?.closeHiddenBarMenu() }
+                onFailure: { [weak self] in self?.closeHiddenBarMenu() },
+                onDismiss: dismiss
             )
             if let menu = hiddenBarMenu {
                 connectSurfaceFocus(menu.popout.surface) { [weak self, weak menu] in self?.hiddenBarMenu === menu }
