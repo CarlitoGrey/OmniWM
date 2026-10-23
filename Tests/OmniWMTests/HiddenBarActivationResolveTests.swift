@@ -366,11 +366,9 @@ final class HiddenBarActivationResolveTests: XCTestCase {
         defer { panel.close() }
         var bounds = CGRect.null
         for _ in 0 ..< 50 where bounds.isNull {
-            let info = CGWindowListCopyWindowInfo(.optionIncludingWindow, CGWindowID(panel.windowNumber))
-                as? [[String: Any]]
-            if let dictionary = info?.first?[kCGWindowBounds as String] as? NSDictionary,
-               info?.first?[kCGWindowIsOnscreen as String] as? Bool == true
-            {
+            let info = (CGWindowListCopyWindowInfo(.optionOnScreenOnly, kCGNullWindowID) as? [[String: Any]])?
+                .first { $0[kCGWindowNumber as String] as? Int == panel.windowNumber }
+            if let dictionary = info?[kCGWindowBounds as String] as? NSDictionary {
                 bounds = CGRect(dictionaryRepresentation: dictionary) ?? .null
             } else {
                 try await Task.sleep(for: .milliseconds(20))
