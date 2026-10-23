@@ -268,8 +268,10 @@ class LocalizationTests(unittest.TestCase):
             (widgets / "settings.toml").write_text(
                 '[options.date]\ntype = "boolean"\ntitle = "Show date"\n[options.label]\ntype = "string"\n'
             )
-            (widgets / "component.toml").write_text('[options.width]\ntype = "number"\ntitle = "Expanded width"\n')
-            titles = ("Show date", "Expanded width", "label")
+            (widgets / "component.toml").write_text(
+                '[options.width]\ntype = "number"\ntitle = "展开宽度"\n', encoding="utf-8"
+            )
+            titles = ("Show date", "展开宽度", "label")
             for missing in titles:
                 with self.subTest(missing=missing):
                     strings = {key: {} for key in titles if key != missing}

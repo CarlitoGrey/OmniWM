@@ -217,7 +217,7 @@ def validate_shell_usage(strings, folders):
         used.update(SHELL_KEY.findall(widget.read_text()))
     for manifest in (file for folder in folders for file in folder.rglob("*.toml")
                      if file.name in ("settings.toml", "component.toml")):
-        options = tomllib.loads(manifest.read_text()).get("options", {})
+        options = tomllib.loads(manifest.read_text(encoding="utf-8")).get("options", {})
         used.update(option.get("title", key) for key, option in options.items())
     missing = sorted(used - strings.keys())
     if missing:
