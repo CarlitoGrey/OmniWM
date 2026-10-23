@@ -78,7 +78,8 @@ final class InputSourceController: ShellDeviceSource {
                         object: nil,
                         queue: .main
                     ) { [weak self] _ in
-                        MainActor.assumeIsolated {
+                        // Inside the handler the current source can still be the previous one (#961).
+                        Task { @MainActor in
                             self?.refresh()
                         }
                     }
