@@ -69,6 +69,326 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testExportWidgetRendersForEveryProfile() throws {
+        guard let directory = ProcessInfo.processInfo.environment["OMNIWM_STEP_RENDERS"] else {
+            throw XCTSkip("Set OMNIWM_STEP_RENDERS to export per-profile widget renders")
+        }
+        let name = ProcessInfo.processInfo.environment["OMNIWM_STEP_WIDGET"] ?? "workspaces"
+        let shared = ProcessInfo.processInfo.environment["OMNIWM_STEP_SHARED"] == "1"
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        if !shared, let baseline = ProcessInfo.processInfo.environment["OMNIWM_STEP_BASE_SOURCE"] {
+            try Data(contentsOf: URL(fileURLWithPath: baseline))
+                .write(to: shell.appendingPathComponent("default/widgets/\(name)/init.luau"))
+        }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            for dark in [false, true] {
+                for vertical in [false, true] {
+                    let resources = ShellResources(
+                        motion: MotionPolicy(animationsEnabled: false),
+                        windowIcon: { [applications] id in
+                            guard let index = Int(id), applications.indices.contains(index),
+                                  let url = NSWorkspace.shared
+                                  .urlForApplication(withBundleIdentifier: applications[index])
+                            else { return nil }
+                            return NSWorkspace.shared.icon(forFile: url.path)
+                        }
+                    )
+                    resources.palette.refresh(
+                        theme: config.theme,
+                        appearance: try XCTUnwrap(NSAppearance(named: dark ? .darkAqua : .aqua))
+                    )
+                    let widget = try makeWidget(
+                        name, config: config, shell: shell, resources: resources,
+                        source: shared ? shell.appendingPathComponent("default/widgets/\(name)/init.luau") : nil
+                    )
+                    widget.render(fixture(config, height: height, vertical: vertical))
+                    let background = resources.palette.color(.clear, default: .background)
+                    try ShellBundledWidgetTests.writeSnapshot(
+                        widget.surface,
+                        name: "\(name)-\(profile)-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
+                        dark: dark, directory: directory, background: background
+                    )
+                    if name == "workspaces", ProcessInfo.processInfo.environment["OMNIWM_STEP_POPOUT"] == "1" {
+                        let group = try XCTUnwrap(widget.tree()
+                            .first { widget.text.string($0.content.target) == "window 1" })
+                        widget.invoke(group.content.action)
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-picker-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testSkinDefaultsReproduceTheSystemStyleModule() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("system", in: shell))
+        let body = """
+        function render(ctx)
+            return ui.row{ gap = 4,
+                module.bar(ctx, { onClick = "probe", ui.text{ text = "Bar" } }),
+                module.button("xmark", "close"),
+                module.heading("Heading", 120) }
+        end
+        function popout(ctx)
+            return PANEL{ w = module.width + 28,
+                module.group{ ui.text{ text = "Group" } },
+                ui.text{ text = module.batterySymbol(50, false) } }
+        end
+        """
+        func tree(module: String, panel: String) throws -> [String] {
+            let folder = shell.appendingPathComponent("system/widgets/skin-\(module)", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            try ("local module = require(\"../lib/\(module)\")\nlocal PANEL = \(panel)\n" + body)
+                .write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget("skin-\(module)", config: config, shell: shell)
+            widget.render(fixture(config, height: 32, vertical: false))
+            return (widget.tree() + widget.renderPopout()).map { node in
+                "\(node.kind) \(node.layout.width)x\(node.layout.height) radius=\(node.paint.cornerRadius)"
+                    + " fill=\(node.paint.fill) hover=\(node.content.hover) material=\(node.paint.material)"
+                    + " text=\(widget.text.string(node.content.text))"
+            }
+        }
+        let skinned = try tree(module: "look", panel: "function(props) return module.panel(nil, props) end")
+        XCTAssertGreaterThan(skinned.count, 8)
+        XCTAssertTrue(skinned.contains { $0.contains("text=Group") }, "\(skinned)")
+        XCTAssertEqual(skinned, try tree(module: "style", panel: "function(props) return module.panel(props) end"))
+    }
+
+    func testEveryBundledProfileKeepsNativeWorkspaceContractsThroughItsEffectiveConfiguration() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let installed = ShellProfiles.names(in: shell)
+        XCTAssertTrue(Set(profiles + ["matrix"]).isSubset(of: Set(installed + ["default"])), "\(installed)")
+        for profile in Set(installed + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            for vertical in [false, true] {
+                for labels in [false, true] {
+                    let context = "\(profile) vertical=\(vertical) labels=\(labels)"
+                    let widget = try makeWidget("workspaces", config: config, shell: shell)
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.labels = labels
+                    widget.render(bar)
+                    for item in bar.workspaces.flatMap(\.windows) {
+                        let icon = try XCTUnwrap(widget.surface.layout.core.elements {
+                            $0.iconSource == .window && widget.text.string($0.iconRef) == item.id
+                        }.first, "\(context): no window icon for \(item.id)")
+                        var target = icon
+                        while target.slot >= 0 {
+                            let content = widget.surface.layout.core.content(of: target)
+                            if widget.text.string(content.target) == "window \(item.id)",
+                               content.menu, content.drag, content.preview || content.opensPopout { break }
+                            target = widget.surface.layout.core.parent(of: target)
+                        }
+                        XCTAssertGreaterThanOrEqual(
+                            target.slot,
+                            0,
+                            "\(context): icon \(item.id) lost its native controls"
+                        )
+                    }
+                    for workspace in bar.workspaces {
+                        let pill = try XCTUnwrap(widget.surface.layout.core.elements {
+                            $0.menu && $0.drop && widget.text.string($0.target) == "workspace \(workspace.id)"
+                        }.first, "\(context): no pill for workspace \(workspace.id)")
+                        XCTAssertEqual(
+                            widget.text.string(widget.surface.layout.core.content(of: pill).action),
+                            "switch-workspace \(workspace.id)",
+                            context
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testOccupiedHighlightReachesSkinnedWorkspacePills() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ["wayline", "nocturne"] {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "workspaces", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/workspaces/init.luau")
+            )
+            var bar = fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false)
+            bar.style.backgrounds = true
+            let fills = { (highlight: Bool) -> [String: Color] in
+                widget.set("settings") {
+                    $0.map(2)
+                    $0.key("indicator")
+                    $0.string("pills")
+                    $0.key("occupiedBackground")
+                    $0.bool(highlight)
+                }
+                widget.render(bar)
+                return Dictionary(uniqueKeysWithValues: widget.tree().filter(\.content.drop).map {
+                    (widget.text.string($0.content.target), $0.paint.fill)
+                })
+            }
+            let off = fills(false)
+            let on = fills(true)
+            XCTAssertNotEqual(on["workspace 2"], off["workspace 2"], profile)
+            XCTAssertEqual(on["workspace 1"], off["workspace 1"], profile)
+            XCTAssertEqual(on["workspace 3"], off["workspace 3"], profile)
+        }
+    }
+
+    func testSharedWorkspaceSkinsKeepInputFocusAndIndicatorContracts() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for vertical in [false, true] {
+                let widget = try makeWidget(
+                    "workspaces", config: config, shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/workspaces/init.luau")
+                )
+                var bar = fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: vertical)
+                bar.style.accents = true
+                for labels in [false, true] {
+                    bar.style.labels = labels
+                    for indicator in ["pills", "underline", "dots", "numbers", "minimal"] {
+                        let context = "\(profile) vertical=\(vertical) labels=\(labels) indicator=\(indicator)"
+                        widget.set("settings") {
+                            $0.map(1)
+                            $0.key("indicator")
+                            $0.string(indicator)
+                        }
+                        widget.render(bar)
+                        XCTAssertLessThanOrEqual(
+                            vertical ? widget.surface.size.width : widget.surface.size.height,
+                            bar.style.height,
+                            context
+                        )
+                        let tree = widget.tree()
+                        let focused = try XCTUnwrap(tree.first { widget.text.string($0.content.target) == "window 0" })
+                        XCTAssertEqual(focused.paint.scale, 1.1, context)
+                        let glyph = try XCTUnwrap(tree
+                            .first { $0.content.iconSource == .window && widget.text.string($0.content.iconRef) == "0"
+                            })
+                        XCTAssertTrue(glyph.paint.shadow.isVisible, context)
+                        for workspace in bar.workspaces {
+                            let pill = try XCTUnwrap(tree
+                                .first {
+                                    $0.content.drop && widget.text.string($0.content.target) == "workspace \(workspace.id)"
+                                })
+                            XCTAssertTrue(pill.content.menu, context)
+                            XCTAssertEqual(
+                                widget.text.string(pill.content.action),
+                                "switch-workspace \(workspace.id)",
+                                context
+                            )
+                        }
+                        let single = try XCTUnwrap(widget.surface.layout.core.elements {
+                            $0.drag && widget.text.string($0.target) == "window 0"
+                        }.first)
+                        let singleFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: single))
+                        let point = CGPoint(x: singleFrame.midX, y: singleFrame.midY)
+                        widget.surface.press(at: point)
+                        widget.surface.release(at: point)
+                        XCTAssertEqual(widget.clicks.last?.action, "window focus 0", context)
+                        let grouped = try XCTUnwrap(tree.first { widget.text.string($0.content.target) == "window 1" })
+                        XCTAssertTrue(
+                            grouped.content.menu && grouped.content.drag && grouped.content.preview && grouped.content
+                                .opensPopout,
+                            context
+                        )
+                        widget.invoke(grouped.content.action)
+                        widget.layoutPopout()
+                        let row = try XCTUnwrap(widget.surface.layout.core.elements {
+                            widget.text.string($0.action) == "window focus 1_0"
+                        }.first)
+                        let rowFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: row))
+                        let rowPoint = CGPoint(x: rowFrame.midX, y: rowFrame.midY)
+                        widget.surface.press(at: rowPoint)
+                        widget.surface.release(at: rowPoint)
+                        XCTAssertEqual(widget.clicks.last?.action, "window focus 1_0", context)
+                        let close = try XCTUnwrap(widget.surface.layout.core
+                            .elements { $0.action == OMNI_ACTION_POPOUT }.first)
+                        let closeFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: close))
+                        let closePoint = CGPoint(x: closeFrame.midX, y: closeFrame.midY)
+                        widget.surface.press(at: closePoint)
+                        widget.surface.release(at: closePoint)
+                        XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                    }
+                }
+                widget.set("settings") {
+                    $0.map(1)
+                    $0.key("indicator")
+                    $0.string("pills")
+                }
+                bar.style.backgrounds = false
+                widget.render(bar)
+                if profile == "wayline" {
+                    XCTAssertTrue(try XCTUnwrap(widget.tree()
+                            .first { $0.content.drop && widget.text.string($0.content.target) == "workspace 1" }).paint
+                                                .stroke.isVisible)
+                }
+                bar.style.accents = false
+                bar.drag = ShellBarDrag(sources: ["1"], workspaces: ["3"], icons: ["0"])
+                widget.render(bar)
+                let dragged = widget.tree()
+                XCTAssertEqual(
+                    try XCTUnwrap(dragged.first { widget.text.string($0.content.target) == "window 0" }).paint
+                        .strokeWidth,
+                    1.5
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(dragged
+                        .first { $0.content.drop && widget.text.string($0.content.target) == "workspace 3" }).paint
+                                            .strokeWidth,
+                    1.5
+                )
+                XCTAssertEqual(
+                    try XCTUnwrap(dragged
+                        .first { $0.content.iconSource == .window && widget.text.string($0.content.iconRef) == "1" })
+                        .paint.opacity,
+                    0.35
+                )
+                bar.drag = nil
+                widget.set("settings") {
+                    $0.map(1)
+                    $0.key("compact")
+                    $0.bool(true)
+                }
+                bar.style.labels = false
+                widget.render(bar)
+                XCTAssertFalse(widget.tree().contains { $0.content.iconSource == .window && $0.kind == .image })
+                bar.island = .active
+                widget.render(bar)
+                XCTAssertEqual(
+                    Set(widget.surface.targetFrames().map { widget.text.string($0.target) }),
+                    ["workspace 1"]
+                )
+                bar.island = .secondary
+                widget.render(bar)
+                XCTAssertEqual(
+                    Set(widget.surface.targetFrames().map { widget.text.string($0.target) }),
+                    ["workspace 2", "workspace 3"]
+                )
+            }
+        }
+    }
+
     func testSystemCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -324,9 +644,10 @@ final class ShellStyleLayoutTests: XCTestCase {
         config: ShellConfig,
         shell: URL,
         scale: CGFloat = 2,
-        resources: ShellResources? = nil
+        resources: ShellResources? = nil,
+        source override: URL? = nil
     ) throws -> ShellRenderedWidget {
-        let source = try XCTUnwrap(config.widget(name))
+        let source = try override ?? XCTUnwrap(config.widget(name))
         let chunk = String(source.path.dropFirst(shell.path.count + 1))
         let profile = chunk.split(separator: "/").first.map(String.init) ?? config.profile
         var modules: [ShellWidgetSource.Module] = []

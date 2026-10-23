@@ -340,7 +340,8 @@ final class ShellBundledWidgetTests: XCTestCase {
                     let workspace = try XCTUnwrap(nodes.first { text.string($0.target) == "workspace 1" })
                     XCTAssertEqual(text.string(workspace.action), "switch-workspace 1")
                     XCTAssertNotEqual(UInt32(workspace.flags) & OMNI_NODE_DROP, 0)
-                    XCTAssertTrue(nodes.contains { text.string($0.text) == "rectangle.on.rectangle" }, style)
+                    let floating = style == "celestial" ? "filter_none" : "rectangle.on.rectangle"
+                    XCTAssertTrue(nodes.contains { text.string($0.text) == floating }, style)
                 })
                 try renderStyle(style, widget: "scratchpads", data: data, inspect: { view, nodes, text in
                     guard view == OMNI_VIEW_BAR else { return }

@@ -1,0 +1,221 @@
+-- SPDX-License-Identifier: GPL-2.0-only
+-- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
+
+local shapes = require("./shapes")
+local surface = require("./surface")
+local tokens = require("./tokens")
+
+local FOCUSED_SHAPES = {
+    "Slanted", "Oval", "Pill", "Triangle", "Arrow", "Diamond", "Pentagon", "Gem", "VerySunny", "Sunny", "Cookie4Sided",
+    "Cookie6Sided", "Cookie7Sided", "Cookie9Sided", "Cookie12Sided", "Clover4Leaf", "SoftBurst", "Ghostish",
+}
+
+local SYMBOLS = {
+    xmark = "close",
+    ["checkmark.circle.fill"] = "check_circle",
+    ["eye.slash"] = "visibility_off",
+    ["eye.slash.fill"] = "visibility_off",
+    ["rectangle.on.rectangle"] = "filter_none",
+}
+
+local function line(vertical, props)
+    return vertical and ui.column(props) or ui.row(props)
+end
+
+local function focusedShape(ctx, workspace)
+    local state = ctx.state
+    state.shapes = state.shapes or {}
+    if workspace.focused and state.focused ~= workspace.id then
+        state.shapes[workspace.id] = FOCUSED_SHAPES[math.random(#FOCUSED_SHAPES)]
+    end
+    return state.shapes[workspace.id] or FOCUSED_SHAPES[1]
+end
+
+local function backdrop(m, offset, length, props)
+    props.align = m.vertical and "top" or "leading"
+    props.w = m.vertical and m.cell or length
+    props.h = m.vertical and length or m.cell
+    props.dx = m.vertical and 0 or offset
+    props.dy = m.vertical and offset or 0
+    props.radius = m.cell / 2
+    return ui.box(props)
+end
+
+return require("./skin")({
+    base = 60,
+    width = 300 - 2 * tokens.padding.medium,
+    hover = "foreground/0.08",
+    size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
+    text = function(props)
+        props.font = props.font or "sans"
+        if props.color == nil and props.role == "secondary" then
+            props.color = "secondaryForeground"
+        end
+        props.role = nil
+        return ui.text(props)
+    end,
+    glyph = function(props)
+        local name = SYMBOLS[props.name]
+        if not name then
+            return ui.symbol(props)
+        end
+        props.name = nil
+        return surface.icon(name, props)
+    end,
+    panel = function(_, props)
+        props.w = props.w or 300
+        props.pad = props.pad or tokens.padding.medium
+        props.gap = props.gap or tokens.spacing.small
+        props.radius = props.radius or tokens.rounding.extraLarge
+        props.fill = props.fill or "background"
+        props.shadow = "shadow/0.35"
+        props.shadowRadius = 10
+        props.center = false
+        return ui.column{ material = "clear", pad = tokens.padding.small, ui.column(props) }
+    end,
+    workspaceMetrics = function(_, style, m)
+        local scale = style.height / 60
+        return { scale = scale, inner = tokens.bar.inner * scale, pad = tokens.padding.extraSmall * scale,
+            cell = 32 * scale, item = 32 * scale, icon = 24 * scale, slot = 28 * scale,
+            gap = tokens.spacing.extraSmall * scale, markerAlways = m.indicator == "pills", focusCue = m.indicator == "pills" }
+    end,
+    workspaceMarker = function(ctx, workspace, style, m, occupied)
+        if m.indicator ~= "pills" then
+            return nil
+        end
+        local focused = workspace.focused
+        local color = style.textColor ~= nil and "foreground" or (focused and style.accents) and "accentForeground"
+            or (focused or occupied) and "foreground" or "border"
+        if style.labels then
+            return ui.stack{ w = m.cell, h = m.cell,
+                ui.text{ text = workspace.name, font = "rubik", size = tokens.body.small * m.scale,
+                    weight = focused and "bold" or "medium", color = color, maxWidth = m.cell - 4, animate = "effects" } }
+        end
+        local name = focused and focusedShape(ctx, workspace) or occupied and "Square" or "Circle"
+        return ui.stack{ w = m.cell, h = m.cell,
+            ui.path{ d = shapes.path(name), viewBox = shapes.viewBox, w = m.cell, h = m.cell, fill = color,
+                scale = focused and 2 / 3 or occupied and 1 / 3 or 1 / 4, animate = "spatial" } }
+    end,
+    workspacePill = function(pill, _, _, m)
+        if m.indicator ~= "pills" then
+            return
+        end
+        pill.radius = m.cell / 2
+        pill.fill = nil
+        pill.gap = 0
+        pill.animate = "spatial"
+    end,
+    windowIcon = function(icon, _, _, _, m)
+        icon.radius = m.slot / 2
+        icon.animate = "effects"
+        icon.hoverScale = 1.12
+        icon.hover = "foreground/0.08"
+    end,
+    countBadge = function(text, m)
+        local size = math.max(11, m.icon * 0.62)
+        return ui.row{ align = "topTrailing", dx = 3, dy = -3, h = size, radius = size / 2, fill = "tertiaryAccent",
+            ui.box{ w = 3, h = 1 },
+            ui.text{ text = text, font = "sans", size = 9, weight = "bold", color = "background" },
+            ui.box{ w = 3, h = 1 } }
+    end,
+    notificationBadge = function(item, mode, m)
+        if mode == "dot" then
+            local size = math.max(6, m.icon * 0.36)
+            return ui.box{ align = "topLeading", dx = -2, dy = -2, w = size, h = size, radius = size / 2, fill = "badge",
+                border = "surface", borderWidth = 1 }
+        end
+        local height = math.max(10, m.icon * 0.6)
+        return ui.row{ align = "topLeading", dx = -3, dy = -3, h = height, radius = height / 2, fill = "badge",
+            border = "surface", borderWidth = 1,
+            ui.box{ w = 3, h = 1 },
+            ui.text{ text = item.badge, font = "sans", size = math.max(8, m.icon * 0.42), weight = "bold", color = "#FFFFFFFF",
+                maxWidth = m.slot },
+            ui.box{ w = 3, h = 1 } }
+    end,
+    hiddenIndicator = function(item, m)
+        local full = item.count > 0 and item.hidden == item.count
+        local size = math.max(10, m.icon * 0.55)
+        return ui.stack{ align = "bottomTrailing", dx = 3, dy = 3, w = size, h = size, radius = size / 2,
+            fill = full and "error" or "highestSurface", border = "surface", borderWidth = 1,
+            surface.icon("visibility_off", { size = size * 0.7, color = full and "background" or "error", filled = true }) }
+    end,
+    floatingGroup = function(icons, style, m)
+        local group = { radius = m.cell / 2,
+            w = m.vertical and m.cell or nil, h = if m.vertical then nil else m.cell,
+            fill = style.backgrounds and "highestSurface" or nil,
+            ui.stack{ w = m.vertical and m.cell or 16 * m.scale, h = m.vertical and 16 * m.scale or m.cell,
+                surface.icon("filter_none", { size = 12 * m.scale,
+                    color = style.textColor ~= nil and "foreground" or "secondaryForeground" }) } }
+        for _, icon in icons do
+            group[#group + 1] = icon
+        end
+        group[#group + 1] = ui.box{ w = m.vertical and 1 or m.pad, h = m.vertical and m.pad or 1 }
+        return line(m.vertical, group), 16 * m.scale + #icons * m.slot + m.pad
+    end,
+    workspaceGroup = function(ctx, pills, cells, style, m)
+        if m.indicator ~= "pills" then
+            return nil
+        end
+        pills.gap = m.gap
+        local layers, runs = {}, {}
+        local offset, run, active, focusedId = 0, nil, nil, nil
+        for _, cell in cells do
+            if cell.length == nil then
+                return nil
+            end
+            if cell.workspace.focused then
+                active = { start = offset, length = cell.length }
+                focusedId = cell.workspace.id
+            end
+            if cell.occupied then
+                if run then
+                    run.length = offset + cell.length - run.start
+                else
+                    run = { start = offset, length = cell.length }
+                    runs[#runs + 1] = run
+                end
+            else
+                run = nil
+            end
+            offset += cell.length + m.gap
+        end
+        ctx.state.focused = focusedId
+        if #cells == 0 then
+            return line(m.vertical, pills)
+        end
+        if style.backgrounds and (ctx.data.settings or {}).occupiedBackground == true then
+            for index, entry in runs do
+                layers[#layers + 1] = backdrop(m, entry.start, entry.length,
+                    { key = "occupied" .. index, fill = "highestSurface", animate = "effects" })
+            end
+        end
+        if active and (style.accents or style.backgrounds) then
+            layers[#layers + 1] = backdrop(m, active.start, active.length,
+                { key = "indicator", fill = style.accents and "accent" or "foreground/0.1", animate = "spatial", trail = true })
+        end
+        layers[#layers + 1] = line(m.vertical, pills)
+        layers.pad = m.pad
+        layers.radius = m.inner / 2
+        layers.fill = style.backgrounds and "surface" or nil
+        layers.w = m.vertical and m.inner or nil
+        layers.h = if m.vertical then nil else m.inner
+        return ui.stack(layers)
+    end,
+    pickerHeader = function(header, item)
+        header[1].size = tokens.title.small
+        header[1].weight = "medium"
+        header[1].maxWidth = 180
+        table.insert(header, 1, ui.stack{ w = 36, h = 36, radius = 18, fill = "accentContainer",
+            ui.icon{ app = item.bundle, placeholder = "app.dashed", w = 22, h = 22 } })
+    end,
+    pickerRow = function(row, window)
+        row.pad = tokens.padding.small
+        row.gap = tokens.spacing.small
+        row.radius = tokens.rounding.large
+        row.fill = window.focused and "secondaryContainer" or nil
+        row[1].font = "sans"
+        row[1].maxWidth = math.max(0, row[1].maxWidth - tokens.icon.small - 2 * tokens.spacing.small)
+        table.insert(row, 1, surface.icon(window.hidden and "visibility_off" or "web_asset",
+            { size = tokens.icon.small, color = window.focused and "secondaryContainerForeground" or "secondaryForeground" }))
+    end,
+})

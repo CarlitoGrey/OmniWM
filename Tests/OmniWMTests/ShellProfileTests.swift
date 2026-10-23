@@ -194,7 +194,7 @@ final class ShellDefaultsTests: XCTestCase {
         let system = shell.appendingPathComponent("system/widgets", isDirectory: true)
         let widgets = try FileManager.default.contentsOfDirectory(atPath: defaults.path).sorted()
         let systemWidgets = try FileManager.default.contentsOfDirectory(atPath: system.path).sorted()
-        let sharedWidgets = ["effects-lab", "apple-menu", "app-menu", "notifications"]
+        let sharedWidgets = ["effects-lab", "apple-menu", "app-menu", "notifications", "workspaces"]
         let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
         XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())
         XCTAssertEqual(config.widget("focus-ribbon"), system.appendingPathComponent("focus-ribbon/init.luau"))

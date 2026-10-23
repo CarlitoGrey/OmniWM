@@ -214,7 +214,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
         ])]))
         let group = try XCTUnwrap(widget.tree().first { widget.text.string($0.content.target) == "window mail" })
         widget.invoke(group.content.action)
-        let rows = widget.renderPopout().map { widget.text.string($0.content.help) }.filter { !$0.isEmpty }
+        let rows = widget.renderPopout().filter { widget.text.string($0.content.action).hasPrefix("window focus") }
+            .map { widget.text.string($0.content.help) }
         XCTAssertEqual(rows, [l10n("Unhide and focus %@", .text("Compose")), l10n("Focus %@", .text("Inbox"))])
     }
 
@@ -246,8 +247,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
             event: ShellEvent(button: .none),
             content: CGPoint(x: 0, y: 100_000)
         ))
-        widget.surface.press(at: CGPoint(x: 50, y: 195))
-        widget.surface.release(at: CGPoint(x: 50, y: 195))
+        widget.surface.press(at: CGPoint(x: 50, y: 180))
+        widget.surface.release(at: CGPoint(x: 50, y: 180))
         XCTAssertEqual(widget.clicks.last?.action, "window focus web_19")
 
         widget.render(group(20) { $0.textColor = "#FF0000" })

@@ -2176,8 +2176,12 @@ final class ShellWidgetClickTests: XCTestCase {
             bars: [Harness.bar: bar]
         )
         defer { harness.close() }
-        try Data("profiles.default.leading = [\"workspaces\", \"test\"]\n".utf8)
-            .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        try Data("""
+        profiles.default.leading = ["workspaces", "test"]
+        profiles.default.center = []
+        profiles.default.trailing = []
+        """.utf8).write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         var layoutChanges = harness.layoutChanges.makeAsyncIterator()
         while harness.host.slots(for: Harness.monitor).first(where: { $0.id == "workspaces" })?.size.width ?? 0 == 0 {
@@ -2225,6 +2229,7 @@ final class ShellWidgetClickTests: XCTestCase {
         """.utf8).write(to: side.appendingPathComponent("init.luau"))
         try Data("profiles.default.leading = [\"workspaces\", \"test\"]\nprofiles.default.trailing = [\"side\"]\n".utf8)
             .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         let placed = { (island: WorkspaceBarIslandSlice) in
             harness.host.slots(for: Harness.monitor).filter { $0.island == island }

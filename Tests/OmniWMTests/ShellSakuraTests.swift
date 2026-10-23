@@ -53,7 +53,7 @@ final class ShellSakuraTests: XCTestCase {
         )
         let styled = shell.appendingPathComponent("sakura/widgets")
         let names = try FileManager.default.contentsOfDirectory(atPath: styled.path)
-        XCTAssertEqual(names.count, 22)
+        XCTAssertEqual(names.count, 21)
         XCTAssertFalse(names.contains("focus-ribbon"))
         for name in names {
             XCTAssertEqual(config.widget(name), styled.appendingPathComponent("\(name)/init.luau"))

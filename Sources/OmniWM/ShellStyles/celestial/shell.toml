@@ -21,6 +21,9 @@ showLabels = false
 xOffset = 0
 yOffset = 0
 
+[widgets.workspaces]
+indicator = "pills"
+
 [drawer.dashboard]
 edge = "top"
 widgets = ["dashboard"]

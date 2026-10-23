@@ -3,8 +3,9 @@
 
 spanIslands = true
 
+local look = require("../lib/look")
+
 local WHITE = "#FFFFFFFF"
-local HOVER = "foreground/0.1"
 
 type Metrics = {
     across: number,
@@ -12,22 +13,35 @@ type Metrics = {
     icon: number,
     slot: number,
     margin: number,
+    scale: number,
     vertical: boolean,
     capsule: boolean,
     indicator: string,
+    compact: boolean,
+    occupiedBackground: boolean,
+    markerAlways: boolean,
+    focusCue: boolean,
+    separator: boolean,
 }
 
 local INDICATORS = { pills = true, underline = true, dots = true, numbers = true, minimal = true }
 
-local function metrics(style: BarStyle, settings): Metrics
+local function metrics(ctx: Context, style: BarStyle, settings): Metrics
     local capsule = style.transparent and style.backgrounds
     local indicator = if INDICATORS[settings.indicator] then settings.indicator else "pills"
     local across = math.max(16, style.height - 4)
-    local item = if capsule and indicator ~= "pills" then across - 4 else across
-    local icon = math.max(12, item - 6)
-    local slot = math.max(16, icon + 4)
-    return { across = across, item = item, icon = icon, slot = slot, margin = (slot - icon) / 2,
-        vertical = style.vertical, capsule = capsule, indicator = indicator }
+    local m = { across = across, item = if capsule and indicator ~= "pills" then across - 4 else across,
+        icon = look.px(ctx, "icon"), slot = look.px(ctx, "slot"), scale = look.scale(ctx),
+        vertical = style.vertical, capsule = capsule, indicator = indicator, compact = settings.compact == true,
+        occupiedBackground = settings.occupiedBackground == true,
+        markerAlways = false, focusCue = false, separator = true }
+    if look.workspaceMetrics then
+        for key, value in look.workspaceMetrics(ctx, style, m) or {} do
+            m[key] = value
+        end
+    end
+    m.margin = (m.slot - m.icon) / 2
+    return m
 end
 
 local function line(vertical: boolean, props)
@@ -71,19 +85,34 @@ local function iconOpacity(item: BarItem, style: BarStyle, workspaceFocused: boo
     return workspaceFocused and 0.4 or 0.5
 end
 
+local function extent(node, vertical: boolean): number?
+    return if vertical then node.h else node.w
+end
+
 local function countBadge(text: string, m: Metrics)
+    if look.countBadge then
+        local custom = look.countBadge(text, m)
+        if custom then
+            return custom
+        end
+    end
     local size = math.max(12, m.icon * 0.55)
     return ui.row{ align = "topTrailing", dx = math.min(0, m.icon * 0.2 - m.margin), dy = m.margin - math.max(5, m.icon * 0.1),
-        h = size, radius = size / 2, material = if m.capsule then nil else "regular",
-        fill = if m.capsule then "elevatedSurface" else nil, border = "secondaryForeground/0.35", borderWidth = 0.5,
+        h = size, radius = size / 2, fill = "surface",
         ui.box{ w = 3, h = 1 },
-        ui.text{ text = text, style = "mono", size = 10, weight = "semibold", color = "foreground" },
+        look.text{ text = text, style = "mono", size = 10, weight = "semibold", color = "foreground" },
         ui.box{ w = 3, h = 1 } }
 end
 
 local function notificationBadge(item: BarItem, mode: string, m: Metrics)
     if mode == "off" or item.badge == "" then
         return nil
+    end
+    if look.notificationBadge then
+        local custom = look.notificationBadge(item, mode, m)
+        if custom then
+            return custom
+        end
     end
     local dx = math.max(0, m.margin - 4)
     local dy = m.margin - math.max(2, m.icon * 0.12)
@@ -92,10 +121,11 @@ local function notificationBadge(item: BarItem, mode: string, m: Metrics)
         return ui.box{ align = "topLeading", dx = dx, dy = dy, w = size, h = size, radius = size / 2, fill = "badge" }
     end
     local inset = m.icon < 20 and 1 or 3
-    local height = math.max(9, m.icon * 0.55)
+    local fit = math.min(1, m.scale)
+    local height = math.max(12 * fit, m.icon * 0.55)
     return ui.row{ align = "topLeading", dx = dx, dy = dy, h = height, radius = height / 2, fill = "badge",
         ui.box{ w = inset, h = 1 },
-        ui.text{ text = item.badge, style = "mono", size = math.max(7, m.icon * 0.35), weight = "semibold",
+        look.text{ text = item.badge, style = "mono", size = math.max(10 * fit, m.icon * 0.35), weight = "semibold",
             color = WHITE, maxWidth = m.slot - inset * 2 },
         ui.box{ w = inset, h = 1 } }
 end
@@ -104,6 +134,12 @@ local function hiddenIndicator(item: BarItem, m: Metrics)
     if item.hidden == 0 then
         return nil
     end
+    if look.hiddenIndicator then
+        local custom = look.hiddenIndicator(item, m)
+        if custom then
+            return custom
+        end
+    end
     local full = appHidden(item)
     local size = math.max(8, m.icon * 0.48)
     local glyph = math.max(6, m.icon * 0.3)
@@ -111,7 +147,7 @@ local function hiddenIndicator(item: BarItem, m: Metrics)
         dy = math.max(5, m.icon * 0.1) - m.margin, w = size, h = size, radius = size / 2,
         fill = full and "badge" or nil, material = (not full) and "regular" or nil,
         border = (not full) and "badge/0.72" or nil, borderWidth = 0.75,
-        ui.symbol{ name = full and "eye.slash.fill" or "eye.slash", size = glyph, weight = full and "bold" or "semibold",
+        look.glyph{ name = full and "eye.slash.fill" or "eye.slash", size = glyph, weight = full and "bold" or "semibold",
             color = full and WHITE or "badge" } }
 end
 
@@ -132,15 +168,35 @@ end
 local function windowIcon(item: BarItem, workspace: BarWorkspace, bar: Bar, m: Metrics, shift: number)
     local style = bar.style
     local drag = bar.drag
-    local icon = { key = item.id, w = m.slot, h = m.slot, radius = 4, animate = 0.15, hoverAnimate = 0.1,
-        scale = item.focused and 1.1 or 1, hoverScale = item.focused and 1.1 or 1.05,
-        dx = m.vertical and 0 or shift, dy = m.vertical and shift or 0,
-        border = (drag ~= nil and contains(drag.icons, item.id)) and "accent" or nil, borderWidth = 1.5,
-        target = "window " .. item.id, menu = true, preview = true, drag = true, help = windowHelp(item, bar),
-        ui.icon{ window = item.id, placeholder = "app.dashed", w = m.icon, h = m.icon,
-            opacity = (drag ~= nil and contains(drag.sources, item.id)) and 0.35 or iconOpacity(item, style, workspace.focused),
-            color = appHidden(item) and "error/0.32" or nil,
-            shadow = (item.focused and style.accents) and "accent/0.5" or nil, shadowRadius = 4 } }
+    local glyph = { window = item.id, placeholder = "app.dashed", w = m.icon, h = m.icon,
+        color = appHidden(item) and "error/0.32" or nil }
+    local icon = { w = m.slot, h = m.slot, radius = look.radius(4), animate = 0.15, hoverAnimate = 0.1,
+        hoverScale = 1.05 }
+    if look.windowIcon then
+        look.windowIcon(icon, glyph, item, style, m)
+    end
+    local focusScale = item.focused and 1.1 or 1
+    icon.key = item.id
+    icon.scale = focusScale
+    icon.hoverScale = math.max(icon.hoverScale or 1, focusScale)
+    icon.dx = m.vertical and 0 or shift
+    icon.dy = m.vertical and shift or 0
+    icon.target = "window " .. item.id
+    icon.menu = true
+    icon.preview = true
+    icon.drag = true
+    icon.help = windowHelp(item, bar)
+    if drag ~= nil and contains(drag.icons, item.id) then
+        icon.border = "accent"
+        icon.borderWidth = 1.5
+    end
+    glyph.window = item.id
+    glyph.opacity = (drag ~= nil and contains(drag.sources, item.id)) and 0.35 or iconOpacity(item, style, workspace.focused)
+    if item.focused and style.accents then
+        glyph.shadow = "accent/0.5"
+        glyph.shadowRadius = 4
+    end
+    icon[#icon + 1] = ui.icon(glyph)
     if item.count > 1 then
         icon.onClick = function(ctx) ctx.state.picker = item.id end
         icon.popout = true
@@ -154,28 +210,33 @@ local function windowIcon(item: BarItem, workspace: BarWorkspace, bar: Bar, m: M
 end
 
 local function separator(m: Metrics)
-    if m.indicator == "minimal" or m.indicator == "dots" then
+    if m.separator == false or m.indicator == "minimal" or m.indicator == "dots" then
         return nil
     end
     return m.vertical and ui.stack{ w = m.icon, h = 5, ui.box{ w = m.icon, h = 1, fill = "border" } }
         or ui.stack{ w = 5, h = m.icon, ui.box{ w = 1, h = m.icon, fill = "border" } }
 end
 
-local function floatingGroup(icons, style: BarStyle, m: Metrics)
+local function floatingGroup(icons, style: BarStyle, m: Metrics): (any, number?)
+    if look.floatingGroup then
+        local custom, length = look.floatingGroup(icons, style, m)
+        if custom then
+            return custom, length
+        end
+    end
     local thickness = math.max(16, m.item - 2)
-    local group = { gap = 3, radius = thickness / 2,
+    local symbol = math.max(10, m.icon * 0.58)
+    local group = { gap = 3, radius = look.radius(6),
         w = if m.vertical then thickness else nil, h = if m.vertical then nil else thickness,
-        material = (style.backgrounds and not m.capsule) and "thin" or nil,
-        fill = if m.capsule then "foreground/0.07" else nil,
-        border = style.backgrounds and "secondaryForeground/0.24" or nil, borderWidth = 0.75,
+        fill = style.backgrounds and "foreground/0.06" or nil,
         spacer(m.vertical, 2),
-        ui.symbol{ name = "rectangle.on.rectangle", size = math.max(10, m.icon * 0.58), weight = "medium",
+        look.glyph{ name = "rectangle.on.rectangle", size = symbol, w = symbol, h = symbol, weight = "medium",
             color = style.textColor ~= nil and "foreground" or "secondaryForeground" } }
     for _, icon in ipairs(icons) do
         group[#group + 1] = icon
     end
     group[#group + 1] = spacer(m.vertical, 2)
-    return line(m.vertical, group)
+    return line(m.vertical, group), 4 + symbol + #icons * m.slot + (#icons + 2) * 3
 end
 
 local function gapBefore(drag: BarDrag?, workspace: string): number?
@@ -187,53 +248,52 @@ local function gapBefore(drag: BarDrag?, workspace: string): number?
     return nil
 end
 
-local function marker(workspace: BarWorkspace, style: BarStyle, m: Metrics, occupied: boolean)
+local function marker(ctx: Context, workspace: BarWorkspace, style: BarStyle, m: Metrics, occupied: boolean)
+    if look.workspaceMarker then
+        local custom = look.workspaceMarker(ctx, workspace, style, m, occupied)
+        if custom then
+            return custom
+        end
+    end
     local focused = workspace.focused
-    if m.indicator == "dots" then
+    if m.indicator == "dots" or (m.compact and not style.labels) then
         local dot = math.max(6, math.round(m.icon * 0.32))
         local long = if focused then dot * 2.6 else dot
         return ui.stack{ w = if m.vertical then dot else long, h = if m.vertical then long else dot,
             radius = dot / 2, fill = if focused then "accent" elseif occupied then "foreground/0.55" else nil,
-            border = if focused or occupied then nil else "foreground/0.45", borderWidth = 1,
-            help = omniwm.l10n("Focus workspace %@", workspace.name), target = "workspace " .. workspace.id }
+            border = if focused or occupied then nil else "foreground/0.45", borderWidth = 1 }
     end
     if m.indicator == "numbers" then
         local size = math.max(16, math.round(m.icon * 0.95))
-        return ui.row{ h = size, radius = size * 0.3,
+        return ui.row{ h = size, radius = look.radius(size * 0.3),
             fill = if focused then "accent" else "foreground/0.1",
-            help = omniwm.l10n("Focus workspace %@", workspace.name), target = "workspace " .. workspace.id,
             ui.box{ w = if utf8.len(workspace.name) <= 1 then size * 0.32 else 5, h = 1 },
-            ui.text{ text = workspace.name, size = 11, weight = "bold",
+            look.text{ text = workspace.name, size = look.px(ctx, "text"), weight = "medium",
                 color = if focused then "accentForeground" else "secondaryForeground",
                 maxWidth = if m.vertical then m.item - 10 else nil },
             ui.box{ w = if utf8.len(workspace.name) <= 1 then size * 0.32 else 5, h = 1 } }
     end
     local minimal = m.indicator == "minimal"
-    local label = ui.text{ text = workspace.name,
-        style = if minimal then nil else "caption",
-        weight = if minimal and focused then "bold" elseif minimal then "medium" else nil,
+    local label = look.text{ text = workspace.name, size = look.px(ctx, "text"),
+        weight = focused and "semibold" or "medium",
         color = if minimal and not focused then "mutedForeground"
             elseif minimal or (m.capsule and focused) then "foreground"
             else labelColor(style, focused),
-        maxWidth = m.vertical and m.item - 4 or nil, help = omniwm.l10n("Focus workspace %@", workspace.name),
-        target = "workspace " .. workspace.id }
-    return utf8.len(workspace.name) <= 2 and ui.stack{ w = 16, h = m.icon, label } or label
+        maxWidth = m.vertical and m.item - 4 or nil, target = "workspace " .. workspace.id,
+        help = omniwm.l10n("Focus workspace %@", workspace.name) }
+    return utf8.len(workspace.name) <= 2 and ui.stack{
+        w = m.vertical and m.item - 4 or (utf8.len(workspace.name) == 1 and 16 or 28) * m.scale,
+        h = m.icon, label } or label
 end
 
-local function chrome(pill, workspace: BarWorkspace, style: BarStyle, m: Metrics, dropTarget: boolean)
-    local focused = workspace.focused
-    pill.borderWidth = dropTarget and 1.5 or 1
-    if m.indicator == "pills" then
-        if m.capsule then
-            pill.radius = m.item / 2
-        end
-        pill.material = (style.backgrounds and focused) and "regular" or nil
-        pill.hoverMaterial = style.backgrounds and "regular" or nil
-        pill.border = (dropTarget or (style.accents and focused)) and "accent" or nil
-    else
-        pill.radius = if m.capsule then m.item / 2 else 6
-        pill.hover = "foreground/0.08"
-        pill.border = if dropTarget then "accent" else nil
+local function paint(pill, workspace: BarWorkspace, style: BarStyle, m: Metrics, occupied: boolean)
+    pill.radius = look.radius(6 * m.scale)
+    pill.hover = look.hover
+    pill.fill = if m.indicator == "pills" and workspace.focused then "foreground/0.1"
+        elseif m.occupiedBackground and occupied and style.backgrounds then "foreground/0.08"
+        elseif style.backgrounds then "foreground/0.04" else nil
+    if look.workspacePill then
+        look.workspacePill(pill, workspace, style, m, occupied)
     end
 end
 
@@ -244,45 +304,83 @@ local function underline(pill, m: Metrics)
     return ui.stack{ key = pill.key, pill, bar }
 end
 
-local function workspacePill(workspace: BarWorkspace, bar: Bar, m: Metrics)
+local function workspacePill(ctx: Context, workspace: BarWorkspace, bar: Bar, m: Metrics)
     local style = bar.style
     local dropTarget = bar.drag ~= nil and contains(bar.drag.workspaces, workspace.id)
     local gap = gapBefore(bar.drag, workspace.id)
     local half = math.min(8, m.icon * 0.4) / 2
     local edge = if m.indicator == "pills" then 6 elseif m.indicator == "minimal" then 3 else 4
-    local pill = { key = workspace.id, gap = if m.indicator == "pills" then 2 else 3, radius = 6,
-        w = if m.vertical then m.item else nil, h = if m.vertical then nil else m.item,
-        onClick = "switch-workspace " .. workspace.id,
-        target = "workspace " .. workspace.id, menu = true, drop = true,
-        spacer(m.vertical, edge) }
-    chrome(pill, workspace, style, m, dropTarget)
+    local pill = { gap = if m.indicator == "pills" then 2 else 3, w = if m.vertical then m.item else nil,
+        h = if m.vertical then nil else m.item }
+    local children = { spacer(m.vertical, edge) }
+    local sizes = { edge }
     local tiled, floating = {}, {}
-    for _, item in ipairs(workspace.windows) do
-        if item.floating then
-            floating[#floating + 1] = windowIcon(item, workspace, bar, m, 0)
-        else
-            local index = #tiled + 1
-            tiled[index] = windowIcon(item, workspace, bar, m, gap and (index < gap and -half or half) or 0)
+    if not m.compact then
+        for _, item in ipairs(workspace.windows) do
+            if item.floating then
+                floating[#floating + 1] = windowIcon(item, workspace, bar, m, 0)
+            else
+                local index = #tiled + 1
+                tiled[index] = windowIcon(item, workspace, bar, m, gap and (index < gap and -half or half) or 0)
+            end
         end
     end
-    local hasWindows = #tiled + #floating > 0
-    if style.labels or not hasWindows then
-        pill[#pill + 1] = marker(workspace, style, m, hasWindows)
+    local occupied = #workspace.windows > 0
+    local hasIcons = #tiled + #floating > 0
+    if m.compact or m.markerAlways or style.labels or not hasIcons then
+        local mark = marker(ctx, workspace, style, m, occupied)
+        if mark.target == nil and not (mark[1] and mark[1].target) then
+            mark.target = "workspace " .. workspace.id
+            mark.help = omniwm.l10n("Focus workspace %@", workspace.name)
+        end
+        children[#children + 1] = mark
+        sizes[#children] = extent(mark, m.vertical) or false
+        local rule = if hasIcons then separator(m) else nil
+        if rule then
+            children[#children + 1] = rule
+            sizes[#children] = 5
+        end
     end
     for _, icon in ipairs(tiled) do
-        pill[#pill + 1] = icon
+        children[#children + 1] = icon
+        sizes[#children] = m.slot
     end
     if #floating > 0 then
-        if #tiled > 0 then
-            pill[#pill + 1] = separator(m)
+        local rule = if #tiled > 0 then separator(m) else nil
+        if rule then
+            children[#children + 1] = rule
+            sizes[#children] = 5
         end
-        pill[#pill + 1] = floatingGroup(floating, style, m)
+        local group, span = floatingGroup(floating, style, m)
+        children[#children + 1] = group
+        sizes[#children] = span or false
     end
-    pill[#pill + 1] = spacer(m.vertical, edge)
+    children[#children + 1] = spacer(m.vertical, edge)
+    sizes[#children] = edge
+    paint(pill, workspace, style, m, occupied)
+    local length: number? = math.max(0, #children - 1) * pill.gap
+    for index, child in ipairs(children) do
+        local size = sizes[index]
+        length = if length and size then length + size else nil
+        pill[#pill + 1] = child
+    end
+    pill.key = workspace.id
+    pill.onClick = "switch-workspace " .. workspace.id
+    pill.target = "workspace " .. workspace.id
+    pill.menu = true
+    pill.drop = true
+    if dropTarget then
+        pill.border = "accent"
+        pill.borderWidth = 1.5
+    elseif m.indicator == "pills" and workspace.focused and style.accents and not m.focusCue then
+        pill.border = "accent"
+        pill.borderWidth = 1
+    end
+    local node = line(m.vertical, pill)
     if m.indicator == "underline" and workspace.focused and style.accents then
-        return underline(line(m.vertical, pill), m)
+        node = underline(node, m)
     end
-    return line(m.vertical, pill)
+    return node, { workspace = workspace, occupied = occupied, tiled = #tiled, floating = #floating, length = length }
 end
 
 local function findItem(bar: Bar, id: string): BarItem?
@@ -297,25 +395,34 @@ local function findItem(bar: Bar, id: string): BarItem?
 end
 
 local function hiddenBadge()
-    return ui.row{ gap = 4, h = 18, radius = 9, fill = "error/0.18", border = "error/0.65", borderWidth = 1,
+    return ui.row{ gap = 4, h = 18, radius = look.radius(9), fill = "error/0.18", border = "error/0.65", borderWidth = 1,
         ui.box{ w = 3, h = 1 },
-        ui.symbol{ name = "eye.slash.fill", size = 11, weight = "semibold", color = "foreground" },
-        ui.text{ text = omniwm.l10n("App hidden"), size = 11, weight = "semibold", color = "foreground" },
+        look.glyph{ name = "eye.slash.fill", size = 11, weight = "semibold", color = "foreground" },
+        look.text{ text = omniwm.l10n("App hidden"), size = 11, weight = "semibold", color = "foreground" },
         ui.box{ w = 3, h = 1 } }
 end
 
 function render(ctx: Context)
     local bar = ctx.data.bar
-    local m = metrics(bar.style, ctx.data.settings or {})
-    local grouped = m.capsule and m.indicator ~= "pills"
+    local m = metrics(ctx, bar.style, ctx.data.settings or {})
     local pills = { gap = if m.indicator ~= "pills" then 2 else 6 }
+    local cells = {}
     for _, workspace in ipairs(bar.workspaces) do
         if bar.island == "all" or workspace.focused == (bar.island == "active") then
-            pills[#pills + 1] = workspacePill(workspace, bar, m)
+            local node, cell = workspacePill(ctx, workspace, bar, m)
+            pills[#pills + 1] = node
+            cells[#cells + 1] = cell
         end
     end
-    if grouped then
-        pills.radius = m.across / 2
+    if look.workspaceGroup then
+        local custom = look.workspaceGroup(ctx, pills, cells, bar.style, m)
+        if custom then
+            return custom
+        end
+    end
+    if m.capsule and m.indicator ~= "pills" then
+        pills.radius = look.radius(6 * m.scale)
+        pills.fill = "foreground/0.06"
         pills[if m.vertical then "w" else "h"] = m.across
         pills.pad = 2
     end
@@ -328,31 +435,35 @@ function popout(ctx: Context)
         return ui.column{}
     end
     local custom = ctx.data.bar.style.textColor ~= nil
-    local rows = { scroll = true }
+    local width = look.panelWidth("workspaces")
+    local rows = { scroll = true, gap = 2 }
     for _, window in ipairs(item.windows) do
         local title = window.title ~= "" and window.title or item.name
         local reserved = (window.focused and 22 or 0) + (window.hidden and 130 or 0)
-        local row = { key = window.id, w = 300, pad = 8, gap = 6, hover = HOVER,
-            onClick = "window focus " .. window.id,
-            help = window.hidden and omniwm.l10n("Unhide and focus %@", title) or omniwm.l10n("Focus %@", title),
-            ui.text{ text = title, color = (window.focused or custom) and "foreground" or "secondaryForeground",
-                maxWidth = 284 - reserved, lines = 255 },
+        local row = { w = width, pad = 8, gap = 6, radius = look.radius(7), hover = look.hover,
+            look.text{ text = title, color = (window.focused or custom) and "foreground" or "secondaryForeground",
+                size = 13, maxWidth = width - 16 - reserved, lines = 255 },
             ui.box{ grow = 1, h = 1 } }
+        if look.pickerRow then
+            look.pickerRow(row, window, item)
+        end
         if window.focused then
-            row[#row + 1] = ui.symbol{ name = "checkmark", color = "accent" }
+            row[#row + 1] = look.glyph{ name = "checkmark.circle.fill", color = "accent" }
         end
         if window.hidden then
             row[#row + 1] = hiddenBadge()
         end
+        row.key = window.id
+        row.onClick = "window focus " .. window.id
+        row.help = window.hidden and omniwm.l10n("Unhide and focus %@", title) or omniwm.l10n("Focus %@", title)
         rows[#rows + 1] = ui.row(row)
     end
-    local capsule = ctx.data.bar.style.transparent and ctx.data.bar.style.backgrounds
-    return ui.column{ w = 300, material = if capsule then "clear" else nil, fill = if capsule then "background" else nil,
-        border = if capsule then "border" else nil, borderWidth = 1, radius = if capsule then 14 else nil,
-        ui.row{ w = 300, pad = 12, gap = 8,
-            ui.text{ text = item.name, size = 13, weight = "semibold", maxWidth = 200 },
-            ui.box{ grow = 1, h = 1 },
-            ui.box{ pad = 4, radius = 5, hover = HOVER, onClick = ui.popout, ui.text{ text = omniwm.l10n("Close") } } },
-        ui.box{ w = 300, h = 1, fill = "border" },
-        ui.column(rows) }
+    local header = { w = width, gap = 8,
+        look.text{ text = item.name, size = 14, weight = "semibold", maxWidth = width - 60 },
+        ui.box{ grow = 1, h = 1 },
+        look.button("xmark", ui.popout, { help = omniwm.l10n("Close") }) }
+    if look.pickerHeader then
+        look.pickerHeader(header, item)
+    end
+    return look.panel(ctx, { ui.row(header), look.list(rows) })
 end
