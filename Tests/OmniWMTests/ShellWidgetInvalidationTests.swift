@@ -233,6 +233,24 @@ final class ShellWidgetInvalidationTests: XCTestCase {
         await package.close()
     }
 
+    func testOneSecondIntervalRendersEveryFeedTick() async throws {
+        var data = ShellWidgetData()
+        data.seconds = 10
+        let package = await package("""
+        function render(ctx)
+            return ui.box{ w = ctx.data.seconds, h = 10 }
+        end
+        """, data: data)
+        await package.receive(.interval(1))
+        for second in [11, 12, 13, 5] {
+            data.seconds = Double(second)
+            await package.receive(.update(data))
+            let rendered = try await snapshot(package)
+            XCTAssertEqual(rendered.width, Float(second))
+        }
+        await package.close()
+    }
+
     func testBarMetadataChangesDoNotInvalidateASelectedStyleField() async throws {
         let package = await package("""
         local renders = 0

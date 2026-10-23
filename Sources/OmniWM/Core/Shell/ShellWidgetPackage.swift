@@ -190,7 +190,7 @@ actor ShellWidgetPackage {
     var publishedBackgroundDemand: UInt64 = 0
     private(set) var declaration = ShellWidgetDeclaration()
     var interval: Double?
-    var lastTimedRender: ContinuousClock.Instant?
+    var lastTimedRender: Double?
     var logWindowStart = ContinuousClock.now
     var logsInWindow = 0
     var droppedLogs = 0
