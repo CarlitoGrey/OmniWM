@@ -59,11 +59,20 @@ struct ShellInputSource: Equatable, Sendable, ShellValueWritable {
 final class InputSourceController: ShellDeviceSource {
     private(set) var value: ShellInputSource?
     var onChange: ((ShellInputSource?) -> Void)?
+    private let center: NotificationCenter
+    private let readSource: @MainActor () -> ShellInputSource?
     private var observers: [any NSObjectProtocol] = []
+
+    init(
+        notificationCenter: NotificationCenter = DistributedNotificationCenter.default(),
+        read: @escaping @MainActor () -> ShellInputSource? = InputSourceController.read
+    ) {
+        center = notificationCenter
+        readSource = read
+    }
 
     func setListening(_ listening: Bool) {
         guard listening == observers.isEmpty else { return }
-        let center = DistributedNotificationCenter.default()
         guard listening else {
             observers.forEach(center.removeObserver)
             observers = []
@@ -99,7 +108,7 @@ final class InputSourceController: ShellDeviceSource {
 
     private func refresh() {
         guard !observers.isEmpty else { return }
-        let next = Self.read()
+        let next = readSource()
         guard next != value else { return }
         value = next
         onChange?(next)
