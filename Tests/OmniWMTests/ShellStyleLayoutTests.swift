@@ -552,7 +552,7 @@ final class ShellStyleLayoutTests: XCTestCase {
         let terracotta: UInt32 = 0xB665_45FF
         let cases: [String: UInt32] = [
             "\"#1E90FF\"": 0x1E90_FFFF, "\"#1E90FF80\"": 0x1E90_FF80, "\"#1E90F\"": terracotta,
-            "\"#GG90FF\"": terracotta, "\"blue\"": terracotta, "3": terracotta
+            "\"#1E90FX\"": terracotta, "\"#GG90FF\"": terracotta, "\"blue\"": terracotta, "3": terracotta
         ]
         for (value, expected) in cases {
             try Data("[profiles.default.widgets.omniwm]\niconColor = \(value)\n".utf8)
