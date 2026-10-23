@@ -16,6 +16,8 @@ final class NonactivatingPanel: NSPanel {
 
 @MainActor
 final class PanelDismissalMonitor {
+    static var screenFrames: @MainActor () -> [CGRect] = { NSScreen.screens.map(\.frame) }
+
     private var panels: [NSPanel] = []
     private var isExemptWindow: ((NSWindow) -> Bool)?
     private var containsPanelPoint: ((NSPanel, CGPoint) -> Bool)?
@@ -64,13 +66,16 @@ final class PanelDismissalMonitor {
             }
         }
         eventMonitors = [local, globalMouse, globalKey].compactMap { $0 }
+        let frames = Self.screenFrames()
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil,
             queue: nil
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                guard self?.shouldDismissOnScreenChange?() != false else { return }
+                guard PanelDismissalMonitor.screenFrames() != frames,
+                      self?.shouldDismissOnScreenChange?() != false
+                else { return }
                 self?.onDismiss?()
             }
         }
