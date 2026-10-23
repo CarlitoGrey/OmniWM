@@ -115,6 +115,39 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
         XCTAssertTrue(labels().contains("T"))
     }
 
+    func testScratchpadIconCountFollowsTheSettingWithinTheWidthEstimate() throws {
+        let widget = try ShellRenderedWidget("scratchpads")
+        let scratchpad = ShellBarScratchpad(
+            id: 1, name: "Notes", focused: false, revealed: false, visible: true,
+            windows: (0 ..< 7).map { item("w\($0)") }
+        )
+        let estimate = WorkspaceBarScratchpadItem(
+            index: 1, label: "Notes",
+            windows: (0 ..< 7).map { makeWindowItem(
+                appName: "App",
+                windowCount: 1,
+                hiddenWindowCount: 0,
+                tokenOffset: $0
+            ) },
+            isVisible: true
+        )
+        for shown in [0, 2, 6] {
+            widget.set("settings") {
+                $0.map(1)
+                $0.key("shownWindows")
+                $0.number(Double(shown))
+            }
+            widget.render(bar(scratchpads: [scratchpad]) { $0.height = 24 })
+            XCTAssertEqual(icons(widget).count, shown)
+            XCTAssertTrue(widget.tree().contains { widget.text.string($0.content.text) == "+\(7 - shown)" }, "\(shown)")
+            XCTAssertLessThanOrEqual(
+                widget.surface.size.width,
+                WorkspaceBarScratchpadLayout.estimatedWidth(of: [estimate], barHeight: 24, icons: shown),
+                "\(shown)"
+            )
+        }
+    }
+
     func testScratchpadIconOpacityDefaultsOverridesAndFocus() throws {
         let widget = try ShellRenderedWidget("scratchpads")
         let scratchpad = ShellBarScratchpad(
@@ -627,7 +660,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
                 barHeight: 24
             ),
             beside: [],
-            availableWidth: availableWidth
+            availableWidth: availableWidth,
+            icons: 3
         )
         let widget = try ShellRenderedWidget("scratchpads")
         func widths(_ compact: (WorkspaceBarScratchpadItem) -> Bool) -> (estimated: CGFloat, rendered: CGFloat) {
@@ -646,7 +680,7 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
                 )
             }))
             return (
-                8 + WorkspaceBarScratchpadLayout.estimatedWidth(of: presented, barHeight: 24),
+                8 + WorkspaceBarScratchpadLayout.estimatedWidth(of: presented, barHeight: 24, icons: 3),
                 8 + widget.surface.size.width
             )
         }

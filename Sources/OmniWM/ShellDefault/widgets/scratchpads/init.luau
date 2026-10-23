@@ -6,6 +6,7 @@ spanIslands = true
 local look = require("../lib/look")
 
 local SHOWN_ICONS = 3
+local MAX_ICONS = 6
 local COMPACT_LABEL = 20
 
 type Metrics = {
@@ -21,11 +22,14 @@ type Metrics = {
     compactEdge: number,
     spacing: number,
     focusCue: boolean,
+    shown: number,
 }
 
-local function metrics(ctx: Context, style: BarStyle): Metrics
+local function metrics(ctx: Context, style: BarStyle, settings): Metrics
+    local shown = if type(settings.shownWindows) == "number" then settings.shownWindows else SHOWN_ICONS
     local m = { vertical = style.vertical, item = math.max(16, style.height - 4), icon = look.px(ctx, "icon"),
-        scale = look.scale(ctx), gap = 5, compactGap = 3, edge = 3, compactEdge = 2, spacing = 8, focusCue = false }
+        scale = look.scale(ctx), gap = 5, compactGap = 3, edge = 3, compactEdge = 2, spacing = 8, focusCue = false,
+        shown = math.clamp(math.floor(if shown == shown then shown else 0), 0, MAX_ICONS) }
     if look.scratchpadMetrics then
         for key, value in look.scratchpadMetrics(ctx, style, m) or {} do
             m[key] = value
@@ -78,14 +82,14 @@ local function windowCount(scratchpad: BarScratchpad): number
     return count
 end
 
-local function help(scratchpad: BarScratchpad, bar: Bar): string
+local function help(scratchpad: BarScratchpad, bar: Bar, m: Metrics): string
     local count = windowCount(scratchpad)
     local summary = count == 1 and scratchpad.windows[1].name or omniwm.l10n("%lld windows", count)
     local text = scratchpad.visible and omniwm.l10n("Scratchpad %@: %@, visible", scratchpad.name, summary)
         or omniwm.l10n("Scratchpad %@: %@, hidden", scratchpad.name, summary)
     if bar.badges ~= "off" and not scratchpad.compact then
         for index, item in ipairs(scratchpad.windows) do
-            if index > SHOWN_ICONS then
+            if index > m.shown then
                 break
             end
             if item.badge ~= "" then
@@ -145,8 +149,8 @@ local function pill(ctx: Context, scratchpad: BarScratchpad, bar: Bar, m: Metric
         node[#node + 1] = countBadge(tostring(windowCount(scratchpad)), scratchpad, style, m)
     else
         for index, member in ipairs(scratchpad.windows) do
-            if index > SHOWN_ICONS then
-                node[#node + 1] = countBadge("+" .. tostring(#scratchpad.windows - SHOWN_ICONS), scratchpad, style, m)
+            if index > m.shown then
+                node[#node + 1] = countBadge("+" .. tostring(#scratchpad.windows - m.shown), scratchpad, style, m)
                 break
             end
             node[#node + 1] = windowIcon(member, scratchpad, bar, m)
@@ -163,7 +167,7 @@ local function pill(ctx: Context, scratchpad: BarScratchpad, bar: Bar, m: Metric
     node.onClick = "scratchpad toggle " .. scratchpad.id
     node.target = "scratchpad " .. scratchpad.id
     node.menu = true
-    node.help = help(scratchpad, bar)
+    node.help = help(scratchpad, bar, m)
     if scratchpad.focused and style.accents and not m.focusCue then
         node.border = "accent"
         node.borderWidth = 1.2
@@ -176,7 +180,7 @@ function render(ctx: Context)
     if bar.island == "active" then
         return ui.row{}
     end
-    local m = metrics(ctx, bar.style)
+    local m = metrics(ctx, bar.style, ctx.data.settings or {})
     local items = { gap = m.spacing }
     for _, scratchpad in ipairs(bar.scratchpads) do
         items[#items + 1] = pill(ctx, scratchpad, bar, m)

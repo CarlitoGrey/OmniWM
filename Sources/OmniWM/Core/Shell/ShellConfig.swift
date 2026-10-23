@@ -42,6 +42,7 @@ struct ShellConfig: Equatable {
     var trailing: [String] = []
     var widgetSettings: [String: [UInt8]] = [:]
     var widgetIntervals: [String: Double] = [:]
+    var scratchpadIcons = 3
     var weather: ShellWeatherLocation?
     var barOverride: WorkspaceBarProfileOverride?
     var barShader: ShellBarShader?
@@ -309,6 +310,11 @@ extension ShellConfig {
                let interval = number(settings["interval"]).flatMap(ShellWidgetDeclaration.validInterval)
             {
                 config.widgetIntervals[name] = interval
+            }
+            if name == bundledScratchpads, case let .table(settings) = node,
+               let icons = number(settings["shownWindows"])
+            {
+                config.scratchpadIcons = Int(min(6, max(0, icons)))
             }
         }
     }

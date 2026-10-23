@@ -2546,7 +2546,7 @@ final class ShellWidgetClickTests: XCTestCase {
             WorkspaceBarShellWidget(id: id, size: CGSize(width: width, height: 24), lane: .leading)
         }
         let compact = { (slots: [WorkspaceBarShellWidget], width: CGFloat) in
-            WorkspaceBarManager.compactScratchpads(snapshot, beside: slots, availableWidth: width)
+            WorkspaceBarManager.compactScratchpads(snapshot, beside: slots, availableWidth: width, icons: 3)
         }
         XCTAssertEqual(compact([slot("workspaces", 100), slot("scratchpads", 900)], 400), [])
         XCTAssertEqual(compact([slot("workspaces", 230)], 400), [1])

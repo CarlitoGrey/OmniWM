@@ -4,7 +4,7 @@
 [options.shownWindows]
 type = "number"
 title = "Window icons per scratchpad"
-default = 2
+default = 3
 min = 0
 max = 6
 step = 1

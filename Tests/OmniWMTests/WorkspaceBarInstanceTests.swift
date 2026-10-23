@@ -134,14 +134,16 @@ final class WorkspaceBarInstanceTests: XCTestCase {
                     geometry: WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true),
                     monitor: monitor,
                     resolved: resolved
-                )
+                ),
+                icons: 3
             )
         }
         let frame = WorkspaceBarGeometry.resolve(monitor: monitor, resolved: resolved, isVisible: true)
             .frame(fittingLength: 0, monitor: monitor, resolved: resolved)
         let expandedWidth = 8 + WorkspaceBarScratchpadLayout.estimatedWidth(
             of: snapshot.scratchpads,
-            barHeight: snapshot.barHeight
+            barHeight: snapshot.barHeight,
+            icons: 3
         )
         XCTAssertGreaterThan(expandedWidth, frame.width)
         XCTAssertLessThan(expandedWidth, monitor.frame.width)

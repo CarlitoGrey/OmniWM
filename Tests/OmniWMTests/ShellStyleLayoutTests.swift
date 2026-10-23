@@ -219,6 +219,41 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testScratchpadIconCountMatchesTheResolvedConfiguration() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let cases = [("nan", 0), ("\"4\"", 3), ("inf", 6), ("2.7", 2), ("9", 6), ("-1", 0), ("5", 5)]
+        for (value, expected) in cases {
+            try Data("[profiles.default.widgets.scratchpads]\nshownWindows = \(value)\n".utf8)
+                .write(to: shell.appendingPathComponent("shell.toml"))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            XCTAssertEqual(config.scratchpadIcons, expected, value)
+            let widget = try makeWidget("scratchpads", config: config, shell: shell)
+            var bar = fixture(config, height: 32, vertical: false)
+            bar.scratchpads = [ShellBarScratchpad(
+                id: 1, name: "Notes", focused: false, revealed: false, visible: true,
+                windows: (0 ..< 7).map { index in
+                    ShellBarItem(
+                        id: "\(index)", bundle: "", name: "App \(index)", focused: false, count: 1, hidden: 0,
+                        windows: [ShellBarWindow(id: "w\(index)", title: "Window", focused: false, hidden: false)]
+                    )
+                }
+            )]
+            widget.render(bar)
+            let tree = widget.tree()
+            XCTAssertEqual(
+                tree.filter { $0.kind == .image && $0.content.iconSource == .window }.count,
+                config.scratchpadIcons,
+                value
+            )
+            XCTAssertTrue(
+                tree.contains { widget.text.string($0.content.text) == "+\(7 - config.scratchpadIcons)" },
+                value
+            )
+        }
+    }
+
     func testOccupiedHighlightReachesSkinnedWorkspacePills() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -502,18 +537,24 @@ final class ShellStyleLayoutTests: XCTestCase {
                                     context
                                 )
                             }
+                            let shown = config.scratchpadIcons
+                            let shownIcons = (0 ..< min(shown, 5)).map(String.init) + (shown > 0 ? ["3", "4"] : [])
                             let labels = tree.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }
-                            XCTAssertTrue(labels.contains(compact ? "6" : "+2"), context)
-                            XCTAssertEqual(labels.contains("999+"), !compact && mode == "text", context)
+                            XCTAssertTrue(labels.contains(compact ? "6" : "+\(5 - shown)"), context)
+                            XCTAssertEqual(labels.contains("999+"), !compact && mode == "text" && shown > 2, context)
                             let icons = tree.filter { $0.kind == .image && $0.content.iconSource == .window }
-                            XCTAssertEqual(icons.count, compact ? 0 : 5, context)
+                            XCTAssertEqual(icons.count, compact ? 0 : shownIcons.count, context)
                             if !compact {
                                 XCTAssertEqual(
                                     icons.map { widget.text.string($0.content.iconRef) },
-                                    ["0", "1", "2", "3", "4"],
+                                    shownIcons,
                                     context
                                 )
-                                XCTAssertEqual(icons.map(\.paint.opacity), [1, 0.27, 0.27, 0.27, 0.27], context)
+                                XCTAssertEqual(
+                                    icons.map(\.paint.opacity),
+                                    [1] + Array(repeating: 0.27, count: shownIcons.count - 1),
+                                    context
+                                )
                             }
                         }
                         bar.style.accents = false

@@ -155,6 +155,20 @@ final class ShellDefaultsTests: XCTestCase {
         }
     }
 
+    func testScratchpadIconCountComesFromTheResolvedProfileAndIsClamped() throws {
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, 3)
+        XCTAssertTrue(try ShellProfiles.select("nocturne", in: shell))
+        XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, 2)
+        let selected = try String(contentsOf: shell.appendingPathComponent("shell.toml"), encoding: .utf8)
+        for (value, expected) in [("9", 6), ("-1", 0), ("4", 4), ("inf", 6), ("2.7", 2)] {
+            try Data((selected + "\n[profiles.nocturne.widgets.scratchpads]\nshownWindows = \(value)\n").utf8)
+                .write(to: shell.appendingPathComponent("shell.toml"))
+            XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, expected, value)
+        }
+    }
+
     func testSystemInstallsNativeMaterialBarAndInheritsTheSharedEffectsGallery() throws {
         let shell = root.appendingPathComponent("shell", isDirectory: true)
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
