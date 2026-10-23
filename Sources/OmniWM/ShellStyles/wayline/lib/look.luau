@@ -542,6 +542,24 @@ return require("./skin")({
     widths = { workspaces = 296, ["system-stats"] = 348 },
     size = { text = 14, icon = 24, slot = 28 },
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    activeWindowBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        local props = { w = style.vertical and size or nil, h = size, gap = 6 * scale, pad = 4 * scale,
+            radius = math.floor(size * 0.24), fill = style.backgrounds and "elevatedSurface" or nil,
+            hoverOpacity = 0.9 }
+        if m.showIcon then
+            props[#props + 1] = ui.icon{ app = m.bundle, w = 24 * scale, h = 24 * scale, placeholder = "app.dashed" }
+        end
+        if m.showText then
+            props[#props + 1] = ui.row{ gap = 0,
+                ui.text{ text = m.title, size = 14 * scale, weight = "semibold",
+                    color = "foreground", maxWidth = m.maxWidth },
+                ui.box{ w = 5 * scale, h = 1 } }
+        end
+        return line(style.vertical, props)
+    end,
     clockBar = clockBar,
     calendarBar = calendarBar,
     calendarPanel = calendarPanel,

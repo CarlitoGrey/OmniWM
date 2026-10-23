@@ -126,9 +126,19 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if name == "weather" || (name == "control-center" && tab == "weather") {
                         weatherFixture(widget)
                     }
-                    widget.render(name == "scratchpads"
+                    if name == "active-window" {
+                        widget.set("app") { $0.string("Safari") }
+                        widget.set("bundle") { $0.string("com.apple.Safari") }
+                        widget.set("title") { $0.string("A quiet afternoon") }
+                    }
+                    var bar = name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
-                        : fixture(config, height: height, vertical: vertical))
+                        : fixture(config, height: height, vertical: vertical)
+                    if environment["OMNIWM_STEP_CAPSULE"] == "1" {
+                        bar.style.transparent = true
+                        bar.style.backgrounds = true
+                    }
+                    widget.render(bar)
                     if ["hidden-bar", "hidden-bar-menu"].contains(name) {
                         let hidden = hiddenBarFixture(vertical: vertical, menu: name == "hidden-bar-menu")
                         widget.set("hiddenBar") { hidden.write(into: &$0) }
@@ -303,6 +313,251 @@ final class ShellStyleLayoutTests: XCTestCase {
                             dark: dark, directory: directory, background: background
                         )
                     }
+                }
+            }
+        }
+    }
+
+    func testSharedActiveWindowHonoursDisplayModesPresetsAndDeliveredClicks() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            let presetWidth: Float = ["matrix": 160, "sakura": 160, "celestial": 320][profile] ?? 260
+            let widget = try makeWidget(
+                "active-window", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/active-window/init.luau")
+            )
+            widget.set("app") { $0.string("Safari") }
+            widget.set("bundle") { $0.string("com.apple.Safari") }
+            for mode in ["preset", "icon_and_text", "icon_only", "text_only"] {
+                if mode != "preset" {
+                    widget.set("settings") {
+                        ShellServiceValue.object(["display": .text(mode), "maxWidth": .number(72)]).write(to: &$0)
+                    }
+                }
+                let display = mode == "preset"
+                    ? (["matrix", "sakura"].contains(profile) ? "text_only" : "icon_and_text") : mode
+                let maximum = mode == "preset" ? presetWidth : 72
+                for vertical in [false, true] {
+                    for backgrounds in [false, true] {
+                        let context = "\(profile) \(mode) vertical=\(vertical) backgrounds=\(backgrounds)"
+                        var bar = fixture(config, height: height, vertical: vertical)
+                        bar.style.backgrounds = backgrounds
+                        widget.set("title") { $0.string("A quiet afternoon") }
+                        widget.render(bar)
+                        let tree = widget.tree()
+                        let showsText = display != "icon_only" && (!vertical || profile == "celestial")
+                        let showsIcon = display != "text_only" || (vertical && profile != "celestial")
+                        let icons = tree
+                            .filter { $0.kind == .image && widget.text.string($0.content.text) == "com.apple.Safari" }
+                        let labels = tree.filter { $0.kind == .label }
+                        XCTAssertEqual(icons.count, showsIcon ? 1 : 0, context)
+                        XCTAssertEqual(labels.count, showsText ? 1 : 0, context)
+                        if let label = labels.first {
+                            XCTAssertEqual(
+                                widget.text.string(label.content.text),
+                                profile == "matrix" ? "~/Safari" : "A quiet afternoon", context
+                            )
+                            XCTAssertEqual(label.content.maxWidth, maximum, context)
+                            XCTAssertEqual(label.paint.rotate, vertical ? 90 : 0, context)
+                        }
+                        XCTAssertLessThanOrEqual(
+                            vertical ? widget.surface.size.width : widget.surface.size.height,
+                            height,
+                            context
+                        )
+                        let button = try XCTUnwrap(tree.first, context)
+                        XCTAssertEqual(widget.text.string(button.content.help), "Safari — A quiet afternoon", context)
+                        try clickCommand("open-command-palette windows", widget: widget, context: context)
+                    }
+                }
+            }
+            widget.set("settings") { ShellServiceValue.object(["display": .text("icon_and_text")]).write(to: &$0) }
+            widget.set("title") { $0.string("") }
+            widget.render(fixture(config, height: height, vertical: false))
+            XCTAssertEqual(widget.text.string(try XCTUnwrap(widget.tree().first).content.help), "Safari", profile)
+            XCTAssertTrue(widget.strings().contains(profile == "matrix" ? "~/Safari" : "Safari"), profile)
+            widget.set("app") { $0.string("") }
+            widget.render(fixture(config, height: height, vertical: false))
+            XCTAssertEqual(widget.surface.size, .zero, profile)
+            XCTAssertTrue(widget.tree().allSatisfy { $0.content.action == 0 }, profile)
+        }
+    }
+
+    func testSharedActiveWindowKeepsEachCustomSkinAndTextOverride() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ["matrix", "celestial", "wayline", "nocturne"] {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let base = config.barOverride?.settings.height ?? 32
+            let widget = try makeWidget(
+                "active-window", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/active-window/init.luau")
+            )
+            widget.set("app") { $0.string("Safari") }
+            widget.set("bundle") { $0.string("com.apple.Safari") }
+            widget.set("title") { $0.string("A quiet afternoon") }
+            for height in [base, 32] {
+                let scale = height / (profile == "celestial" ? 60 : 40)
+                for vertical in [false, true] {
+                    let context = "\(profile) height=\(height) vertical=\(vertical)"
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.backgrounds = true
+                    widget.render(bar)
+                    let root = try XCTUnwrap(widget.tree().first, context)
+                    let labels = widget.tree().filter { $0.kind == .label }
+                    let icons = widget.tree().filter { $0.kind == .image }
+                    XCTAssertEqual(icons.count, profile == "matrix" && !vertical ? 0 : 1, context)
+                    XCTAssertEqual(labels.count, !vertical || profile == "celestial" ? 1 : 0, context)
+                    let cross = vertical ? widget.surface.size.width : widget.surface.size.height
+                    XCTAssertLessThanOrEqual(cross, height, context)
+                    for icon in icons {
+                        let designSize: Double = profile == "matrix" ? 18 : profile == "nocturne" ? 20 : 24
+                        XCTAssertEqual(Double(icon.layout.width), designSize * scale, accuracy: 0.01, context)
+                        XCTAssertEqual(Double(icon.layout.height), designSize * scale, accuracy: 0.01, context)
+                    }
+                    for label in labels {
+                        let role: ShellRole = profile == "matrix" ? .secondaryForeground : profile == "celestial" ?
+                            .accent : .foreground
+                        let designSize: Double = profile == "matrix" ? 11 : profile == "celestial" ? 16 : 14
+                        XCTAssertEqual(label.content.color.role & 0xFF, UInt16(role.rawValue + 1), context)
+                        XCTAssertEqual(
+                            CTFontGetSize(ShellTextStyle.font(for: label.content.style)),
+                            designSize * scale,
+                            accuracy: 0.01,
+                            context
+                        )
+                    }
+                    if profile == "matrix" {
+                        XCTAssertEqual(cross, height - 4, accuracy: 0.01, context)
+                    } else if profile == "wayline" {
+                        XCTAssertEqual(cross, 32 * scale, accuracy: 0.01, context)
+                        XCTAssertEqual(root.paint.cornerRadius, Float(floor(32 * scale * 0.24)), context)
+                        XCTAssertEqual(
+                            root.paint.fill.role & 0xFF,
+                            UInt16(ShellRole.elevatedSurface.rawValue + 1),
+                            context
+                        )
+                        XCTAssertEqual(root.content.hoverOpacity, 0.9, context)
+                        if !vertical {
+                            let label = try XCTUnwrap(widget.surface.layout.core.elements {
+                                widget.text.string($0.text) == "A quiet afternoon"
+                            }.first, context)
+                            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: label))
+                            XCTAssertEqual(widget.surface.size.width - frame.maxX, 9 * scale, accuracy: 0.01, context)
+                        }
+                    } else if profile == "nocturne" {
+                        XCTAssertEqual(cross, 32 * scale, accuracy: 0.01, context)
+                        XCTAssertEqual(Double(root.paint.cornerRadius), 16 * scale - 1, accuracy: 0.01, context)
+                        XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.surface.rawValue + 1), context)
+                        XCTAssertEqual(root.paint.strokeWidth, 1, context)
+                        XCTAssertTrue(root.content.hover.isVisible, context)
+                    } else {
+                        XCTAssertEqual(cross, (vertical ? 40 : 32) * scale, accuracy: 0.01, context)
+                        XCTAssertEqual(Double(root.paint.cornerRadius), 16 * scale, accuracy: 0.01, context)
+                        bar.style.textColor = "#123456"
+                        widget.render(bar)
+                        let overridden = try XCTUnwrap(widget.tree().first { $0.kind == .label }, context)
+                        XCTAssertEqual(
+                            overridden.content.color.role & 0xFF,
+                            UInt16(ShellRole.foreground.rawValue + 1),
+                            context
+                        )
+                    }
+                    try clickCommand("open-command-palette windows", widget: widget, context: context)
+                    if ["wayline", "nocturne"].contains(profile) {
+                        bar.style.backgrounds = false
+                        widget.render(bar)
+                        let unfilled = try XCTUnwrap(widget.tree().first, context)
+                        XCTAssertFalse(unfilled.paint.fill.isVisible, context)
+                        XCTAssertFalse(unfilled.paint.stroke.isVisible, context)
+                    }
+                }
+            }
+        }
+    }
+
+    func testSharedBarCapsulesKeepTheirPaintAndContentInsideTheButton() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for name in ["active-window", "volume", "clock", "weather", "omniwm"] {
+            let widget = try makeWidget(name, config: config, shell: shell)
+            widget.set("app") { $0.string("Safari") }
+            widget.set("bundle") { $0.string("com.apple.Safari") }
+            widget.set("title") { $0.string("A quiet afternoon") }
+            widget.set("volume") { $0.number(62) }
+            widget.set("muted") { $0.bool(false) }
+            widget.set("clock") { $0.string("9:41 AM") }
+            widget.set("date") { $0.string("Fri Oct 23") }
+            weatherFixture(widget)
+            for height in [24.0, 28, 32, 40] {
+                for vertical in [false, true] {
+                    let context = "\(name) height=\(height) vertical=\(vertical)"
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.transparent = true
+                    bar.style.backgrounds = true
+                    widget.render(bar)
+                    let root = try XCTUnwrap(widget.tree().first, context)
+                    let cross = vertical ? widget.surface.size.width : widget.surface.size.height
+                    if name == "omniwm" {
+                        XCTAssertEqual(widget.surface.size.width, widget.surface.size.height, accuracy: 0.01, context)
+                    } else if !vertical {
+                        XCTAssertGreaterThanOrEqual(widget.surface.size.width, cross, context)
+                    }
+                    XCTAssertEqual(CGFloat(root.paint.cornerRadius), cross / 2, accuracy: 0.01, context)
+                    XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.surface.rawValue + 1), context)
+                    XCTAssertEqual(root.paint.stroke.role & 0xFF, UInt16(ShellRole.border.rawValue + 1), context)
+                    XCTAssertEqual(root.paint.strokeWidth, 0.5, context)
+                    let bounds = CGRect(origin: .zero, size: widget.surface.size).insetBy(dx: -0.01, dy: -0.01)
+                    for element in widget.surface.layout.core.elements(matching: { _ in true }) {
+                        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: element))
+                        XCTAssertTrue(bounds.contains(frame), context + " \(frame) outside \(bounds)")
+                        if name == "omniwm",
+                           widget.text.string(widget.surface.layout.core.content(of: element).text) == "omniwm"
+                        {
+                            XCTAssertEqual(frame.midX, bounds.midX, accuracy: 0.01, context)
+                            XCTAssertEqual(frame.midY, bounds.midY, accuracy: 0.01, context)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    func testSharedBarPreservesTheSystemDrawingForEveryBackgroundSetting() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("system", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("system/widgets/bar-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        func drawing(module: String, bar: ShellBarData) throws -> [String] {
+            try """
+            local look = require("../lib/\(module)")
+            function render(ctx)
+                return look.bar(ctx, { onClick = "shell menu", ui.text{ text = "Probe" } })
+            end
+            """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+            let widget = try makeWidget("bar-probe", config: config, shell: shell)
+            widget.render(bar)
+            return widget.tree().map { "\($0.layout) \($0.paint) \($0.content.hover)" }
+        }
+        for vertical in [false, true] {
+            for transparent in [false, true] {
+                for backgrounds in [false, true] {
+                    var bar = fixture(config, height: 32, vertical: vertical)
+                    bar.style.transparent = transparent
+                    bar.style.backgrounds = backgrounds
+                    XCTAssertEqual(try drawing(module: "look", bar: bar), try drawing(module: "style", bar: bar))
                 }
             }
         }

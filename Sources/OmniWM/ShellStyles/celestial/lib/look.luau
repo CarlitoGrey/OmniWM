@@ -94,6 +94,26 @@ return require("./skin")({
     hover = "foreground/0.08",
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
     size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
+    activeWindowBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local props = { gap = tokens.spacing.small * scale, hover = "accent/0.08",
+            radius = tokens.rounding.large * scale, pad = tokens.padding.extraSmall * scale }
+        if m.display ~= "text_only" then
+            props[#props + 1] = ui.icon{ app = m.bundle, w = tokens.icon.medium * scale,
+                h = tokens.icon.medium * scale, placeholder = "app.dashed" }
+        end
+        if m.display ~= "icon_only" then
+            props[#props + 1] = ui.text{ text = m.title, font = "sans", size = tokens.body.small * scale,
+                color = style.textColor ~= nil and "foreground" or "accent", maxWidth = m.maxWidth,
+                rotate = style.vertical and 90 or nil, animate = "effects" }
+        end
+        if style.vertical then
+            props.w = tokens.bar.inner * scale
+            return ui.column(props)
+        end
+        return ui.row(props)
+    end,
     omniwmButton = function(ctx, glyph, locked)
         local scale = ctx.data.bar.style.height / 60
         glyph.size = tokens.body.large * 1.2 * scale

@@ -135,12 +135,11 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
         let celestial = try ShellServiceValue.decode(XCTUnwrap(config.widgetSettings["clock"])).fields
         XCTAssertEqual(celestial?["date"]?.boolean, false)
         XCTAssertEqual(celestial?["icon"]?.boolean, true)
-        let title = try XCTUnwrap(ShellRootSettings.load(
-            "active-window",
-            directories: [styles.appendingPathComponent("celestial")]
-        ))
-        XCTAssertNil(title.options["display"])
-        XCTAssertEqual(title.options["maxWidth"]?.defaultValue, .number(320))
+        let title = try XCTUnwrap(ShellRootSettings.load("active-window", directories: [defaults]))
+        XCTAssertEqual(title.options["display"]?.defaultValue, .string("icon_and_text"))
+        XCTAssertEqual(title.options["maxWidth"]?.defaultValue, .number(260))
+        let celestialTitle = try ShellServiceValue.decode(XCTUnwrap(config.widgetSettings["active-window"])).fields
+        XCTAssertEqual(celestialTitle?["maxWidth"]?.number, 320)
         let launcher = try XCTUnwrap(ShellRootSettings.load("launcher", directories: [defaults]))
         XCTAssertNil(launcher.options["mode"]?.defaultValue)
         XCTAssertEqual(Set(launcher.options["mode"]?.choices ?? []), Set(CommandPaletteMode.allCases.map(\.rawValue)))

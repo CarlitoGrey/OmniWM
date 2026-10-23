@@ -28,6 +28,18 @@ return require("./skin")({
     heading = legacy.heading,
     button = legacy.button,
     primaryButton = { w = 36, h = 36, radius = 2, fill = "accent", color = "accentForeground" },
+    activeWindowBar = function(ctx, m)
+        local scale = legacy.scale(ctx)
+        local item = { hover = legacy.hover }
+        if m.showIcon then
+            item[#item + 1] = ui.icon{ app = m.bundle, w = 18 * scale, h = 18 * scale, placeholder = "app.dashed" }
+        end
+        if m.showText then
+            item[#item + 1] = text{ text = "~/" .. m.app, size = 11 * scale,
+                color = "secondaryForeground", maxWidth = m.maxWidth }
+        end
+        return legacy.bar(ctx, item)
+    end,
     clockBar = function(ctx, m)
         if ctx.data.bar.style.vertical then
             return nil

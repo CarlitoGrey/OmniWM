@@ -65,27 +65,44 @@ local function skin(look)
     look.bar = look.bar or function(ctx, props)
         local bar = ctx.data.bar.style
         local scale = look.scale(ctx)
+        local capsule = look.capsules and bar.transparent and bar.backgrounds
+        local size = bar.height - 4
         props.gap = props.gap or 5 * scale
         props.pad = props.pad or 4 * scale
         props.radius = look.radius(6 * scale)
         if props.onClick or props.onRightClick then
             props.hover = props.hover or look.hover
         end
-        if bar.backgrounds then
-            props.fill = props.fill or "foreground/0.06"
-        end
         if props.symbol then
             table.insert(props, 1, look.glyph{ name = props.symbol, size = look.px(ctx, "symbol"), color = props.tint })
+        end
+        if capsule then
+            props.radius = size / 2
+            props.fill = props.fill or "surface"
+            props.border = props.border or "border"
+            props.borderWidth = props.borderWidth or 0.5
+            if not bar.vertical and not props.w then
+                local edge = math.max(0, math.round(size * 0.3) - props.gap)
+                props.pad = 0
+                table.insert(props, 1, ui.box{ w = edge, h = 1 })
+                props[#props + 1] = ui.box{ w = edge, h = 1 }
+            end
+        elseif bar.backgrounds then
+            props.fill = props.fill or "foreground/0.06"
         end
         props.symbol = nil
         props.tint = nil
         props.hue = nil
         props.joined = nil
+        if capsule and props.w and props.w == props.h then
+            props.pad = 0
+            return ui.stack(props)
+        end
         if bar.vertical then
-            props.w = props.w or bar.height - 4
+            props.w = props.w or size
             return ui.column(props)
         end
-        props.h = props.h or bar.height - 4
+        props.h = props.h or size
         return ui.row(props)
     end
     look.notificationBadge = look.notificationBadge or function(item, mode, m)

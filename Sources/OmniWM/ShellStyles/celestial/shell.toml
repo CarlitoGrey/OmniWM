@@ -31,6 +31,9 @@ step = 5
 date = false
 icon = true
 
+[widgets.active-window]
+maxWidth = 320
+
 [drawer.dashboard]
 edge = "top"
 widgets = ["dashboard"]

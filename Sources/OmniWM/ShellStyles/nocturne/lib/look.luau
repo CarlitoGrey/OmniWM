@@ -687,6 +687,22 @@ return require("./skin")({
     base = 40,
     hover = "focus/0.14",
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    activeWindowBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        local props = { w = style.vertical and size or nil, h = size, gap = 7 * scale, pad = 6 * scale,
+            radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+            border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14" }
+        if m.showIcon then
+            props[#props + 1] = ui.icon{ app = m.bundle, w = 20 * scale, h = 20 * scale, placeholder = "app.dashed" }
+        end
+        if m.showText then
+            props[#props + 1] = ui.text{ text = m.title, size = 14 * scale, weight = "medium",
+                color = "foreground", maxWidth = m.maxWidth }
+        end
+        return line(style.vertical, props)
+    end,
     clockBar = clockBar,
     calendarBar = calendarBar,
     calendarPanel = calendarPanel,

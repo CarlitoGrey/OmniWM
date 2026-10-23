@@ -1,51 +1,43 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
-local function chip(style: BarStyle, props, square: boolean)
-    local size = math.max(16, style.height - 4)
-    local capsule = style.transparent and style.backgrounds
-    props.hover = if props.onClick then "foreground/0.12" else nil
-    props.radius = if capsule then size / 2 else 4
-    if capsule then
-        props.fill = "surface"
-        props.border = "border"
-        props.borderWidth = 0.5
-    end
-    if square then
-        props.w = size
-        props.h = size
-        return ui.stack(props)
-    end
-    if not capsule then
-        props.pad = 2
-        return ui.row(props)
-    end
-    local edge = math.round(size * 0.3)
-    props.h = size
-    table.insert(props, 1, ui.box{ w = edge - 4, h = 1 })
-    props[#props + 1] = ui.box{ w = edge, h = 1 }
-    return ui.row(props)
-end
+local look = require("../lib/look")
 
-function render(ctx: Context)
+local function model(ctx)
     local data = ctx.data
     if data.app == "" then
-        return ui.box{ w = 0, h = 0 }
+        return nil
     end
-    local style = data.bar.style
     local settings = data.settings or {}
     local display = settings.display or "icon_and_text"
-    local size = math.max(16, style.height - 4)
-    local icon = math.max(14, size - 8)
-    local text = display ~= "icon_only" and not style.vertical
-    local item = { gap = 7, onClick = "open-command-palette windows",
-        help = if data.title ~= "" then data.app .. " — " .. data.title else data.app }
-    if display ~= "text_only" or not text then
-        item[#item + 1] = ui.icon{ app = data.bundle, w = icon, h = icon, placeholder = "app.dashed" }
+    local showText = display ~= "icon_only" and not data.bar.style.vertical
+    return { app = data.app, bundle = data.bundle, display = display,
+        title = if data.title ~= "" then data.title else data.app,
+        help = if data.title ~= "" then data.app .. " — " .. data.title else data.app,
+        showIcon = display ~= "text_only" or not showText, showText = showText,
+        maxWidth = tonumber(settings.maxWidth) or 260 }
+end
+
+function render(ctx)
+    local m = model(ctx)
+    if not m then
+        return ui.box{ w = 0, h = 0 }
     end
-    if text then
-        item[#item + 1] = ui.text{ text = if data.title ~= "" then data.title else data.app,
-            weight = "medium", maxWidth = tonumber(settings.maxWidth) or 260 }
+    local behaviour = { onClick = "open-command-palette windows", help = m.help }
+    local button = look.activeWindowBar and look.activeWindowBar(ctx, m)
+    if not button then
+        local scale = look.scale(ctx)
+        local props = table.clone(behaviour)
+        if m.showIcon then
+            props[#props + 1] = ui.icon{ app = m.bundle, w = 18 * scale, h = 18 * scale, placeholder = "app.dashed" }
+        end
+        if m.showText then
+            props[#props + 1] = look.text{ text = m.title, size = 13 * scale, weight = "medium", maxWidth = m.maxWidth }
+        end
+        button = look.bar(ctx, props)
     end
-    return chip(style, item, not text)
+    for key, value in behaviour do
+        button[key] = value
+    end
+    return button
 end
