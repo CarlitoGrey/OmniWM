@@ -34,8 +34,10 @@ extension SkyLight {
     }
 
     static func crop(_ image: CGImage, from windowFrame: CGRect, to frame: CGRect) -> CGImage? {
-        if windowFrame == frame || covers(image, frame) { return image }
-        guard covers(image, windowFrame) else { return nil }
+        if windowFrame == frame { return image }
+        guard covers(image, windowFrame) else {
+            return covers(image, frame) ? image : nil
+        }
         let scale = CGFloat(image.width) / windowFrame.width
         let rect = CGRect(
             x: ((frame.minX - windowFrame.minX) * scale).rounded(),
