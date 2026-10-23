@@ -5,21 +5,10 @@ local icons = require("./icons")
 local surface = require("./surface")
 local tokens = require("./tokens")
 
-local PRECISE_POINTS_PER_STEP = 12
 local HOVER = "foreground/0.08"
 
 local function scroll(ctx: Context, event)
-    local delta = if event.precise then event.dy / PRECISE_POINTS_PER_STEP else event.dy
-    local total = ctx.state.scroll or 0
-    if total * delta < 0 then
-        total = 0
-    end
-    total += delta
-    local steps = if total >= 0 then math.floor(total) else math.ceil(total)
-    ctx.state.scroll = total - steps
-    if steps ~= 0 then
-        omniwm.run(string.format("volume %s %g", if steps > 0 then "up" else "down", math.abs(steps) * 5))
-    end
+    require("./audio").scroll(ctx, event, 5)
 end
 
 local function wifiIcon(wifi: WiFi?): string
@@ -58,13 +47,15 @@ local function line(label: string, value: string, width: number)
         ui.text{ text = value, font = "sans", size = tokens.body.small, weight = "medium", maxWidth = width * 0.6 } }
 end
 
-local function action(text: string, command: string, width: number)
-    return ui.row{ w = width, h = 40, radius = 20, fill = "secondaryContainer",
+local function action(text: string, command: string, width: number, multiline: boolean?)
+    return ui.row{ w = width, h = not multiline and 40 or nil, pad = multiline and 12 or nil,
+        radius = 20, fill = "secondaryContainer",
         hover = "secondaryContainerForeground/0.08", onClick = command,
-        ui.box{ grow = 1, h = 1 },
+        not multiline and ui.box{ grow = 1, h = 1 } or nil,
         ui.text{ text = text, font = "sans", size = tokens.label.large, weight = "medium",
-            color = "secondaryContainerForeground" },
-        ui.box{ grow = 1, h = 1 } }
+            color = "secondaryContainerForeground", maxWidth = multiline and width - 32 or nil,
+            grow = multiline and 1 or nil, lines = multiline and 3 or nil },
+        not multiline and ui.box{ grow = 1, h = 1 } or nil }
 end
 
 local function panel(width: number, rows)
@@ -183,47 +174,39 @@ local function batteryPanel(ctx: Context)
     return panel(width, rows)
 end
 
-local function audioPanel(ctx: Context)
+local function audioPanel(ctx: Context, m)
+    m = m or require("./audio").model(ctx)
     local width = tokens.bar.popout.audio
     local inner = width - 2 * tokens.padding.large
-    local volume = ctx.data.volume or 0
-    local muted = ctx.data.muted
     local rows = {}
-    rows[#rows + 1] = heading(icons.volume(volume / 100, muted), omniwm.l10n("Volume"), ctx.format.percent(volume / 100),
-        inner)
-    rows[#rows + 1] = ui.row{ w = inner, gap = tokens.spacing.small,
-        surface.button(muted and "no_sound" or "volume_up", "tonal", { onClick = "volume mute", glyph = tokens.icon.small }),
-        ui.slider{ value = volume / 100, grow = 1, h = 16, color = muted and "mutedForeground" or "accent",
-            onChange = function(ctx, event)
-                if event.value then
-                    omniwm.run(string.format("volume set %d", math.round(event.value * 100)))
-                end
-            end } }
-    for _, device in ctx.data.outputs or {} do
-        rows[#rows + 1] = ui.row{ key = device.id, w = inner, gap = tokens.spacing.medium, pad = tokens.padding.small,
+    rows[#rows + 1] = heading(icons.volume(m.level or 0, m.muted), omniwm.l10n("Volume"),
+        m.percent or omniwm.l10n("Unavailable"), inner)
+    if m.volume then
+        rows[#rows + 1] = ui.row{ w = inner, gap = tokens.spacing.small,
+            surface.button(m.muted and "no_sound" or "volume_up", "tonal", { onClick = m.mute, glyph = tokens.icon.small }),
+            ui.slider{ value = m.level, grow = 1, h = 16, color = m.muted and "mutedForeground" or "accent",
+                onChange = m.set } }
+    end
+    for _, device in m.outputs do
+        rows[#rows + 1] = ui.row{ key = device.select, w = inner, gap = tokens.spacing.medium, pad = tokens.padding.small,
             radius = tokens.rounding.large, fill = device.default and "secondaryContainer" or nil, hover = HOVER,
-            onClick = "volume output " .. device.id,
+            onClick = device.select,
             surface.icon(device.transport == "bluetooth" and "headphones" or "speaker", { size = tokens.icon.small,
                 color = device.default and "secondaryContainerForeground" or "secondaryForeground", filled = true }),
             ui.text{ text = device.name, font = "sans", size = tokens.body.small, maxWidth = inner - 60,
                 color = device.default and "secondaryContainerForeground" or "foreground" } }
     end
-    local audio = ctx.data.audioApps
-    if audio and audio.access == "denied" then
-        rows[#rows + 1] = action(omniwm.l10n("Allow System Audio Recording to set app volumes"), "volume permission",
-            inner)
+    if m.permission then
+        rows[#rows + 1] = action(omniwm.l10n("Allow System Audio Recording to set app volumes"), m.permission,
+            inner, true)
     end
-    for _, app in audio and audio.apps or {} do
-        if app.playing or app.muted or app.volume < 100 then
-            rows[#rows + 1] = ui.row{ key = app.id, w = inner, gap = tokens.spacing.small,
-                ui.icon{ app = app.id, w = 20, h = 20, opacity = app.playing and 1 or 0.55 },
-                ui.slider{ value = app.volume / 100, grow = 1, h = 14, color = app.muted and "mutedForeground" or "accent",
-                    onChange = function(ctx, event)
-                        if event.value then
-                            omniwm.run(string.format("volume app %s set %d", app.id, math.round(event.value * 100)))
-                        end
-                    end } }
-        end
+    for _, app in m.apps do
+        rows[#rows + 1] = ui.row{ key = app.id, w = inner, gap = tokens.spacing.small, help = app.name,
+            ui.icon{ app = app.id, w = 20, h = 20, opacity = app.playing and 1 or 0.55 },
+            ui.slider{ value = app.level, grow = 1, h = 14, color = app.muted and "mutedForeground" or "accent",
+                onChange = app.set },
+            surface.button(app.muted and "no_sound" or "volume_up", "tonal", { onClick = app.mute,
+                glyph = tokens.icon.small }) }
     end
     return panel(width, rows)
 end

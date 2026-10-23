@@ -1,21 +1,14 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+local audio = require("../lib/audio")
+
 local HOVER = "foreground/0.12"
 local WIDTH = 340
 local CONTENT = WIDTH - 24
 local INNER = CONTENT - 20
 local CELL = INNER // 7
 local RING = "M12 2.5 A9.5 9.5 0 1 1 12 21.5 A9.5 9.5 0 1 1 12 2.5"
-local TRANSPORT_SYMBOLS = {
-    builtin = "laptopcomputer",
-    usb = "cable.connector",
-    bluetooth = "headphones",
-    hdmi = "display",
-    displayport = "display",
-    airplay = "airplayaudio",
-    thunderbolt = "bolt.horizontal",
-}
 local TABS = {
     { id = "audio", symbol = "speaker.wave.2.fill", label = omniwm.l10n("Audio") },
     { id = "media", symbol = "music.note", label = omniwm.l10n("Media") },
@@ -37,77 +30,6 @@ local function card(props)
     props.gap = props.gap or 6
     props.center = false
     return ui.column(props)
-end
-
-local function caption(text: string)
-    return ui.text{ text = text, size = 11, weight = "semibold", color = "secondaryForeground", maxWidth = INNER }
-end
-
-local function speaker(volume: number, muted: boolean?): string
-    if muted or volume == 0 then
-        return "speaker.slash.fill"
-    end
-    return if volume < 34 then "speaker.wave.1.fill" elseif volume < 67 then "speaker.wave.2.fill"
-        else "speaker.wave.3.fill"
-end
-
-local function audio(ctx)
-    local data = ctx.data
-    local volume = data.volume
-    local rows = { gap = 8, center = false }
-    if volume then
-        rows[#rows + 1] = card{
-            ui.row{ w = INNER, gap = 8,
-                ui.symbol{ name = speaker(volume, data.muted), w = 18, h = 18, color = "accent" },
-                ui.slider{ value = volume / 100, w = INNER - 110, h = 16,
-                    color = if data.muted then "mutedForeground" else "accent",
-                    onChange = function(_, event)
-                        if event.value then
-                            omniwm.run(string.format("volume set %d", math.round(event.value * 100)))
-                        end
-                    end },
-                ui.text{ text = ctx.format.percent(volume / 100), style = "mono", reserve = ctx.format.percent(1) },
-                button(if data.muted then "speaker.wave.2" else "speaker.slash", "volume mute") } }
-    end
-    local outputs = { gap = 2, caption(omniwm.l10n("Output")) }
-    for _, device in data.outputs or {} do
-        outputs[#outputs + 1] = ui.row{ w = INNER, gap = 8, pad = 4, radius = 8, hover = HOVER,
-            onClick = "volume output " .. device.id,
-            ui.symbol{ name = TRANSPORT_SYMBOLS[device.transport] or "hifispeaker.fill", w = 16, h = 16,
-                color = if device.default then "accent" else "secondaryForeground" },
-            ui.text{ text = device.name, grow = 1, maxWidth = INNER - 60,
-                weight = if device.default then "semibold" else nil },
-            ui.symbol{ name = "checkmark", w = 12, h = 12, color = "accent", opacity = if device.default then 1 else 0 } }
-    end
-    rows[#rows + 1] = card(outputs)
-    local apps = data.audioApps
-    if apps and apps.access == "denied" then
-        rows[#rows + 1] = ui.row{ w = CONTENT, gap = 6, pad = 6, radius = 8, hover = HOVER, onClick = "volume permission",
-            ui.symbol{ name = "lock.fill", w = 14, h = 14 },
-            ui.text{ text = omniwm.l10n("Allow System Audio Recording to set app volumes"), maxWidth = CONTENT - 30,
-                lines = 2 } }
-    end
-    local mixer = { gap = 4, caption(omniwm.l10n("Applications")) }
-    for _, entry in if apps then apps.apps else {} do
-        if entry.playing or entry.muted or entry.volume < 100 then
-            mixer[#mixer + 1] = ui.row{ w = INNER, gap = 8,
-                ui.icon{ app = entry.id, w = 18, h = 18, opacity = if entry.playing then 1 else 0.6 },
-                ui.text{ text = entry.name, w = 80, maxWidth = 80 },
-                ui.slider{ value = entry.volume / 100, w = INNER - 140, h = 14,
-                    color = if entry.muted then "mutedForeground" else "accent",
-                    onChange = function(_, event)
-                        if event.value then
-                            omniwm.run(string.format("volume app %s set %d", entry.id, math.round(event.value * 100)))
-                        end
-                    end },
-                button(if entry.muted then "speaker.slash.fill" else "speaker.wave.2.fill",
-                    "volume app " .. entry.id .. " mute", 12) }
-        end
-    end
-    if #mixer > 1 then
-        rows[#rows + 1] = card(mixer)
-    end
-    return ui.column(rows)
 end
 
 local function clock(seconds: number): string
@@ -381,7 +303,11 @@ local function systemTab(ctx)
     return ui.column(rows)
 end
 
-local SECTIONS = { audio = audio, media = media, calendar = calendarTab, weather = weatherTab, system = systemTab }
+local function audioTab(ctx)
+    return audio.content(ctx, CONTENT)
+end
+
+local SECTIONS = { audio = audioTab, media = media, calendar = calendarTab, weather = weatherTab, system = systemTab }
 
 local function selected(ctx): string
     local tab = ctx.state.tab or (ctx.data.settings or {}).tab

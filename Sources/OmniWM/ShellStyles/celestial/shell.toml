@@ -24,6 +24,9 @@ yOffset = 0
 [widgets.workspaces]
 indicator = "pills"
 
+[widgets.volume]
+step = 5
+
 [drawer.dashboard]
 edge = "top"
 widgets = ["dashboard"]

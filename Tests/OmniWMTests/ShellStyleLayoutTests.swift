@@ -83,6 +83,7 @@ final class ShellStyleLayoutTests: XCTestCase {
             try Data(contentsOf: URL(fileURLWithPath: baseline))
                 .write(to: shell.appendingPathComponent("default/widgets/\(name)/init.luau"))
         }
+        try useSharedLibraries(ProcessInfo.processInfo.environment["OMNIWM_STEP_SHARED_LIBS"] ?? "", in: shell)
         for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
             XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
             let config = ShellConfig.resolve(shellDirectory: shell)
@@ -107,6 +108,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                         name, config: config, shell: shell, resources: resources,
                         source: shared ? shell.appendingPathComponent("default/widgets/\(name)/init.luau") : nil
                     )
+                    if ["volume", "control-center"].contains(name) {
+                        audioFixture(widget, access: .granted)
+                    }
                     widget.render(name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
                         : fixture(config, height: height, vertical: vertical))
@@ -121,6 +125,45 @@ final class ShellStyleLayoutTests: XCTestCase {
                         name: "\(name)-\(profile)-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
                         dark: dark, directory: directory, background: background
                     )
+                    if ["volume", "control-center"].contains(name), !vertical {
+                        audioFixture(widget, access: .granted)
+                        if name == "control-center" {
+                            widget.set("settings") { ShellServiceValue.object(["tab": .text("audio")]).write(to: &$0) }
+                        }
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                        if !dark {
+                            audioFixture(widget, access: .denied)
+                            widget.layoutPopout()
+                            try ShellBundledWidgetTests.writeSnapshot(
+                                widget.surface, name: "\(name)-\(profile)-popout-denied",
+                                dark: false, directory: directory, background: background
+                            )
+                            if name == "volume" {
+                                audioFixture(widget, access: .granted)
+                                for state in ["muted", "zero", "unavailable"] {
+                                    widget.set("muted") { $0.bool(state == "muted") }
+                                    widget.set("volume") {
+                                        if state == "unavailable" { $0.null() }
+                                        else { $0.number(state == "zero" ? 0 : 62) }
+                                    }
+                                    if state == "unavailable" {
+                                        widget.set("outputs") { $0.null() }
+                                        widget.set("audioApps") { $0.null() }
+                                    }
+                                    widget.layoutPopout()
+                                    try ShellBundledWidgetTests.writeSnapshot(
+                                        widget.surface, name: "volume-\(profile)-popout-\(state)",
+                                        dark: false, directory: directory, background: background
+                                    )
+                                }
+                            }
+                        }
+                    }
                     if name == "system-stats", !vertical {
                         systemStatsFixture(widget)
                         widget.layoutPopout()
@@ -143,6 +186,234 @@ final class ShellStyleLayoutTests: XCTestCase {
                     }
                 }
             }
+        }
+    }
+
+    func testSharedLibrarySelectionSkipsInvalidNamesAndRejectsUnknownLibraries() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in ["default", "first", "second"] {
+            let library = shell.appendingPathComponent("\(profile)/lib")
+            try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+            try Data("return \"\(profile)\"".utf8).write(to: library.appendingPathComponent("audio.luau"))
+        }
+        let privateAudio = ["first", "second"].map { shell.appendingPathComponent("\($0)/lib/audio.luau") }
+        let before = try privateAudio.map { try Data(contentsOf: $0) }
+        try useSharedLibraries(
+            ",.,../audio,audio/child,audio..,nested\\audio,", in: shell
+        )
+        XCTAssertEqual(try privateAudio.map { try Data(contentsOf: $0) }, before)
+        XCTAssertThrowsError(try useSharedLibraries("audio-typo", in: shell)) { error in
+            XCTAssertEqual((error as NSError).code, CocoaError.fileNoSuchFile.rawValue)
+        }
+        XCTAssertEqual(try privateAudio.map { try Data(contentsOf: $0) }, before)
+        let shared = shell.appendingPathComponent("default/lib/audio.luau")
+        let sharedBefore = try Data(contentsOf: shared)
+        try useSharedLibraries("audio", in: shell)
+        XCTAssertTrue(privateAudio.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
+        XCTAssertEqual(try Data(contentsOf: shared), sharedBefore)
+    }
+
+    func testSharedVolumeBarsKeepInputAndAvoidOutputAndAppDemand() throws {
+        let shell = try sharedAudioShell()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            let widget = try makeWidget(
+                "volume", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/volume/init.luau")
+            )
+            audioFixture(widget, access: .granted)
+            for vertical in [false, true] {
+                for backgrounds in [false, true] {
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.backgrounds = backgrounds
+                    widget.render(bar)
+                    let context = "\(profile) vertical=\(vertical) backgrounds=\(backgrounds)"
+                    var stats = omni_render_stats()
+                    var error = [CChar](repeating: 0, count: 256)
+                    XCTAssertEqual(
+                        omni_instance_render(widget.instance, OMNI_VIEW_BAR, 100_000_000, &stats, &error, error.count),
+                        OMNI_OK, context
+                    )
+                    XCTAssertEqual(stats.deps & (ShellDataKey.outputs.bit | ShellDataKey.audioApps.bit), 0, context)
+                    XCTAssertEqual(
+                        stats.deps & (ShellDataKey.volume.bit | ShellDataKey.muted.bit),
+                        ShellDataKey.volume.bit | ShellDataKey.muted.bit, context
+                    )
+                    XCTAssertLessThanOrEqual(
+                        vertical ? widget.surface.size.width : widget.surface.size.height,
+                        height,
+                        profile
+                    )
+                    let button = try XCTUnwrap(
+                        widget.surface.layout.core.elements { $0.action == OMNI_ACTION_POPOUT }.first,
+                        profile
+                    )
+                    let content = widget.surface.layout.core.content(of: button)
+                    XCTAssertEqual(widget.text.string(content.help), ShellLocalizer.string("Volume", []), profile)
+                    XCTAssertNotEqual(content.scrollAction, 0, profile)
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                    let point = CGPoint(x: frame.midX, y: frame.midY)
+                    widget.surface.press(at: point)
+                    widget.surface.release(at: point)
+                    XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, profile)
+                }
+            }
+            let action = try XCTUnwrap(
+                widget.tree().first { $0.content.scrollAction != 0 }?.content.scrollAction,
+                profile
+            )
+            let scroll = { (dy: Double, precise: Bool) in
+                var event = ShellEvent(button: .none)
+                event.dy = dy
+                event.precise = precise
+                return widget.invoke(action, event: event)
+            }
+            let step = profile == "celestial" ? "5" : "6.25"
+            XCTAssertEqual(scroll(5, true), [], profile)
+            XCTAssertEqual(scroll(-14, true), ["volume down \(step)"], profile)
+            XCTAssertEqual(scroll(8, true), [], profile)
+            XCTAssertEqual(scroll(8, true), ["volume up \(step)"], profile)
+            for volume in [0.0, 62.0] {
+                widget.set("volume") { $0.number(volume) }
+                widget.set("muted") { $0.bool(true) }
+                widget.render(fixture(config, height: height, vertical: false))
+                XCTAssertGreaterThan(widget.surface.size.width, 0, profile)
+            }
+            widget.set("volume") { $0.null() }
+            widget.render(fixture(config, height: height, vertical: false))
+            if profile == "celestial" {
+                XCTAssertEqual(widget.surface.size, .zero, profile)
+            } else {
+                XCTAssertGreaterThan(widget.surface.size.width, 0, profile)
+            }
+        }
+    }
+
+    func testSharedAudioPanelsDeliverSlidersMutesOutputsAndPermissionThroughEverySkin() throws {
+        let shell = try sharedAudioShell()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in profile == "celestial" ? ["volume", "control-center", "status"] : ["volume", "control-center"] {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name, config: config, shell: shell,
+                    source: name == "volume" ? shell.appendingPathComponent("default/widgets/volume/init.luau") : nil
+                )
+                if name == "control-center" {
+                    widget.set("settings") { ShellServiceValue.object(["tab": .text("audio")]).write(to: &$0) }
+                }
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                audioFixture(widget, access: .granted)
+                let sliders = widget.renderPopout().filter { $0.kind == .slider }
+                XCTAssertEqual(sliders.map(\.content.value), [620, 800, 1000, 450], context)
+                for (slider, command) in zip(sliders, [
+                    "volume set 0",
+                    "volume app com.apple.Music set 0",
+                    "volume app com.apple.Safari set 0",
+                    "volume app com.apple.Podcasts set 0"
+                ]) {
+                    var event = ShellEvent(button: .left)
+                    event.kind = .slider
+                    event.phase = .changed
+                    event.value = 0
+                    XCTAssertEqual(
+                        widget.invoke(slider.content.action, view: OMNI_VIEW_POPOUT, event: event),
+                        [command],
+                        context
+                    )
+                    event.value = 0.754
+                    XCTAssertEqual(
+                        widget.invoke(slider.content.action, view: OMNI_VIEW_POPOUT, event: event),
+                        [command.replacingOccurrences(of: "set 0", with: "set 75")],
+                        context
+                    )
+                }
+                widget.layoutPopout()
+                for command in [
+                    "volume mute",
+                    "volume output 41",
+                    "volume output 42",
+                    "volume output 43",
+                    "volume app com.apple.Music mute",
+                    "volume app com.apple.Safari mute",
+                    "volume app com.apple.Podcasts mute"
+                ] {
+                    try clickAudioCommand(command, widget: widget, context: context)
+                }
+                var stats = omni_render_stats()
+                var error = [CChar](repeating: 0, count: 256)
+                XCTAssertEqual(
+                    omni_instance_render(widget.instance, OMNI_VIEW_POPOUT, 100_000_000, &stats, &error, error.count),
+                    OMNI_OK
+                )
+                let demand = ShellDataKey.outputs.bit | ShellDataKey.audioApps.bit
+                XCTAssertEqual(stats.deps & demand, demand, context)
+                audioFixture(widget, access: .denied)
+                XCTAssertEqual(widget.renderPopout().filter { $0.kind == .slider }.count, 1, context)
+                widget.layoutPopout()
+                try clickAudioCommand("volume permission", widget: widget, context: context)
+                widget.set("volume") { $0.null() }
+                widget.set("outputs") { $0.null() }
+                widget.set("audioApps") { $0.null() }
+                XCTAssertFalse(widget.renderPopout().contains { $0.kind == .slider }, context)
+                let unavailable = widget.strings(OMNI_VIEW_POPOUT)
+                if profile == "nocturne", name == "volume" {
+                    XCTAssertTrue(unavailable.contains("—"), context)
+                    XCTAssertTrue(unavailable.contains(ShellLocalizer.string("Volume", [])), context)
+                } else {
+                    XCTAssertTrue(unavailable.contains(ShellLocalizer.string("Unavailable", [])), context)
+                }
+            }
+        }
+    }
+
+    func testCelestialAudioPermissionTextFitsInsideItsAction() throws {
+        let shell = try sharedAudioShell()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for name in ["volume", "status"] {
+            let widget = try makeWidget(
+                name, config: config, shell: shell,
+                source: name == "volume" ? shell.appendingPathComponent("default/widgets/volume/init.luau") : nil
+            )
+            widget.render(fixture(config, height: 60, vertical: false))
+            audioFixture(widget, access: .denied)
+            widget.layoutPopout()
+            let action = try XCTUnwrap(widget.surface.layout.core.elements {
+                widget.text.string($0.action) == "volume permission"
+            }.first, name)
+            let label = try XCTUnwrap(widget.surface.layout.core.elements {
+                widget.text.string($0.text) == ShellLocalizer.string(
+                    "Allow System Audio Recording to set app volumes",
+                    []
+                )
+            }.first, name)
+            let actionFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: action))
+            let labelFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: label))
+            XCTAssertGreaterThanOrEqual(labelFrame.minX, actionFrame.minX, name)
+            XCTAssertLessThanOrEqual(labelFrame.maxX, actionFrame.maxX, name)
+            XCTAssertGreaterThanOrEqual(labelFrame.minY, actionFrame.minY, name)
+            XCTAssertLessThanOrEqual(labelFrame.maxY, actionFrame.maxY, name)
+            let content = widget.surface.layout.core.content(of: label)
+            XCTAssertGreaterThanOrEqual(labelFrame.width, CGFloat(content.maxWidth), name)
+            let font = ShellTextStyle.font(for: content.style)
+            let text = NSAttributedString(
+                string: widget.text.string(content.text),
+                attributes: [NSAttributedString.Key(kCTFontAttributeName as String): font]
+            )
+            let lines = ShellTextStyle.wrappedLines(
+                text, width: min(labelFrame.width, CGFloat(content.maxWidth)), limit: Int.max
+            )
+            XCTAssertLessThanOrEqual(lines.count, Int(content.lines), name)
+            XCTAssertLessThanOrEqual(ShellTextStyle.wrappedSize(of: lines, font: font).height, labelFrame.height, name)
+            try clickAudioCommand("volume permission", widget: widget, context: name)
         }
     }
 
@@ -1448,6 +1719,70 @@ final class ShellStyleLayoutTests: XCTestCase {
             directory: URL(fileURLWithPath: directory).appendingPathComponent("states").path,
             background: widget.resources.palette.color(.clear, default: .background)
         )
+    }
+
+    private func useSharedLibraries(_ names: String, in shell: URL) throws {
+        for library in names.split(separator: ",", omittingEmptySubsequences: false) {
+            guard !library.isEmpty, library != ".", !library.contains("/"), !library.contains("\\"),
+                  !library.contains("..") else { continue }
+            var removed = false
+            for profile in ShellProfiles.names(in: shell) where profile != "default" {
+                let path = shell.appendingPathComponent("\(profile)/lib/\(library).luau")
+                if FileManager.default.fileExists(atPath: path.path) {
+                    try FileManager.default.removeItem(at: path)
+                    removed = true
+                }
+            }
+            guard removed else {
+                throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: "lib/\(library).luau"])
+            }
+        }
+    }
+
+    private func sharedAudioShell() throws -> URL {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ShellProfiles.names(in: shell) where profile != "default" {
+            let audio = shell.appendingPathComponent("\(profile)/lib/audio.luau")
+            if FileManager.default.fileExists(atPath: audio.path) {
+                try FileManager.default.removeItem(at: audio)
+            }
+        }
+        return shell
+    }
+
+    private func clickAudioCommand(_ command: String, widget: ShellRenderedWidget, context: String) throws {
+        let element = try XCTUnwrap(
+            widget.surface.layout.core.elements { widget.text.string($0.action) == command }.first,
+            context + ": " + command
+        )
+        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: element))
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let before = widget.clicks.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.clicks.count, before + 1, context + ": " + command)
+        XCTAssertEqual(widget.clicks.last?.action, command, context)
+    }
+
+    private func audioFixture(_ widget: ShellRenderedWidget, access: AppVolumeAccess) {
+        widget.set("volume") { $0.number(62) }
+        widget.set("muted") { $0.bool(false) }
+        let outputs = [
+            ShellAudioOutput(id: 41, name: "MacBook Pro Speakers", transport: "builtin", isDefault: true),
+            ShellAudioOutput(id: 42, name: "AirPods Pro", transport: "bluetooth", isDefault: false),
+            ShellAudioOutput(id: 43, name: "Studio Display Speakers", transport: "usb", isDefault: false)
+        ]
+        widget.set("outputs") { writer in
+            writer.array(outputs.count)
+            outputs.forEach { $0.write(into: &writer) }
+        }
+        let apps = access == .granted ? [
+            ShellAudioApp(id: "com.apple.Music", name: "Music", playing: true, volume: 80, muted: false),
+            ShellAudioApp(id: "com.apple.Safari", name: "Safari", playing: true, volume: 100, muted: false),
+            ShellAudioApp(id: "com.apple.Podcasts", name: "Podcasts", playing: false, volume: 45, muted: true)
+        ] : []
+        widget.set("audioApps") { ShellAudioApps(access: access, apps: apps).write(into: &$0) }
     }
 
     private func systemStatsFixture(_ widget: ShellRenderedWidget) {

@@ -2,7 +2,9 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local shapes = require("./shapes")
+local icons = require("./icons")
 local performance = require("./performance")
+local status = require("./status")
 local surface = require("./surface")
 local tokens = require("./tokens")
 
@@ -70,6 +72,22 @@ return require("./skin")({
         return { w = size, h = size, radius = size / 2,
             hover = (locked and "warning" or "tertiaryAccent") .. "/0.12" }, size
     end,
+    volumeBar = function(ctx, m)
+        if not m.volume then
+            return ui.box{ w = 0, h = 0 }
+        end
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local tint = m.muted and "mutedForeground" or "secondaryAccent"
+        return surface.pill(style, {
+            surface.icon(icons.volume(m.level, m.muted), { size = tokens.icon.medium * scale, color = tint,
+                filled = true, animate = "effects" }),
+            ui.text{ text = style.vertical and tostring(m.volume) or m.percent, font = "sans",
+                size = (style.vertical and tokens.label.small or tokens.label.large) * scale, weight = "medium",
+                color = tint, reserve = not style.vertical and ctx.format.percent(1) or nil },
+        }, { hover = status.hover })
+    end,
+    audioPanel = status.audio,
     text = function(props)
         props.font = props.font or "sans"
         if props.color == nil and props.role == "secondary" then

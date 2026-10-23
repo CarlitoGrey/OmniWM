@@ -89,13 +89,183 @@ local function statsCard(width, children)
     return ui.column(children)
 end
 
+local HOVER = "foreground/0.07"
+
+local function caps(text)
+    return if string.find(text, "[\128-\255]") then text else string.upper(text)
+end
+
+local function chip(size, vertical, color, glyph)
+    local radius = math.floor(size * 0.24)
+    return ui.stack{ w = size, h = size,
+        ui.box{ w = size, h = size, radius = radius, fill = color },
+        ui.box{ align = vertical and "bottom" or "trailing", w = vertical and size or radius,
+            h = vertical and radius or size, fill = color },
+        ui.symbol(glyph) }
+end
+
+local function frame(width, bandHeight, header, body, attach)
+    return ui.column{ w = width, gap = 0, material = "clear", attach = attach, radius = 12, fill = "surface",
+        border = "border", borderWidth = 1, center = false,
+        ui.stack{ w = width, h = bandHeight,
+            ui.box{ w = width, h = bandHeight, radius = 12, fill = "elevatedSurface" },
+            ui.box{ align = "bottom", w = width, h = 12, fill = "elevatedSurface" }, header },
+        ui.box{ w = width, h = 1, fill = "border" }, body }
+end
+
+local function dividedCard(props, width, dividerWidth)
+    props.w = width or props.w
+    props.gap, props.pad, props.radius, props.fill, props.center = 0, 0, 9, "elevatedSurface", true
+    for index = #props, 2, -1 do
+        table.insert(props, index, ui.box{ w = dividerWidth, h = 1, fill = "foreground/0.07" })
+    end
+    return ui.column(props)
+end
+
+local AUDIO_WIDTH = 360
+local AUDIO_INNER = AUDIO_WIDTH - 32
+local AUDIO_CARD = AUDIO_INNER - 20
+local AUDIO_WELL = "foreground/0.06"
+
+local function audioWell(size, selected, child)
+    return ui.stack{ w = size, h = size, radius = 7, fill = selected and "accent/0.16" or AUDIO_WELL, child }
+end
+
+local function audioMute(symbol, command, muted)
+    return ui.stack{ w = 28, h = 28, radius = 7, fill = muted and "error/0.16" or AUDIO_WELL,
+        hover = HOVER, onClick = command,
+        ui.symbol{ name = symbol, size = 12, weight = "semibold",
+            color = muted and "error" or "secondaryForeground" } }
+end
+
+local function audioCard(rows)
+    return dividedCard(rows, AUDIO_INNER, AUDIO_CARD)
+end
+
+local function audioApp(app)
+    return ui.column{ w = AUDIO_CARD, gap = 6, pad = 0, center = false,
+        ui.box{ w = 1, h = 4 },
+        ui.row{ w = AUDIO_CARD, gap = 10,
+            audioWell(28, false, ui.icon{ app = app.id, w = 18, h = 18,
+                opacity = app.playing and 1 or 0.55 }),
+            ui.text{ text = app.name, size = 14, weight = "semibold",
+                color = app.muted and "mutedForeground" or "foreground", maxWidth = 150 },
+            ui.box{ grow = 1, h = 1 },
+            ui.row{ w = 40, ui.box{ grow = 1, h = 1 },
+                ui.text{ text = app.percent, style = "mono", size = 12, weight = "semibold",
+                    color = "mutedForeground" } },
+            audioMute(app.symbol, app.mute, app.muted) },
+        ui.row{ w = AUDIO_CARD, gap = 0,
+            ui.box{ w = 38, h = 1 },
+            ui.slider{ value = app.level, w = AUDIO_CARD - 38, h = 14,
+                color = app.muted and "mutedForeground" or "accent", onChange = app.set } },
+        ui.box{ w = 1, h = 6 } }
+end
+
 return require("./skin")({
     base = 40,
-    hover = "foreground/0.07",
+    hover = HOVER,
     hiddenBarHover = "accent/0.15",
     width = 320,
     widths = { workspaces = 296, ["system-stats"] = 348 },
     size = { text = 14, icon = 24, slot = 28 },
+    volumeBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        local radius = math.floor(size * 0.24)
+        local block = chip(size, style.vertical, "red", { name = m.symbol, size = math.floor(size * 0.52),
+            weight = "semibold", color = "accentForeground" })
+        local hue = style.textColor ~= nil and "foreground" or (m.muted and "mutedForeground" or "red")
+        local props = { gap = 0, radius = radius, fill = style.backgrounds and "elevatedSurface" or nil,
+            hoverOpacity = 0.9, block }
+        if style.vertical then
+            props.w, props.gap = size, 2
+            if m.volume then
+                props[#props + 1] = ui.text{ text = tostring(m.volume), style = "mono", size = 14 * scale,
+                    weight = "semibold", color = hue }
+                props[#props + 1] = ui.box{ w = 1, h = 3 }
+            end
+            return ui.column(props)
+        end
+        props.h = size
+        if m.volume then
+            props[#props + 1] = ui.box{ w = 8, h = 1 }
+            props[#props + 1] = ui.text{ text = m.percent, style = "mono", size = 14 * scale, weight = "semibold",
+                color = hue, reserve = ctx.format.percent(1) }
+            props[#props + 1] = ui.box{ w = 9, h = 1 }
+        end
+        return ui.row(props)
+    end,
+    audioPanel = function(ctx, m)
+        local header = { w = AUDIO_INNER, gap = 8,
+            ui.symbol{ name = "speaker.wave.2.fill", size = 13, weight = "semibold", color = "accent" },
+            ui.text{ text = omniwm.l10n("Sound"), size = 14, weight = "bold", color = "foreground" },
+            ui.box{ grow = 1, h = 1 } }
+        if m.volume then
+            header[#header + 1] = audioMute(m.muted and "speaker.slash.fill" or "speaker.wave.2.fill", m.mute, m.muted)
+        end
+        local body = { w = AUDIO_WIDTH, pad = 16, gap = 8, center = false }
+        if m.volume then
+            body[#body + 1] = audioCard({
+                ui.column{ w = AUDIO_CARD, gap = 8, center = false,
+                    ui.box{ w = 1, h = 4 },
+                    ui.row{ w = AUDIO_CARD, gap = 10,
+                        audioWell(30, false, ui.symbol{ name = m.symbol, size = 13, weight = "semibold",
+                            color = m.muted and "mutedForeground" or "secondaryForeground" }),
+                        ui.column{ gap = 1, center = false,
+                            ui.text{ text = caps(omniwm.l10n("Output")), size = 12, weight = "bold",
+                                color = "mutedForeground" },
+                            ui.text{ text = m.output and m.output.name or omniwm.l10n("Output"), size = 14,
+                                weight = "semibold", color = "foreground", maxWidth = AUDIO_CARD - 90 } },
+                        ui.box{ grow = 1, h = 1 },
+                        ui.text{ text = m.percent, style = "mono", size = 14, weight = "bold",
+                            color = m.muted and "mutedForeground" or "foreground", reserve = ctx.format.percent(1) } },
+                    ui.slider{ value = m.level, w = AUDIO_CARD, h = 16,
+                        color = m.muted and "mutedForeground" or "accent", onChange = m.set },
+                    ui.box{ w = 1, h = 4 } } })
+        else
+            body[#body + 1] = audioCard({ ui.column{ w = AUDIO_CARD, gap = 8, center = false,
+                ui.box{ w = 1, h = 4 },
+                ui.text{ text = omniwm.l10n("Unavailable"), size = 13,
+                    color = "secondaryForeground", w = AUDIO_CARD },
+                ui.box{ w = 1, h = 4 } } })
+        end
+        if #m.outputs > 0 then
+            local devices = { w = AUDIO_INNER, gap = 2, pad = 4, radius = 9, fill = "elevatedSurface", center = true }
+            for _, output in ipairs(m.outputs) do
+                devices[#devices + 1] = ui.row{ w = AUDIO_CARD, h = 44, gap = 10, radius = 7, hover = HOVER,
+                    onClick = output.select,
+                    audioWell(30, output.default, ui.symbol{ name = output.symbol, size = 13, weight = "semibold",
+                        color = output.default and "accent" or "secondaryForeground" }),
+                    ui.text{ text = output.name, size = 14, weight = output.default and "semibold" or "medium",
+                        color = "foreground", maxWidth = AUDIO_CARD - 70 },
+                    ui.box{ grow = 1, h = 1 },
+                    ui.symbol{ name = "checkmark", size = 11, weight = "bold", color = "accent",
+                        opacity = output.default and 1 or 0 } }
+            end
+            body[#body + 1] = ui.column(devices)
+        end
+        local apps = {}
+        if m.permission then
+            apps[#apps + 1] = ui.row{ w = AUDIO_CARD, h = 44, gap = 10, radius = 7, hover = HOVER,
+                onClick = m.permission,
+                audioWell(28, false, ui.symbol{ name = "lock.fill", size = 12, color = "warning" }),
+                ui.text{ text = omniwm.l10n("Allow System Audio Recording to set app volumes"), size = 12,
+                    weight = "medium", color = "foreground", maxWidth = AUDIO_CARD - 40, lines = 2 } }
+        end
+        for _, app in ipairs(m.apps) do
+            apps[#apps + 1] = audioApp(app)
+        end
+        if #apps > 0 then
+            body[#body + 1] = ui.box{ w = 1, h = 2 }
+            body[#body + 1] = ui.row{ w = AUDIO_INNER, h = 18, ui.box{ w = 2, h = 1 },
+                ui.text{ text = caps(omniwm.l10n("Applications")), size = 12, weight = "bold",
+                    color = "mutedForeground" } }
+            body[#body + 1] = audioCard(apps)
+        end
+        return frame(AUDIO_WIDTH, 44, ui.row(header), ui.column(body), true)
+    end,
     omniwmButton = function(ctx, glyph, locked)
         local size = 32 * ctx.data.bar.style.height / 40
         glyph.size = math.floor(size * 0.6)
@@ -189,13 +359,7 @@ return require("./skin")({
         local header = table.remove(props, 1)
         local width = props.w
         props.center = false
-        return ui.column{ w = width, gap = 0, material = "clear", radius = 12, fill = "surface",
-            border = "border", borderWidth = 1, center = false,
-            ui.stack{ w = width, h = 52,
-                ui.box{ w = width, h = 52, radius = 12, fill = "elevatedSurface" },
-                ui.box{ align = "bottom", w = width, h = 12, fill = "elevatedSurface" }, header },
-            ui.box{ w = width, h = 1, fill = "border" },
-            ui.column(props) }
+        return frame(width, 52, header, ui.column(props))
     end,
     workspaceMetrics = function(_, style, m)
         return { item = 32 * m.scale, focusCue = supported(m) and not m.compact and style.backgrounds }
@@ -332,11 +496,8 @@ return require("./skin")({
         end
         local size = 32 * m.scale
         local radius = math.floor(size * 0.24)
-        local block = ui.stack{ w = size, h = size,
-            ui.box{ w = size, h = size, radius = radius, fill = "purple" },
-            ui.box{ align = m.vertical and "bottom" or "trailing", w = m.vertical and size or radius,
-                h = m.vertical and radius or size, fill = "purple" },
-            ui.symbol{ name = "tray.fill", size = math.floor(size * 0.5), weight = "semibold", color = "accentForeground" } }
+        local block = chip(size, m.vertical, "purple", { name = "tray.fill", size = math.floor(size * 0.5),
+            weight = "semibold", color = "accentForeground" })
         items.gap = 2
         items.radius = radius
         items.fill = style.backgrounds and "elevatedSurface" or nil
@@ -364,16 +525,7 @@ return require("./skin")({
             fill = window.focused and "accent" or "foreground/0.12" })
     end,
     list = function(props)
-        props.gap = 0
-        props.pad = 0
-        props.radius = 9
-        props.fill = "elevatedSurface"
-        props.center = true
-        local count = #props
-        for index = count, 2, -1 do
-            table.insert(props, index, ui.box{ w = 276, h = 1, fill = "foreground/0.07" })
-        end
-        return ui.column(props)
+        return dividedCard(props, nil, 276)
     end,
     hiddenMenuRow = function(row, item, kind)
         if kind == "separator" then
@@ -391,9 +543,7 @@ return require("./skin")({
             row[2].size, row[2].weight, row[2].color = 12, "semibold", "accent"
         elseif kind == "title" then
             local label = row[1]
-            if not string.find(label.text, "[\128-\255]") then
-                label.text = string.upper(label.text)
-            end
+            label.text = caps(label.text)
             label.size, label.weight, label.color = 10, "bold", "mutedForeground"
         elseif kind == "empty" then
             row[1].size, row[1].color = 12, "mutedForeground"
@@ -413,13 +563,6 @@ return require("./skin")({
         for index = 2, #props do
             body[#body + 1] = props[index]
         end
-        return ui.column{ w = 320, gap = 0, material = "clear", radius = 12, fill = "surface", border = "border",
-            borderWidth = 1, center = false,
-            ui.stack{ w = 320, h = 44,
-                ui.box{ w = 320, h = 44, radius = 12, fill = "elevatedSurface" },
-                ui.box{ align = "bottom", w = 320, h = 12, fill = "elevatedSurface" },
-                header },
-            ui.box{ w = 320, h = 1, fill = "border" },
-            ui.column(body) }
+        return frame(320, 44, header, ui.column(body))
     end,
 })

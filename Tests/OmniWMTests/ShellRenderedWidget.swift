@@ -46,7 +46,8 @@ final class ShellRenderedWidget {
         var error = [CChar](repeating: 0, count: 256)
         XCTAssertEqual(
             omni_vm_load(vm, chunk ?? "=\(name)", source, source.utf8.count, 100_000_000, &error, error.count),
-            OMNI_OK
+            OMNI_OK,
+            "\(name): " + String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
         )
         instance = try XCTUnwrap(omni_instance_create(vm))
         self.resources = resources ?? ShellResources(motion: MotionPolicy(animationsEnabled: false))

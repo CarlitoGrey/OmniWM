@@ -218,7 +218,8 @@ final class ShellDefaultsTests: XCTestCase {
             "omniwm",
             "hidden-bar",
             "hidden-bar-menu",
-            "system-stats"
+            "system-stats",
+            "volume"
         ]
         let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
         XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())

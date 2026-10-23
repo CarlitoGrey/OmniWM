@@ -178,12 +178,140 @@ local function statsDetails(m, width)
                 maxWidth = width - 44, lines = 2 } } }
 end
 
+local AUDIO_WIDTH = 360
+local AUDIO_INNER = AUDIO_WIDTH - 2 - 24
+local AUDIO_CARD = AUDIO_INNER - 20
+
+local function audioRound(name, command, active, size)
+    return ui.stack{ w = size, h = size, radius = size / 2, hover = "focus/0.14", onClick = command,
+        fill = active and "error/0.18" or "elevatedSurface",
+        ui.symbol{ name = name, size = size * 0.42, weight = "semibold", color = active and "error" or "foreground" } }
+end
+
+local function audioCard(props)
+    props.w, props.pad, props.radius = AUDIO_INNER, 10, 14
+    props.fill, props.border, props.borderWidth, props.center = "surface", "border", 1, false
+    return ui.column(props)
+end
+
+local function audioSection(text)
+    return ui.row{ w = AUDIO_INNER, ui.box{ w = 4, h = 1 },
+        ui.text{ text = text, size = 12, weight = "semibold", color = "secondaryForeground" } }
+end
+
+local function audioApp(app)
+    return ui.row{ w = AUDIO_CARD, gap = 8,
+        ui.icon{ app = app.id, w = 20, h = 20, opacity = if app.playing then 1 else 0.55 },
+        ui.text{ text = app.name, size = 14, w = 72, maxWidth = 72,
+            color = if app.playing then "foreground" else "secondaryForeground" },
+        ui.slider{ value = app.level, w = AUDIO_CARD - 136, h = 14,
+            color = if app.muted then "mutedForeground" else "accent", onChange = app.set },
+        audioRound(app.symbol, app.mute, app.muted, 24) }
+end
+
+local function audioOutput(device)
+    local chosen = device.default
+    return ui.row{ w = AUDIO_CARD, gap = 10, pad = 3, radius = 10, hover = "focus/0.14", onClick = device.select,
+        ui.stack{ w = 26, h = 26, radius = 13, fill = chosen and "accent" or "elevatedSurface",
+            ui.symbol{ name = device.symbol, size = 12, weight = "semibold",
+                color = chosen and "accentForeground" or "secondaryForeground" } },
+        ui.text{ text = device.name, size = 14, grow = 1, maxWidth = AUDIO_CARD - 70,
+            weight = chosen and "semibold" or nil, color = chosen and "foreground" or "secondaryForeground" },
+        ui.stack{ w = 16, h = 16,
+            ui.path{ w = 16, h = 16, d = "M8 0.75 A7.25 7.25 0 1 1 8 15.25 A7.25 7.25 0 1 1 8 0.75 Z",
+                border = chosen and "accent" or "mutedForeground/0.6", borderWidth = 1.5 },
+            ui.box{ w = 8, h = 8, radius = 4, fill = chosen and "accent" or nil } },
+        ui.box{ w = 2, h = 1 } }
+end
+
+local function framedPanel(ctx, props, width)
+    width = width or props.w or 300
+    props.w = width - 2
+    props.pad = props.pad or 12
+    props.gap = props.gap or 10
+    props.center = false
+    return panel(ctx.data.bar.style, width, ui.column(props))
+end
+
+local function audioPanel(ctx, m)
+    local rows = { gap = 8 }
+    rows[#rows + 1] = ui.row{ w = AUDIO_INNER, gap = 8,
+        ui.box{ w = 2, h = 1 },
+        ui.text{ text = omniwm.l10n("Volume"), size = 15, weight = "bold" },
+        ui.box{ grow = 1, h = 1 },
+        ui.text{ text = m.percent or "—", size = 15, weight = "bold",
+            color = m.muted and "mutedForeground" or "accent", reserve = ctx.format.percent(1) },
+        ui.box{ w = 2, h = 1 } }
+    if m.volume then
+        rows[#rows + 1] = audioCard{ gap = 0,
+            ui.row{ w = AUDIO_CARD, gap = 10,
+                ui.symbol{ name = m.symbol, w = 20, h = 18, size = 14, weight = "semibold",
+                    color = m.muted and "mutedForeground" or "foreground" },
+                ui.slider{ value = m.level, w = AUDIO_CARD - 64, h = 18,
+                    color = if m.muted then "mutedForeground" else "accent", onChange = m.set },
+                audioRound(m.muteSymbol, m.mute, m.muted, 26) } }
+    end
+    if #m.outputs > 0 then
+        rows[#rows + 1] = audioSection(omniwm.l10n("Output"))
+        local list = { gap = 4 }
+        for _, device in m.outputs do
+            list[#list + 1] = audioOutput(device)
+        end
+        rows[#rows + 1] = audioCard(list)
+    end
+    local apps = { gap = 8 }
+    if m.permission then
+        apps[#apps + 1] = ui.row{ w = AUDIO_CARD, gap = 8, pad = 4, radius = 10,
+            hover = "focus/0.14", onClick = m.permission,
+            ui.stack{ w = 26, h = 26, radius = 13, fill = "warning/0.18",
+                ui.symbol{ name = "lock.fill", size = 11, color = "warning" } },
+            ui.text{ text = omniwm.l10n("Allow System Audio Recording to set app volumes"), size = 14,
+                maxWidth = AUDIO_CARD - 46, lines = 2 } }
+    end
+    for _, app in m.apps do
+        apps[#apps + 1] = audioApp(app)
+    end
+    if #apps > 0 then
+        rows[#rows + 1] = audioSection(omniwm.l10n("Applications"))
+        rows[#rows + 1] = audioCard(apps)
+    end
+    return framedPanel(ctx, rows, AUDIO_WIDTH)
+end
+
 return require("./skin")({
     base = 40,
     hover = "focus/0.14",
     width = 300,
     widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },
+    volumeBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        local muted = m.muted or m.volume == 0
+        local glyph = ui.symbol{ name = m.symbol, w = 20 * scale, h = 20 * scale, size = 18 * scale,
+            weight = "semibold", color = muted and "mutedForeground" or "foreground" }
+        local node = { gap = 5, radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+            border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14" }
+        if style.vertical then
+            node.w, node.gap = size, 2
+            node[1], node[2] = ui.box{ w = 1, h = 4 }, glyph
+            if m.volume then
+                node[3] = ui.text{ text = tostring(m.volume), style = "mono", size = 14 * scale, weight = "semibold" }
+            end
+            node[#node + 1] = ui.box{ w = 1, h = 4 }
+            return ui.column(node)
+        end
+        node.h = size
+        node[1], node[2] = ui.box{ w = 2, h = 1 }, glyph
+        if m.volume then
+            node[3] = ui.text{ text = m.percent, size = 14 * scale, weight = "semibold",
+                color = muted and "mutedForeground" or "foreground", reserve = ctx.format.percent(1) }
+        end
+        node[#node + 1] = ui.box{ w = 3, h = 1 }
+        return ui.row(node)
+    end,
+    audioPanel = audioPanel,
     omniwmButton = function(ctx, glyph)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -227,14 +355,7 @@ return require("./skin")({
         rows.border, rows.borderWidth, rows.center = "border", 1, false
         return ui.column(rows)
     end,
-    panel = function(ctx, props)
-        local width = props.w or 300
-        props.w = width - 2
-        props.pad = props.pad or 12
-        props.gap = props.gap or 10
-        props.center = false
-        return panel(ctx.data.bar.style, width, ui.column(props))
-    end,
+    panel = framedPanel,
     list = function(props)
         props.center = false
         props.gap = props.gap or 2
