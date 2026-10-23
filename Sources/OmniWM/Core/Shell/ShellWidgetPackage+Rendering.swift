@@ -25,8 +25,8 @@ extension ShellWidgetPackage {
 
     func pacedTimedRender() -> Bool {
         guard let interval else { return true }
-        let now = ContinuousClock.now
-        if let last = lastTimedRender, now - last < .seconds(interval) {
+        let now = current.seconds
+        if let last = lastTimedRender, now >= last, now - last < interval {
             return false
         }
         lastTimedRender = now
