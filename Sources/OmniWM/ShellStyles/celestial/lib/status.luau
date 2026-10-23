@@ -40,11 +40,18 @@ local function heading(icon: string, title: string, detail: string?, width: numb
                 maxWidth = width - 60 } or nil } }
 end
 
-local function line(label: string, value: string, width: number)
-    return ui.row{ w = width,
-        ui.text{ text = label, font = "sans", size = tokens.body.small, color = "secondaryForeground" },
-        ui.box{ grow = 1, h = 1 },
-        ui.text{ text = value, font = "sans", size = tokens.body.small, weight = "medium", maxWidth = width * 0.6 } }
+local function line(label: string, value: string, width: number, wrap: boolean?)
+    local gap = wrap and tokens.spacing.small or nil
+    local maximum = wrap and (width - gap) / 2 or nil
+    local row = { w = width, gap = gap,
+        ui.text{ text = label, font = "sans", size = tokens.body.small, color = "secondaryForeground",
+            grow = wrap and 1 or nil, maxWidth = maximum, lines = wrap and 2 or nil } }
+    if not wrap then
+        row[#row + 1] = ui.box{ grow = 1, h = 1 }
+    end
+    row[#row + 1] = ui.text{ text = value, font = "sans", size = tokens.body.small, weight = "medium",
+        maxWidth = maximum or width * 0.6, lines = wrap and 2 or nil }
+    return ui.row(row)
 end
 
 local function action(text: string, command: string, width: number, multiline: boolean?)
@@ -68,15 +75,6 @@ local function panel(width: number, rows)
     rows.shadowRadius = 10
     rows.center = false
     return ui.column{ material = "clear", pad = tokens.padding.small, ui.column(rows) }
-end
-
-local function duration(minutes: number): string
-    local hours = math.floor(minutes / 60)
-    local rest = math.floor(minutes % 60)
-    if hours > 0 then
-        return omniwm.l10n("%lldh %lldm", hours, rest)
-    end
-    return omniwm.l10n("%lldm", rest)
 end
 
 local function networkPanel(ctx: Context)
@@ -146,31 +144,27 @@ local function bluetoothPanel(ctx: Context)
     return panel(width, rows)
 end
 
-local function batteryPanel(ctx: Context)
+local function batteryPanel(ctx: Context, m)
+    m = m or require("./battery").model(ctx)
     local width = tokens.bar.popout.battery
     local inner = width - 2 * tokens.padding.large
-    local level = ctx.data.battery or 0
-    local power = ctx.data.power
-    local charging = ctx.data.charging
-    local rows = {}
-    local status = power and power.charged and omniwm.l10n("Fully charged") or charging and omniwm.l10n("Charging")
-        or omniwm.l10n("On battery")
-    rows[#rows + 1] = ui.row{ w = inner, gap = tokens.spacing.medium,
-        surface.icon(icons.battery(level / 100, charging), { size = tokens.icon.large,
-            color = (level <= 20 and not charging) and "error" or "accent", filled = true }),
-        ui.column{ center = false, gap = 2,
-            ui.text{ text = ctx.format.percent(level / 100), font = "sans", size = tokens.headline.small,
-                weight = "medium" },
-            ui.text{ text = status, font = "sans", size = tokens.body.small, color = "secondaryForeground" } } }
-    if power and power.remaining and not charging then
-        rows[#rows + 1] = line(omniwm.l10n("Time Remaining"), duration(power.remaining), inner)
-    elseif power and power.full and charging then
-        rows[#rows + 1] = line(omniwm.l10n("Time to Full"), duration(power.full), inner)
+    if not m then
+        return panel(width, {
+            heading("battery_unknown", omniwm.l10n("Battery"), omniwm.l10n("Unavailable"), inner),
+        })
     end
-    if power and power.lowPower then
-        rows[#rows + 1] = line(omniwm.l10n("Low Power Mode"), omniwm.l10n("On"), inner)
+    local rows = {
+        ui.row{ w = inner, gap = tokens.spacing.medium,
+            surface.icon(icons.battery(m.level / 100, m.charging), { size = tokens.icon.large,
+                color = m.low and "error" or "accent", filled = true }),
+            ui.column{ center = false, gap = 2,
+                ui.text{ text = m.percent, font = "sans", size = tokens.headline.small, weight = "medium" },
+                ui.text{ text = m.status, font = "sans", size = tokens.body.small, color = "secondaryForeground" } } },
+    }
+    for _, detail in m.details do
+        rows[#rows + 1] = line(detail.label, detail.value, inner, true)
     end
-    rows[#rows + 1] = action(omniwm.l10n("Battery Settings…"), "battery settings", inner)
+    rows[#rows + 1] = action(omniwm.l10n("Battery Settings…"), m.settings, inner)
     return panel(width, rows)
 end
 

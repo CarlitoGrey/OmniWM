@@ -85,6 +85,22 @@ local function calendarAgenda(event, first)
             weight = "semibold", color = "accent" } or nil }
 end
 
+local function batteryChip(ctx, m, mode)
+    local style = ctx.data.bar.style
+    local scale = style.height / 60
+    local tint = m.low and "error" or "secondaryAccent"
+    local glyph = mode == "inside" and require("./battery").cell(m, 30 * scale, 15 * scale, m.text)
+        or surface.icon(icons.battery(m.level / 100, m.charging), { size = tokens.icon.medium * scale,
+            color = tint, filled = true, animate = "effects" })
+    local items = { glyph }
+    if mode == nil or mode == "beside" then
+        items[#items + 1] = ui.text{ text = style.vertical and m.text or m.percent, font = "sans",
+            size = (style.vertical and tokens.label.small or tokens.label.large) * scale,
+            weight = "medium", color = tint, reserve = not style.vertical and m.reserve or nil }
+    end
+    return surface.pill(style, items, { help = omniwm.l10n("Battery"), hover = mode and status.hover or nil })
+end
+
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
@@ -94,6 +110,13 @@ return require("./skin")({
     hover = "foreground/0.08",
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
     size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
+    batteryBar = function(ctx, m)
+        return batteryChip(ctx, m)
+    end,
+    batteryDetailsBar = function(ctx, m)
+        return batteryChip(ctx, m, m.mode)
+    end,
+    batteryPanel = status.battery,
     activeWindowBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 60

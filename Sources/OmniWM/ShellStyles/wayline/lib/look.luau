@@ -125,6 +125,48 @@ local function dividedCard(props, width, dividerWidth)
     return ui.column(props)
 end
 
+local function batteryChip(ctx, state, details)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local radius = math.floor(size * 0.24)
+    local hue = state.low and "red" or (state.charging and "green" or "yellow")
+    local mode = details and state.mode or "beside"
+    local glyph
+    if mode == "inside" then
+        local cell = require("./battery").cell(state, 25 * scale, 13 * scale, state.text)
+        cell[1].border = "accentForeground/0.7"
+        cell[1][1].fill = "accentForeground/0.22"
+        cell[1][2].color = "accentForeground"
+        cell[2].fill = "accentForeground/0.7"
+        glyph = ui.stack{ w = size, h = size, radius = radius, fill = hue,
+            cell }
+    else
+        glyph = chip(size, style.vertical, hue, { name = state.symbol, size = math.floor(size * 0.52),
+            weight = "semibold", color = "accentForeground" }, mode ~= "beside")
+    end
+    local props = { gap = 0, radius = radius,
+        fill = (not details or style.backgrounds) and "elevatedSurface" or nil,
+        hoverOpacity = details and 0.9 or nil, glyph }
+    if mode ~= "beside" then
+        props.w, props.h = size, size
+        return ui.stack(props)
+    end
+    if style.vertical then
+        props.w, props.gap = size, 2
+        props[#props + 1] = ui.text{ text = state.text, style = "mono", size = 14 * scale,
+            weight = "semibold", color = hue }
+        props[#props + 1] = ui.box{ w = 1, h = 3 }
+        return ui.column(props)
+    end
+    props.h = size
+    props[#props + 1] = ui.box{ w = 8, h = 1 }
+    props[#props + 1] = ui.text{ text = state.percent, style = "mono", size = 14 * scale, weight = "semibold",
+        color = hue, reserve = state.reserve }
+    props[#props + 1] = ui.box{ w = 9, h = 1 }
+    return ui.row(props)
+end
+
 local AUDIO_WIDTH = 360
 local AUDIO_INNER = AUDIO_WIDTH - 32
 local AUDIO_CARD = AUDIO_INNER - 20
@@ -565,6 +607,27 @@ return require("./skin")({
     calendarPanel = calendarPanel,
     weatherBar = weatherBar,
     weatherPanel = weatherPanel,
+    batteryBar = function(ctx, state)
+        return batteryChip(ctx, state, false)
+    end,
+    batteryDetailsBar = function(ctx, state)
+        return batteryChip(ctx, state, true)
+    end,
+    batteryPanel = function(ctx, m)
+        local width = 360
+        local inner = width - 32
+        local header = ui.row{ w = inner, gap = 8,
+            ui.symbol{ name = m and m.symbol or "battery.0percent", size = 14, weight = "semibold", color = "accent" },
+            ui.text{ text = omniwm.l10n("Battery"), size = 14, weight = "bold", color = "foreground" } }
+        local content = require("./battery").content(ctx, inner, m)
+        local count = if m and #m.details > 0 then 2 else 1
+        for index = 1, count do
+            local card = if m then content[index] else content
+            card.radius, card.fill = 9, "elevatedSurface"
+        end
+        return frame(width, 44, header, ui.column{ w = width, pad = 16, gap = 10, center = false,
+            content })
+    end,
     mediaBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40

@@ -126,6 +126,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if name == "weather" || (name == "control-center" && tab == "weather") {
                         weatherFixture(widget)
                     }
+                    if ["battery", "battery-details"].contains(name) {
+                        batteryFixture(widget)
+                    }
                     if name == "active-window" {
                         widget.set("app") { $0.string("Safari") }
                         widget.set("bundle") { $0.string("com.apple.Safari") }
@@ -150,6 +153,21 @@ final class ShellStyleLayoutTests: XCTestCase {
                         name: "\(name)-\(profile)-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
                         dark: dark, directory: directory, background: background
                     )
+                    if name == "battery-details" {
+                        for mode in ["inside", "off"] {
+                            widget.set("settings") {
+                                ShellServiceValue.object(["percent": .text(mode)]).write(to: &$0)
+                            }
+                            widget.render(bar)
+                            try ShellBundledWidgetTests.writeSnapshot(
+                                widget.surface,
+                                name: "\(name)-\(profile)-\(vertical ? "vertical" : "horizontal")-\(mode)\(dark ? "-dark" : "")",
+                                dark: dark, directory: directory, background: background
+                            )
+                        }
+                        widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+                        widget.render(bar)
+                    }
                     if ["volume", "control-center"].contains(name), !vertical {
                         audioFixture(widget, access: .granted)
                         if name == "control-center" {
@@ -216,6 +234,47 @@ final class ShellStyleLayoutTests: XCTestCase {
                                 )
                             }
                             calendarFixture(widget)
+                        }
+                    }
+                    if name == "battery-details", !vertical {
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                        if !dark {
+                            for state in ["charging", "low", "charged", "ac", "nopower", "unavailable"] {
+                                switch state {
+                                case "ac": batteryFixture(widget, level: 80, power: ShellPower(source: "ac"))
+                                case "nopower":
+                                    batteryFixture(widget)
+                                    widget.set("power") { $0.null() }
+                                case "charging": batteryFixture(
+                                        widget,
+                                        charging: true,
+                                        power: ShellPower(source: "ac", full: 40)
+                                    )
+                                case "low":
+                                    batteryFixture(
+                                        widget,
+                                        level: 12,
+                                        power: ShellPower(source: "battery", remaining: 25, lowPower: true)
+                                    )
+                                case "unavailable": widget.set("battery") { $0.null() }
+                                default: batteryFixture(
+                                        widget,
+                                        level: 100,
+                                        power: ShellPower(source: "ac", charged: true)
+                                    )
+                                }
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "\(name)-\(profile)-popout-\(state)",
+                                    dark: false, directory: directory, background: background
+                                )
+                            }
+                            batteryFixture(widget)
                         }
                     }
                     if name == "weather" || (name == "control-center" && tab == "weather"), !vertical {
@@ -311,6 +370,407 @@ final class ShellStyleLayoutTests: XCTestCase {
                             widget.surface,
                             name: "\(name)-\(profile)-picker-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
                             dark: dark, directory: directory, background: background
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    func testSharedBatteryModelKeepsThresholdsPercentModesAndPowerStates() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let folder = shell.appendingPathComponent("default/widgets/battery-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local battery = require("../lib/battery")
+        function render(ctx)
+            local m = battery.model(ctx)
+            if not m then return ui.text{ text = "nil" } end
+            local rows = {}
+            for _, key in {"level", "charging", "low", "tint", "symbol", "text", "percent", "reserve", "mode", "status", "settings"} do
+                rows[#rows + 1] = ui.text{ text = key .. "=" .. tostring(m[key]) }
+            end
+            for _, detail in m.details do
+                rows[#rows + 1] = ui.text{ text = detail.label .. "=" .. detail.value }
+            end
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("battery-model-probe", config: config, shell: shell)
+        let bar = fixture(config, height: 32, vertical: false)
+        let thresholds = [
+            (0, "0", "error"),
+            (10, "0", "error"),
+            (11, "25", "warning"),
+            (20, "25", "warning"),
+            (21, "25", "foreground"),
+            (35, "25", "foreground"),
+            (36, "50", "foreground"),
+            (60, "50", "foreground"),
+            (61, "75", "foreground"),
+            (85, "75", "foreground"),
+            (86, "100", "foreground"),
+            (100, "100", "foreground")
+        ]
+        for (level, symbol, tint) in thresholds {
+            for charging in [false, true] {
+                batteryFixture(widget, level: Double(level), charging: charging)
+                widget.render(bar)
+                let strings = widget.strings()
+                XCTAssertTrue(strings.contains("level=\(level)"))
+                XCTAssertTrue(strings.contains("text=\(level)"))
+                XCTAssertTrue(strings.contains("charging=\(charging)"))
+                XCTAssertTrue(strings.contains("low=\(level <= 20 && !charging)"))
+                XCTAssertTrue(strings.contains("tint=\(charging ? "success" : tint)"))
+                XCTAssertTrue(strings
+                    .contains("symbol=\(charging ? "battery.100percent.bolt" : "battery.\(symbol)percent")"))
+                XCTAssertTrue(strings.contains("percent=" + percent(Double(level) / 100)))
+                XCTAssertTrue(strings.contains("reserve=" + percent(1)))
+            }
+        }
+        for mode in ["beside", "inside", "off"] {
+            widget.set("settings") { ShellServiceValue.object(["percent": .text(mode)]).write(to: &$0) }
+            widget.render(bar)
+            XCTAssertTrue(widget.strings().contains("mode=" + mode))
+        }
+        let states: [(ShellPower, Bool, String, String?, Double?)] = [
+            (ShellPower(source: "battery", remaining: 254), false, "On battery", "Time Remaining", 254),
+            (ShellPower(source: "ac"), false, "Not charging", nil, nil),
+            (ShellPower(source: "ac", full: 40), true, "Charging", "Time to Full", 40),
+            (ShellPower(source: "ac", charged: true), false, "Fully charged", nil, nil),
+            (ShellPower(source: "battery", remaining: 0, lowPower: true), false, "On battery", "Time Remaining", 0)
+        ]
+        for (power, charging, status, timeKey, minutes) in states {
+            batteryFixture(widget, charging: charging, power: power)
+            widget.render(bar)
+            let strings = widget.strings()
+            XCTAssertTrue(strings.contains("status=" + ShellLocalizer.string(status, [])))
+            XCTAssertTrue(strings.contains(ShellLocalizer.string("Power Source", []) + "=" + ShellLocalizer.string(
+                power.source == "ac" ? "Power Adapter" : "Battery",
+                []
+            )))
+            XCTAssertTrue(strings.contains(ShellLocalizer.string("Low Power Mode", []) + "=" + ShellLocalizer.string(
+                power.lowPower ? "On" : "Off",
+                []
+            )))
+            XCTAssertTrue(strings.contains("settings=battery settings"))
+            if let timeKey, let minutes {
+                let duration = ShellLocalizer.string(
+                    "%lldh %lldm",
+                    [.number(floor(minutes / 60)), .number(minutes.truncatingRemainder(dividingBy: 60))]
+                )
+                XCTAssertTrue(strings.contains(ShellLocalizer.string(timeKey, []) + "=" + duration))
+            } else {
+                XCTAssertFalse(strings
+                    .contains {
+                        $0.hasPrefix(ShellLocalizer.string("Time Remaining", []) + "=") || $0
+                            .hasPrefix(ShellLocalizer.string(
+                                "Time to Full",
+                                []
+                            ) + "=")
+                    })
+            }
+        }
+        widget.set("power") { $0.null() }
+        widget.render(bar)
+        XCTAssertTrue(widget.strings().contains("status=" + ShellLocalizer.string("On battery", [])))
+        XCTAssertFalse(widget.strings().contains { $0.hasPrefix(ShellLocalizer.string("Low Power Mode", []) + "=") })
+        widget.set("battery") { $0.null() }
+        widget.render(bar)
+        XCTAssertEqual(widget.strings(), ["nil"])
+    }
+
+    func testSharedBatteryBarsKeepModesScaledSkinsClicksAndDataDemand() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let hooked = ["wayline", "nocturne", "celestial"]
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let base = config.barOverride?.settings.height ?? 32
+            for name in ["battery", "battery-details"] {
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/\(name)/init.luau")
+                )
+                for height in Set([base, 32]).sorted() {
+                    for vertical in [false, true] {
+                        for mode in [nil, "beside", "inside", "off"] as [String?] {
+                            let context = "\(profile)/\(name) h=\(height) vertical=\(vertical) \(mode ?? "default")"
+                            widget.set("settings") {
+                                ShellServiceValue.object(mode.map { ["percent": .text($0)] } ?? [:]).write(to: &$0)
+                            }
+                            batteryFixture(widget)
+                            widget.render(fixture(config, height: height, vertical: vertical))
+                            let tree = widget.tree()
+                            let labels = tree.filter {
+                                $0.kind == .label && ShellFontFamily(style: $0.content.style) != .symbols
+                            }.map { widget.text.string($0.content.text) }
+                            let effectiveMode = mode ?? "beside"
+                            let showsText = name == "battery" || effectiveMode != "off" ||
+                                (vertical && !hooked.contains(profile))
+                            let expected = vertical || (name == "battery-details" && effectiveMode == "inside")
+                                ? "76" : percent(0.76)
+                            XCTAssertEqual(labels, showsText ? [expected] : [], context)
+                            if profile == "nocturne", name == "battery-details", vertical, effectiveMode != "beside" {
+                                let root = try XCTUnwrap(tree.first, context)
+                                XCTAssertEqual(
+                                    widget.surface.size.width,
+                                    widget.surface.size.height,
+                                    accuracy: 0.01,
+                                    context
+                                )
+                                XCTAssertLessThanOrEqual(
+                                    CGFloat(root.paint.cornerRadius),
+                                    widget.surface.size.height / 2,
+                                    context
+                                )
+                            }
+                            if profile == "wayline", name == "battery-details", effectiveMode == "inside" {
+                                let label = try XCTUnwrap(tree.first { $0.kind == .label }, context)
+                                XCTAssertEqual(
+                                    label.content.color.role & 0xFF,
+                                    UInt16(ShellRole.accentForeground.rawValue + 1),
+                                    context
+                                )
+                            }
+                            XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                            XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                            XCTAssertLessThanOrEqual(
+                                vertical ? widget.surface.size.width : widget.surface.size.height,
+                                height,
+                                context
+                            )
+                            if name == "battery-details" {
+                                let button = try XCTUnwrap(
+                                    widget.surface.layout.core.elements { $0.action == OMNI_ACTION_POPOUT }.first,
+                                    context
+                                )
+                                let content = widget.surface.layout.core.content(of: button)
+                                XCTAssertEqual(
+                                    widget.text.string(content.help),
+                                    percent(0.76),
+                                    context
+                                )
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                                let point = CGPoint(x: frame.midX, y: frame.midY)
+                                let count = widget.actions.count
+                                widget.surface.press(at: point)
+                                widget.surface.release(at: point)
+                                XCTAssertEqual(widget.actions.count, count + 1, context)
+                                XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                            } else {
+                                XCTAssertTrue(tree.allSatisfy { $0.content.action == 0 }, context)
+                            }
+                            var stats = omni_render_stats()
+                            var error = [CChar](repeating: 0, count: 256)
+                            XCTAssertEqual(
+                                omni_instance_render(
+                                    widget.instance,
+                                    OMNI_VIEW_BAR,
+                                    100_000_000,
+                                    &stats,
+                                    &error,
+                                    error.count
+                                ),
+                                OMNI_OK,
+                                context
+                            )
+                            XCTAssertNotEqual(stats.deps & ShellDataKey.battery.bit, 0, context)
+                            XCTAssertEqual(stats.deps & ShellDataKey.power.bit, 0, context)
+                            XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0, context)
+                            if hooked.contains(profile), !vertical {
+                                let design: Double = profile == "celestial" ? 60 : 40
+                                let expected = (profile == "celestial" ? 40 : 32) * height / design
+                                XCTAssertEqual(widget.surface.size.height, expected, accuracy: 0.01, context)
+                            }
+                        }
+                    }
+                }
+                widget.set("battery") { $0.null() }
+                widget.render(fixture(config, height: base, vertical: false))
+                XCTAssertEqual(widget.surface.size, .zero, profile + name)
+                batteryFixture(widget)
+                XCTAssertTrue(
+                    omni_instance_needs_render(widget.instance, OMNI_VIEW_BAR, ShellDataKey.battery.bit),
+                    profile + name
+                )
+            }
+        }
+    }
+
+    func testSharedBatteryPanelsKeepPowerFeedbackSettingsAndMissingData() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let duration = ShellLocalizer.string("%lldh %lldm", [.number(4), .number(14)])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "battery-details",
+                config: config,
+                shell: shell,
+                source: shell
+                    .appendingPathComponent("default/widgets/battery-details/init.luau")
+            )
+            batteryFixture(widget)
+            widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+            widget.layoutPopout()
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            for text in [
+                percent(0.76),
+                ShellLocalizer.string("Battery", []),
+                ShellLocalizer.string("On battery", []),
+                ShellLocalizer.string("Power Source", []),
+                ShellLocalizer.string("Time Remaining", []),
+                duration,
+                ShellLocalizer.string("Low Power Mode", []),
+                ShellLocalizer.string("Off", [])
+            ] {
+                XCTAssertTrue(strings.contains(text), profile + " " + text)
+            }
+            if profile == "wayline" {
+                XCTAssertEqual(widget.renderPopout().filter {
+                    $0.paint.cornerRadius == 9 && $0.paint.fill
+                        .role & 0xFF == UInt16(ShellRole.elevatedSurface.rawValue + 1)
+                }.count, 2)
+            }
+            try clickCommand("battery settings", widget: widget, context: profile)
+            batteryFixture(widget, level: 80, power: ShellPower(source: "ac"))
+            widget.layoutPopout()
+            let ac = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertTrue(ac.contains(percent(0.8)), profile)
+            XCTAssertTrue(ac.contains(ShellLocalizer.string("Not charging", [])), profile)
+            XCTAssertTrue(ac.contains(ShellLocalizer.string("Power Adapter", [])), profile)
+            XCTAssertEqual(
+                ac.filter { $0 == ShellLocalizer.string("Battery", []) }.count,
+                profile == "celestial" ? 0 : 1,
+                profile
+            )
+            if profile == "celestial" {
+                let source = try XCTUnwrap(widget.surface.layout.core.elements {
+                    widget.text.string($0.text) == ShellLocalizer.string("Power Source", [])
+                }.first)
+                let adapter = try XCTUnwrap(widget.surface.layout.core.elements {
+                    widget.text.string($0.text) == ShellLocalizer.string("Power Adapter", [])
+                }.first)
+                let sourceFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: source))
+                let adapterFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: adapter))
+                XCTAssertLessThanOrEqual(sourceFrame.maxX + 8, adapterFrame.minX)
+                let bounds = CGRect(origin: .zero, size: widget.surface.size)
+                XCTAssertTrue(bounds.contains(sourceFrame))
+                XCTAssertTrue(bounds.contains(adapterFrame))
+            }
+            widget.set("battery") { $0.null() }
+            widget.layoutPopout()
+            XCTAssertGreaterThan(widget.surface.size.width, 0, profile)
+            XCTAssertGreaterThan(widget.surface.size.height, 0, profile)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])), profile)
+            batteryFixture(widget, charging: true, power: ShellPower(source: "ac", full: 40, lowPower: true))
+            widget.layoutPopout()
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Charging", [])), profile)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Time to Full", [])), profile)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("On", [])), profile)
+            widget.set("power") { $0.null() }
+            widget.layoutPopout()
+            if profile == "wayline" {
+                XCTAssertEqual(widget.renderPopout().filter {
+                    $0.paint.cornerRadius == 9 && $0.paint.fill
+                        .role & 0xFF == UInt16(ShellRole.elevatedSurface.rawValue + 1)
+                }.count, 1)
+            }
+        }
+    }
+
+    func testCelestialStatusBatteryUsesTheSharedPowerModel() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("status", config: config, shell: shell)
+        widget.set("settings") {
+            ShellServiceValue.object(["battery": .bool(true), "network": .bool(false), "bluetooth": .bool(false)])
+                .write(to: &$0)
+        }
+        batteryFixture(widget, level: 80, power: ShellPower(source: "ac"))
+        widget.render(fixture(config, height: 60, vertical: false))
+        let entry = try XCTUnwrap(widget.surface.layout.core.elements {
+            widget.text.string($0.help) == ShellLocalizer.string("Battery", []) && $0.action != 0
+        }.first)
+        let content = widget.surface.layout.core.content(of: entry)
+        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: entry))
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let count = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, count + 1)
+        XCTAssertEqual(widget.actions.last, content.action)
+        XCTAssertEqual(widget.invoke(content.action), [])
+        widget.layoutPopout()
+        let strings = widget.strings(OMNI_VIEW_POPOUT)
+        XCTAssertTrue(strings.contains(percent(0.8)))
+        for key in ["Not charging", "Power Adapter", "Low Power Mode", "Off"] {
+            XCTAssertTrue(strings.contains(ShellLocalizer.string(key, [])), key)
+        }
+        try clickCommand("battery settings", widget: widget, context: "celestial/status")
+        widget.set("battery") { $0.null() }
+        widget.layoutPopout()
+        XCTAssertGreaterThan(widget.surface.size.width, 0)
+        XCTAssertGreaterThan(widget.surface.size.height, 0)
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])))
+    }
+
+    func testSharedPanelsKeepDefaultCapsulesAndSystemGlassInEveryBackgroundSetting() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ["default", "system"] {
+            _ = try ShellProfiles.select(profile, in: shell)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            XCTAssertEqual(config.profile, profile)
+            let folder = shell.appendingPathComponent("\(profile)/widgets/panel-probe")
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            func drawing(_ module: String, _ bar: ShellBarData) throws -> [TreeNode] {
+                try """
+                local look = require("../lib/\(module)")
+                function render(ctx) return ui.box{ w = 1, h = 1 } end
+                function popout(ctx)
+                    local props = { w = 220, ui.text{ text = "Probe" } }
+                    return \(module == "look" ? "look.panel(ctx, props)" : "look.panel(props)")
+                end
+                """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+                let widget = try makeWidget("panel-probe", config: config, shell: shell)
+                widget.render(bar)
+                return widget.renderPopout()
+            }
+            for transparent in [false, true] {
+                for backgrounds in [false, true] {
+                    var bar = fixture(config, height: 32, vertical: false)
+                    bar.style.transparent = transparent
+                    bar.style.backgrounds = backgrounds
+                    let tree = try drawing("look", bar)
+                    let root = try XCTUnwrap(tree.first)
+                    let capsule = profile == "default" && transparent && backgrounds
+                    XCTAssertEqual(root.paint.material, UInt8(capsule ? OMNI_MATERIAL_CLEAR : OMNI_MATERIAL_GLASS))
+                    XCTAssertEqual(root.paint.cornerRadius, capsule ? 14 : 20)
+                    if capsule {
+                        XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.background.rawValue + 1))
+                        XCTAssertEqual(root.paint.stroke.role & 0xFF, UInt16(ShellRole.border.rawValue + 1))
+                        XCTAssertEqual(root.paint.strokeWidth, 1)
+                    }
+                    if profile == "system" {
+                        let legacy = try drawing("style", bar)
+                        XCTAssertEqual(
+                            tree.map { "\($0.layout) \($0.paint)" },
+                            legacy.map { "\($0.layout) \($0.paint)" }
                         )
                     }
                 }
@@ -487,44 +947,72 @@ final class ShellStyleLayoutTests: XCTestCase {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        let config = ShellConfig.resolve(shellDirectory: shell)
-        for name in ["active-window", "volume", "clock", "weather", "omniwm"] {
-            let widget = try makeWidget(name, config: config, shell: shell)
-            widget.set("app") { $0.string("Safari") }
-            widget.set("bundle") { $0.string("com.apple.Safari") }
-            widget.set("title") { $0.string("A quiet afternoon") }
-            widget.set("volume") { $0.number(62) }
-            widget.set("muted") { $0.bool(false) }
-            widget.set("clock") { $0.string("9:41 AM") }
-            widget.set("date") { $0.string("Fri Oct 23") }
-            weatherFixture(widget)
-            for height in [24.0, 28, 32, 40] {
-                for vertical in [false, true] {
-                    let context = "\(name) height=\(height) vertical=\(vertical)"
-                    var bar = fixture(config, height: height, vertical: vertical)
-                    bar.style.transparent = true
-                    bar.style.backgrounds = true
-                    widget.render(bar)
-                    let root = try XCTUnwrap(widget.tree().first, context)
-                    let cross = vertical ? widget.surface.size.width : widget.surface.size.height
-                    if name == "omniwm" {
-                        XCTAssertEqual(widget.surface.size.width, widget.surface.size.height, accuracy: 0.01, context)
-                    } else if !vertical {
-                        XCTAssertGreaterThanOrEqual(widget.surface.size.width, cross, context)
+        for profile in ["default", "lake"] {
+            _ = try ShellProfiles.select(profile, in: shell)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in [
+                "active-window",
+                "volume",
+                "clock",
+                "weather",
+                "omniwm",
+                "calendar",
+                "system-stats",
+                "battery",
+                "battery-details"
+            ] {
+                let widget = try makeWidget(name, config: config, shell: shell)
+                widget.set("app") { $0.string("Safari") }
+                widget.set("bundle") { $0.string("com.apple.Safari") }
+                widget.set("title") { $0.string("A quiet afternoon") }
+                widget.set("volume") { $0.number(62) }
+                widget.set("muted") { $0.bool(false) }
+                calendarFixture(widget)
+                weatherFixture(widget)
+                batteryFixture(widget)
+                for state in ["volume", "calendar"].contains(name) ? ["full", "empty"] : ["full"] {
+                    if state == "empty" {
+                        if name == "volume" { widget.set("volume") { $0.null() } }
+                        else { widget.set("calendar") { ShellCalendar(access: "full", events: []).write(into: &$0) } }
                     }
-                    XCTAssertEqual(CGFloat(root.paint.cornerRadius), cross / 2, accuracy: 0.01, context)
-                    XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.surface.rawValue + 1), context)
-                    XCTAssertEqual(root.paint.stroke.role & 0xFF, UInt16(ShellRole.border.rawValue + 1), context)
-                    XCTAssertEqual(root.paint.strokeWidth, 0.5, context)
-                    let bounds = CGRect(origin: .zero, size: widget.surface.size).insetBy(dx: -0.01, dy: -0.01)
-                    for element in widget.surface.layout.core.elements(matching: { _ in true }) {
-                        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: element))
-                        XCTAssertTrue(bounds.contains(frame), context + " \(frame) outside \(bounds)")
-                        if name == "omniwm",
-                           widget.text.string(widget.surface.layout.core.content(of: element).text) == "omniwm"
-                        {
-                            XCTAssertEqual(frame.midX, bounds.midX, accuracy: 0.01, context)
-                            XCTAssertEqual(frame.midY, bounds.midY, accuracy: 0.01, context)
+                    for height in [24.0, 28, 32, 40] {
+                        for vertical in [false, true] {
+                            let context = "\(profile)/\(name) \(state) height=\(height) vertical=\(vertical)"
+                            var bar = fixture(config, height: height, vertical: vertical)
+                            bar.style.transparent = true
+                            bar.style.backgrounds = true
+                            widget.render(bar)
+                            let root = try XCTUnwrap(widget.tree().first, context)
+                            let cross = vertical ? widget.surface.size.width : widget.surface.size.height
+                            let main = vertical ? widget.surface.size.height : widget.surface.size.width
+                            XCTAssertGreaterThanOrEqual(main, cross, context)
+                            if name == "omniwm" {
+                                XCTAssertEqual(
+                                    widget.surface.size.width,
+                                    widget.surface.size.height,
+                                    accuracy: 0.01,
+                                    context
+                                )
+                            }
+                            XCTAssertEqual(CGFloat(root.paint.cornerRadius), cross / 2, accuracy: 0.01, context)
+                            XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.surface.rawValue + 1), context)
+                            XCTAssertEqual(
+                                root.paint.stroke.role & 0xFF,
+                                UInt16(ShellRole.border.rawValue + 1),
+                                context
+                            )
+                            XCTAssertEqual(root.paint.strokeWidth, 0.5, context)
+                            let bounds = CGRect(origin: .zero, size: widget.surface.size).insetBy(dx: -0.01, dy: -0.01)
+                            for element in widget.surface.layout.core.elements(matching: { _ in true }) {
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: element))
+                                XCTAssertTrue(bounds.contains(frame), context + " \(frame) outside \(bounds)")
+                                if name == "omniwm",
+                                   widget.text.string(widget.surface.layout.core.content(of: element).text) == "omniwm"
+                                {
+                                    XCTAssertEqual(frame.midX, bounds.midX, accuracy: 0.01, context)
+                                    XCTAssertEqual(frame.midY, bounds.midY, accuracy: 0.01, context)
+                                }
+                            }
                         }
                     }
                 }
@@ -1761,7 +2249,6 @@ final class ShellStyleLayoutTests: XCTestCase {
             systemStatsFixture(widget)
             let tree = widget.renderPopout()
             let labels = tree.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }
-            let percent = { ShellFormatter.string(kind: OMNI_FORMAT_PERCENT, $0, digits: 0) }
             let memory = { ShellFormatter.string(kind: OMNI_FORMAT_MEMORY, $0, digits: 0) }
             let file = { ShellFormatter.string(kind: OMNI_FORMAT_FILE, $0, digits: 0) }
             for value in [
@@ -3239,6 +3726,21 @@ final class ShellStyleLayoutTests: XCTestCase {
         widget.set("date") { $0.string("Fri Oct 23") }
     }
 
+    private func percent(_ value: Double) -> String {
+        ShellFormatter.string(kind: OMNI_FORMAT_PERCENT, value, digits: 0)
+    }
+
+    private func batteryFixture(
+        _ widget: ShellRenderedWidget,
+        level: Double = 76,
+        charging: Bool = false,
+        power: ShellPower = ShellPower(source: "battery", remaining: 254)
+    ) {
+        widget.set("battery") { $0.number(level) }
+        widget.set("charging") { $0.bool(charging) }
+        widget.set("power") { power.write(into: &$0) }
+    }
+
     @discardableResult
     private func weatherFixture(
         _ widget: ShellRenderedWidget,
@@ -3337,9 +3839,7 @@ final class ShellStyleLayoutTests: XCTestCase {
             history.append(ShellNetworkRate(down: 900_000 + sin(phase) * 700_000, up: 200_000 + cos(phase) * 120_000))
         }
         widget.set("networkHistory") { history.write(into: &$0) }
-        widget.set("battery") { $0.number(76) }
-        widget.set("charging") { $0.bool(false) }
-        widget.set("power") { ShellPower(source: "battery", remaining: 254).write(into: &$0) }
+        batteryFixture(widget)
     }
 
     private func hiddenBarFixture(vertical: Bool, menu: Bool) -> ShellHiddenBarData {

@@ -62,10 +62,14 @@ local function skin(look)
         end
         return "battery.0percent"
     end
+    local function capsuled(ctx)
+        local bar = ctx and ctx.data.bar and ctx.data.bar.style
+        return look.capsules and bar and bar.transparent and bar.backgrounds
+    end
     look.bar = look.bar or function(ctx, props)
         local bar = ctx.data.bar.style
         local scale = look.scale(ctx)
-        local capsule = look.capsules and bar.transparent and bar.backgrounds
+        local capsule = capsuled(ctx)
         local size = bar.height - 4
         props.gap = props.gap or 5 * scale
         props.pad = props.pad or 4 * scale
@@ -81,11 +85,15 @@ local function skin(look)
             props.fill = props.fill or "surface"
             props.border = props.border or "border"
             props.borderWidth = props.borderWidth or 0.5
+            local edge = math.max(0, math.round(size * 0.3) - props.gap)
             if not bar.vertical and not props.w then
-                local edge = math.max(0, math.round(size * 0.3) - props.gap)
                 props.pad = 0
                 table.insert(props, 1, ui.box{ w = edge, h = 1 })
                 props[#props + 1] = ui.box{ w = edge, h = 1 }
+            elseif bar.vertical and not props.h then
+                props.pad = 0
+                table.insert(props, 1, ui.box{ w = 1, h = edge })
+                props[#props + 1] = ui.box{ w = 1, h = edge }
             end
         elseif bar.backgrounds then
             props.fill = props.fill or "foreground/0.06"
@@ -121,12 +129,19 @@ local function skin(look)
                 color = "#FFFFFFFF", maxWidth = m.slot - inset * 2 },
             ui.box{ w = inset, h = 1 } }
     end
-    look.panel = look.panel or function(_, props)
+    look.panel = look.panel or function(ctx, props)
         props.pad = props.pad or 14
         props.gap = props.gap or 12
         props.radius = look.radius(20)
         props.material = "glass"
         props.center = false
+        if capsuled(ctx) then
+            props.radius = 14
+            props.material = "clear"
+            props.fill = "background"
+            props.border = "border"
+            props.borderWidth = 1
+        end
         return ui.column(props)
     end
     look.group = look.group or function(props)

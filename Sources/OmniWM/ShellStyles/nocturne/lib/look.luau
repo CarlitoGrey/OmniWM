@@ -388,6 +388,60 @@ local function mediaPanel(ctx, m)
         statsCard(card), mediaLyrics(m) }, MEDIA_WIDTH)
 end
 
+local function batteryCell(state, scale, inside)
+    local w, h = 24 * scale, 13 * scale
+    local tint = state.low and "error" or state.tint
+    local props = { w = w, h = h, radius = 3.5 * scale,
+        border = state.low and "error/0.8" or "foreground/0.45", borderWidth = 1.2 * scale,
+        ui.box{ align = "leading", dx = 2 * scale,
+            w = math.max(2 * scale, (w - 4 * scale) * math.clamp(state.level, 0, 100) / 100), h = h - 4 * scale,
+            radius = 1.5 * scale, fill = inside and tint .. "/0.22" or tint } }
+    if inside then
+        props[#props + 1] = ui.text{ text = inside, size = 9 * scale, weight = "semibold", color = "foreground" }
+    end
+    local body = ui.stack(props)
+    if state.charging and not inside then
+        body = ui.stack{ w = w, h = h, body,
+            ui.symbol{ name = "bolt.fill", size = 8 * scale, weight = "black", color = "background" } }
+    end
+    return ui.row{ gap = scale, body,
+        ui.box{ w = 1.5 * scale, h = 4 * scale, radius = 0.75 * scale,
+            fill = state.low and "error/0.8" or "foreground/0.45" } }
+end
+
+local function batteryChip(ctx, state, details)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local mode = details and state.mode or "beside"
+    local glyph = batteryCell(state, scale, mode == "inside" and state.text or nil)
+    local props = { radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1,
+        hover = details and "focus/0.14" or nil }
+    if style.vertical and mode ~= "beside" then
+        props.w, props.h, props[1] = size, size, glyph
+        return ui.stack(props)
+    end
+    if style.vertical then
+        props.w, props.gap = size, 3
+        props[1], props[2] = ui.box{ w = 1, h = 3 }, glyph
+        if mode == "beside" then
+            props[#props + 1] = ui.text{ text = state.text, style = "mono", size = 14 * scale, weight = "semibold",
+                color = state.low and "error" or "foreground" }
+        end
+        props[#props + 1] = ui.box{ w = 1, h = 3 }
+        return ui.column(props)
+    end
+    props.h, props.gap = size, 6
+    props[1], props[2] = ui.box{ w = 2, h = 1 }, glyph
+    if mode == "beside" then
+        props[#props + 1] = ui.text{ text = state.percent, size = 14 * scale, weight = "semibold",
+            color = state.low and "error" or "foreground", reserve = state.reserve }
+    end
+    props[#props + 1] = ui.box{ w = 2, h = 1 }
+    return ui.row(props)
+end
+
 local CALENDAR_WIDTH = 320
 local CALENDAR_INNER = CALENDAR_WIDTH - 2 - 24
 local CALENDAR_CARD = CALENDAR_INNER - 20
@@ -708,6 +762,21 @@ return require("./skin")({
     calendarPanel = calendarPanel,
     weatherBar = weatherBar,
     weatherPanel = weatherPanel,
+    batteryBar = function(ctx, state)
+        return batteryChip(ctx, state, false)
+    end,
+    batteryDetailsBar = function(ctx, state)
+        return batteryChip(ctx, state, true)
+    end,
+    batteryPanel = function(ctx, m)
+        local width = 320
+        local inner = width - 26
+        return framedPanel(ctx, { gap = 10,
+            ui.row{ w = inner, gap = 0,
+                ui.box{ w = 2, h = 1 },
+                ui.text{ text = omniwm.l10n("Battery"), size = 15, weight = "bold" } },
+            require("./battery").content(ctx, inner, m) }, width)
+    end,
     width = 300,
     widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },
