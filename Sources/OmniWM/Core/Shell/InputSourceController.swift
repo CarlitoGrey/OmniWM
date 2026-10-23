@@ -98,6 +98,7 @@ final class InputSourceController: ShellDeviceSource {
     }
 
     private func refresh() {
+        guard !observers.isEmpty else { return }
         let next = Self.read()
         guard next != value else { return }
         value = next
