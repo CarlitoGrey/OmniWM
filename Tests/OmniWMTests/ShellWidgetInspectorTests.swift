@@ -87,28 +87,9 @@ final class ShellWidgetInspectorTests: XCTestCase {
                         name: "nocturne-inspector-\(option.widget)-\(appearance == .darkAqua ? "dark" : "light")-\(state)"
                     )
                 }
-                XCTAssertNotEqual(pixels["default"], pixels["minimum"], option.widget)
-                XCTAssertNotEqual(pixels["minimum"], pixels["maximum"], option.widget)
-                XCTAssertEqual(pixels["default"], pixels["reset"], option.widget)
-                if option.styleDefault == option.maximum {
-                    XCTAssertEqual(pixels["default"], pixels["maximum"], option.widget)
-                }
-                for value in stride(from: option.minimum, through: option.maximum, by: 1) {
-                    try await configuration.setWidgetValue(.number(value), widget: option.widget, key: option.key)
-                    await display(window)
-                    let reference = try snapshot(
-                        host,
-                        name: "nocturne-inspector-\(option.widget)-\(appearance == .darkAqua ? "dark" : "light")-value-\(value)"
-                    )
-                    let context = "\(option.widget) \(appearance.rawValue) \(value)"
-                    for state in ["default", "reset"] {
-                        if value == option.styleDefault {
-                            XCTAssertEqual(pixels[state], reference, context)
-                        } else {
-                            XCTAssertNotEqual(pixels[state], reference, context)
-                        }
-                    }
-                }
+                try await assertInspectorSnapshots(
+                    pixels, option: option, appearance: appearance, window: window, configuration: configuration
+                )
             }
         }
     }
@@ -155,6 +136,38 @@ final class ShellWidgetInspectorTests: XCTestCase {
                 .number(option.styleDefault),
                 option.widget
             )
+        }
+    }
+
+    private func assertInspectorSnapshots(
+        _ pixels: [String: Data],
+        option: Option,
+        appearance: NSAppearance.Name,
+        window: NSWindow,
+        configuration: ShellConfigurationCoordinator
+    ) async throws {
+        XCTAssertNotEqual(pixels["default"], pixels["minimum"], option.widget)
+        XCTAssertNotEqual(pixels["minimum"], pixels["maximum"], option.widget)
+        XCTAssertEqual(pixels["default"], pixels["reset"], option.widget)
+        if option.styleDefault == option.maximum {
+            XCTAssertEqual(pixels["default"], pixels["maximum"], option.widget)
+        }
+        let view = try XCTUnwrap(window.contentView)
+        for value in stride(from: option.minimum, through: option.maximum, by: 1) {
+            try await configuration.setWidgetValue(.number(value), widget: option.widget, key: option.key)
+            await display(window)
+            let reference = try snapshot(
+                view,
+                name: "nocturne-inspector-\(option.widget)-\(appearance == .darkAqua ? "dark" : "light")-value-\(value)"
+            )
+            let context = "\(option.widget) \(appearance.rawValue) \(value)"
+            for state in ["default", "reset"] {
+                if value == option.styleDefault {
+                    XCTAssertEqual(pixels[state], reference, context)
+                } else {
+                    XCTAssertNotEqual(pixels[state], reference, context)
+                }
+            }
         }
     }
 
