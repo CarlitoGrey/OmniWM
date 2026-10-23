@@ -34,7 +34,7 @@ struct ShellSettingsOptionRow: View {
                 set: { write(.string($0)) }
             )) {
                 ForEach(option.choices, id: \.self) { choice in
-                    Text(ShellWidgetSettingsModel.title(choice)).tag(choice)
+                    Text(ShellWidgetSettingsModel.title(choice, locale: locale)).tag(choice)
                 }
             }
         case .number:

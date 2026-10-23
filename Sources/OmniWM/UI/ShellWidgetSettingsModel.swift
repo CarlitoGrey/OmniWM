@@ -43,31 +43,60 @@ enum ShellWidgetSettingsModel {
         }
     }
 
-    static func title(_ value: String) -> String {
-        switch value {
-        case "icon_and_text": String(localized: "Icon and Title")
-        case "icon_only": String(localized: "Icon Only")
-        case "text_only": String(localized: "Title Only")
-        case "meters": String(localized: "Meters")
-        case "gauge": String(localized: "Gauges")
-        case "graph": String(localized: "Graphs")
-        case "beside": String(localized: "Beside Icon")
-        case "inside": String(localized: "Inside Icon")
-        case "off",
-             "none": String(localized: "Off")
-        case "auto": String(localized: "Automatic")
-        case "main": String(localized: "Main")
-        case "side": String(localized: "Side")
-        case "expanded": String(localized: "Expanded Only")
-        case "toggle": String(localized: "Toggle Expansion")
-        case "expand": String(localized: "Expand")
-        case "collapse": String(localized: "Collapse")
-        case "settings": String(localized: "Settings")
-        case "next": String(localized: "Next Widget")
-        case "previous": String(localized: "Previous Widget")
-        default: ShellBarLayout.title(of: value)
-        }
+    static func title(_ value: String, locale: Locale = .current) -> String {
+        guard let title = titles[value] else { return ShellBarLayout.title(of: value) }
+        return String(localized: LocalizedStringResource(
+            title, locale: locale, bundle: .atURL(Bundle.module.bundleURL)
+        ))
     }
+
+    private static let titles: [String: String.LocalizationValue] = [
+        "icon_and_text": "Icon and Title",
+        "icon_only": "Icon Only",
+        "text_only": "Title Only",
+        "meters": "Meters",
+        "gauge": "Gauges",
+        "graph": "Graphs",
+        "beside": "Beside Icon",
+        "inside": "Inside Icon",
+        "off": "Off",
+        "none": "Off",
+        "auto": "Automatic",
+        "main": "Main",
+        "side": "Side",
+        "expanded": "Expanded Only",
+        "toggle": "Toggle Expansion",
+        "expand": "Expand",
+        "collapse": "Collapse",
+        "settings": "Settings",
+        "next": "Next Widget",
+        "previous": "Previous Widget",
+        "pills": "Pills",
+        "underline": "Underline",
+        "dots": "Dots",
+        "numbers": "Numbers",
+        "minimal": "Minimal",
+        "solid": "Solid",
+        "translucent": "Translucent",
+        "up": "Up",
+        "down": "Down",
+        "left": "Left",
+        "right": "Right",
+        "both": "Both",
+        "pointer": "Pointer",
+        "scroll": "Scroll",
+        "audio": "Audio",
+        "media": "Media",
+        "calendar": "Calendar",
+        "weather": "Weather",
+        "system": "System",
+        "commands": "Commands",
+        "windows": "Windows",
+        "menu": "Menu",
+        "clipboard": "Clipboard",
+        "applications": "Applications",
+        "files": "Files"
+    ]
 
     static func description(_ widget: String) -> String {
         switch widget {

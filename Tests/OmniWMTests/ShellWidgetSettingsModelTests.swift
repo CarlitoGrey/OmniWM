@@ -6,6 +6,57 @@ import Foundation
 import XCTest
 
 final class ShellWidgetSettingsModelTests: XCTestCase {
+    func testChoiceTitlesUseRequestedLocaleAndKeepFallbacks() {
+        let choices = [
+            ("icon_and_text", "Icon and Title", "图标和标题"),
+            ("icon_only", "Icon Only", "仅图标"),
+            ("text_only", "Title Only", "仅标题"),
+            ("meters", "Meters", "条形图"),
+            ("gauge", "Gauges", "仪表盘"),
+            ("graph", "Graphs", "曲线图"),
+            ("beside", "Beside Icon", "图标旁"),
+            ("inside", "Inside Icon", "图标内"),
+            ("off", "Off", "关闭"),
+            ("pills", "Pills", "胶囊"),
+            ("underline", "Underline", "下划线"),
+            ("dots", "Dots", "圆点"),
+            ("numbers", "Numbers", "数字"),
+            ("minimal", "Minimal", "极简"),
+            ("solid", "Solid", "纯色"),
+            ("translucent", "Translucent", "半透明"),
+            ("up", "Up", "向上"),
+            ("down", "Down", "下"),
+            ("left", "Left", "左边"),
+            ("right", "Right", "右边"),
+            ("both", "Both", "两者"),
+            ("pointer", "Pointer", "指针"),
+            ("scroll", "Scroll", "滚动"),
+            ("audio", "Audio", "音频"),
+            ("media", "Media", "媒体"),
+            ("calendar", "Calendar", "日历"),
+            ("weather", "Weather", "天气"),
+            ("system", "System", "系统"),
+            ("commands", "Commands", "命令"),
+            ("windows", "Windows", "窗口"),
+            ("menu", "Menu", "菜单"),
+            ("clipboard", "Clipboard", "剪贴板"),
+            ("applications", "Applications", "应用程序"),
+            ("files", "Files", "文件")
+        ]
+        let chinese = Locale(identifier: "zh-Hans")
+        for (value, english, translated) in choices {
+            XCTAssertEqual(ShellWidgetSettingsModel.title(value, locale: chinese), translated, value)
+            XCTAssertEqual(ShellWidgetSettingsModel.title(value, locale: Locale(identifier: "en")), english, value)
+        }
+        XCTAssertEqual(ShellWidgetSettingsModel.title("pills", locale: Locale(identifier: "fr")), "Pills")
+        for (value, title) in [
+            ("png", "Png"), ("jpeg", "Jpeg"), ("tiff", "Tiff"),
+            ("my_custom-choice", "MY Custom Choice"), ("Custom %@ threshold 75%", "Custom %@ threshold 75%")
+        ] {
+            XCTAssertEqual(ShellWidgetSettingsModel.title(value, locale: chinese), title, value)
+        }
+    }
+
     func testWidgetSettingsDecodeWithoutDiscardingStructuredWorldClockLocations() throws {
         let values = ShellServiceValue.object([
             "bar": .number(2),
