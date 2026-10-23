@@ -6,6 +6,14 @@ local look = require("../lib/look")
 
 local TERRACOTTA = "#B66545FF"
 
+local function iconColor(settings): string
+    local color = settings.iconColor
+    if type(color) == "string" and (#color == 7 or #color == 9) and string.match(color, "^#%x+$") then
+        return color
+    end
+    return TERRACOTTA
+end
+
 function render(ctx: Context)
     local style = ctx.data.bar.style
     local locked = style.secureInput
@@ -16,7 +24,7 @@ function render(ctx: Context)
         frame, size = look.omniwmButton(ctx, glyph, locked)
     end
     glyph.name = locked and "omniwm.lock" or "omniwm"
-    glyph.color = TERRACOTTA
+    glyph.color = iconColor(ctx.data.settings or {})
     glyph.w, glyph.h = glyph.size, glyph.size
     local behaviour = { onClick = "shell menu", onRightClick = "shell menu",
         help = locked and omniwm.l10n("Secure Input is on: Option shortcuts are paused")
