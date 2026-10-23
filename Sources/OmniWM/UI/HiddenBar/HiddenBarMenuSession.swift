@@ -57,6 +57,7 @@ final class HiddenBarMenuSession {
     private var generation = 0
     private var releaseReveal: ((RevealDisposition) -> Void)?
     private(set) var page: HiddenBarMenuPage?
+    private(set) var lastOpenFailedReading = false
 
     var bundleID: String? {
         owner?.bundleID
@@ -102,6 +103,7 @@ final class HiddenBarMenuSession {
         let ownerPID = target.ownerPID
         let cachedItems = target.cachedItems
         close()
+        lastOpenFailedReading = false
         let owner = MenuBarAppCandidate(bundleID: key.bundleID, pid: ownerPID)
         self.owner = owner
         releaseReveal = release
@@ -151,6 +153,7 @@ final class HiddenBarMenuSession {
 
     func open(target: ResolvedMenuBarItem, cachedItems: [ResolvedMenuBarItem]) -> OpenResult {
         clearMenu()
+        lastOpenFailedReading = false
         let owner = MenuBarAppCandidate(bundleID: target.key.bundleID, pid: target.pid)
         guard ownerIsCurrent(owner) else { return .unavailable }
         do {
@@ -167,6 +170,7 @@ final class HiddenBarMenuSession {
             return .menu
         } catch {
             Log.hiddenBar.error("Menu extraction failed for \(owner.bundleID): \(error)")
+            lastOpenFailedReading = true
             close()
             return .unavailable
         }

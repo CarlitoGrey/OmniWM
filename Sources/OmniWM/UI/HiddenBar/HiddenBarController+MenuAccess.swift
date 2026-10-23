@@ -41,8 +41,31 @@ extension HiddenBarController {
         return !covers(CGPoint(x: target.bounds.midX, y: target.bounds.midY))
     }
 
-    func takeMenuAccessForReveal() -> Bool {
-        menuBarHiddenByBar() || acquireMenuAccess()
+    func retryingWithMenuAccess(
+        _ key: MenuBarItemKey,
+        withMenuAccess: Bool,
+        onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void
+    ) -> (HiddenBarMenuSession.OpenResult) -> Void {
+        { [weak self] result in
+            guard let self, Self.retriesMenuWithAccess(
+                readFailed: menuSession.lastOpenFailedReading,
+                withMenuAccess: withMenuAccess,
+                menuBarHiddenByBar: menuBarHiddenByBar()
+            ) else { return onOpen(result) }
+            openMenu(key, withMenuAccess: true, onOpen: onOpen)
+        }
+    }
+
+    nonisolated static func retriesMenuWithAccess(
+        readFailed: Bool,
+        withMenuAccess: Bool,
+        menuBarHiddenByBar: Bool
+    ) -> Bool {
+        readFailed && !withMenuAccess && menuBarHiddenByBar
+    }
+
+    func takeMenuAccessForReveal(required: Bool = false) -> Bool {
+        (!required && menuBarHiddenByBar()) || acquireMenuAccess()
     }
 
     private func acquireMenuAccess() -> Bool {

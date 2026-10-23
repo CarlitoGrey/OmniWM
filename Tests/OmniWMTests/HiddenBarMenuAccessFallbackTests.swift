@@ -66,6 +66,28 @@ final class HiddenBarMenuAccessFallbackTests: XCTestCase {
         }
     }
 
+    func testAMenuReadThatFailsUnderOurBarIsRetriedOnceWithMenuAccess() {
+        let retry = HiddenBarController.retriesMenuWithAccess
+        XCTAssertTrue(retry(true, false, true))
+        XCTAssertFalse(retry(true, true, true))
+        XCTAssertFalse(retry(true, false, false))
+        XCTAssertFalse(retry(false, false, true))
+
+        var accesses: [Bool] = []
+        let hiddenBar = HiddenBarController(
+            settings: settings(),
+            setMenuAccess: { accesses.append($0)
+                return true
+            },
+            menuBarHiddenByBar: { true }
+        )
+        XCTAssertTrue(hiddenBar.takeMenuAccessForReveal())
+        XCTAssertEqual(accesses, [])
+        XCTAssertTrue(hiddenBar.takeMenuAccessForReveal(required: true))
+        XCTAssertEqual(accesses, [true])
+        hiddenBar.cleanup()
+    }
+
     func testACoveredItemIsPressedAndNeverClicked() {
         let covered = HiddenBarClickForwarder.activationCandidate(pid: 1, covered: true, electron: false)
         XCTAssertTrue(covered.useAXPress)

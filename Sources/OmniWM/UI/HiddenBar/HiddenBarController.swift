@@ -165,7 +165,11 @@ final class HiddenBarController {
         activateHiddenItem(key)
     }
 
-    func openMenu(_ key: MenuBarItemKey, onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void) {
+    func openMenu(
+        _ key: MenuBarItemKey,
+        withMenuAccess: Bool = false,
+        onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void
+    ) {
         menuSession.close()
         if let activeActivation {
             cancelActivationIfCurrent(activeActivation, removeReveal: false)
@@ -190,7 +194,7 @@ final class HiddenBarController {
             return
         }
         reconcealment.cancel(reason: .cancelled)
-        guard temporarilyReveal(key.bundleID, ownerPID: owner.pid) else {
+        guard temporarilyReveal(key.bundleID, ownerPID: owner.pid, withMenuAccess: withMenuAccess) else {
             Log.hiddenBar.error("Could not reveal menu item for \(key.bundleID), PID \(owner.pid)")
             releaseMenuReveal(key.bundleID)
             onOpen(.unavailable)
@@ -210,7 +214,7 @@ final class HiddenBarController {
                 }
             },
             release: { [weak self] disposition in self?.releaseMenuReveal(key.bundleID, disposition: disposition) },
-            onOpen: onOpen
+            onOpen: retryingWithMenuAccess(key, withMenuAccess: withMenuAccess, onOpen: onOpen)
         )
     }
 
@@ -381,7 +385,7 @@ extension HiddenBarController {
         finishActivation(activation)
     }
 
-    private func temporarilyReveal(_ bundleID: String, ownerPID: pid_t) -> Bool {
+    private func temporarilyReveal(_ bundleID: String, ownerPID: pid_t, withMenuAccess: Bool = false) -> Bool {
         guard settings.effectiveHiddenBarEnabled, hider.available else { return false }
         let hidden = Set(settings.hiddenBar.hiddenBundleIDs)
         let snapshot = HiddenBarRunningAppsSnapshot.current()
@@ -389,7 +393,7 @@ extension HiddenBarController {
               snapshot.candidates.contains(where: { $0.bundleID == bundleID && $0.pid == ownerPID })
         else { return false }
 
-        guard takeMenuAccessForReveal() else { return false }
+        guard takeMenuAccessForReveal(required: withMenuAccess) else { return false }
         temporarilyRevealed.insert(bundleID)
         capture.reconcile(
             snapshot: snapshot,
