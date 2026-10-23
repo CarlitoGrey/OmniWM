@@ -74,4 +74,20 @@ In a profile folder’s `shell.toml`, use `[drawer.controls]`. A drawer widget s
 
 Hidden Bar app menus use the `hidden-bar-menu` widget, which opens beneath the clicked icon while the icon strip stays visible. Its `ctx.data.hiddenBar.menu` contains the current menu's `title`, optional `backID`, and `rows` with `id`, `title`, `enabled`, `mark`, `shortcut`, `submenu`, and `separator`. The widget sends `hidden-bar-menu <id>` to enter a submenu, go back, or execute a command. IDs are valid only for the displayed page. OmniWM temporarily exposes the selected native status item while acquiring and using its menu, then conceals it again when the menu ends. Like other widgets, its appearance can be customized in the selected profile’s `widgets/hidden-bar-menu/init.luau`.
 
+`ctx.data.hiddenBar.items` stays current while the drawer is closed, so a bar widget can put hidden apps inline, beside the system controls:
+
+```luau
+-- In ~/.config/omniwm/shell/widgets/menu-extras/init.luau:
+function render(ctx: Context)
+    local row = { gap = 2 }
+    for _, item in ipairs(ctx.data.hiddenBar.items) do
+        row[#row + 1] = ui.stack{ key = item.id, w = math.ceil(item.w) + 8, h = 22, help = item.name,
+            onClick = "hidden-bar activate " .. item.id,
+            if item.image then ui.image{ image = item.image, w = item.w, h = item.h }
+            else ui.symbol{ name = "app.dashed", w = 16, h = 16 } }
+    end
+    return ui.row(row)
+end
+```
+
 See [Hidden Bar](/features/hidden-bar/) for concealment setup and Full Disk Access requirements, and the [context and data reference](/omnishell/reference/context-data/) for menu field types.

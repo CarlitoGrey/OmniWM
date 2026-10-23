@@ -74,6 +74,6 @@ extension HiddenBarController {
             captures = []
         }
         capture.reconcile(snapshot: snapshot, captureBundleIDs: captures)
-        refreshPanelIfVisible()
+        publishGlyphs()
     }
 }

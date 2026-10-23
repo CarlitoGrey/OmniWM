@@ -105,7 +105,7 @@ ui.text{ text = ctx.format.bytes(ctx.data.system and ctx.data.system.memory.used
 | `weather` | Current conditions with humidity, sunrise and sunset, 24 hours and 7 days |
 | `user` | Your name and account picture |
 | `appearance` | `"light"` or `"dark"` |
-| `hiddenBar` | Hidden Bar items |
+| `hiddenBar` | Hidden Bar items, kept current while the Hidden Bar is closed, so a bar widget can show them inline |
 | `menuApp` | App-menu target with process ID, name, and bundle ID; absent if no target is available |
 | `components`, `catalog`, `settingsSchema` | Configured instance metadata, installed component catalog, and root option schema; see [components and configuration](/omnishell/reference/components-configuration/) |
 | `vars`, `settings` | Values from `omniwmctl shell set` and from `[widgets.<name>]` |

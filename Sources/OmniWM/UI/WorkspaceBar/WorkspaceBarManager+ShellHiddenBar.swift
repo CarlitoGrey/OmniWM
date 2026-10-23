@@ -28,7 +28,7 @@ extension MenuBarItemKey {
 extension WorkspaceBarManager {
     func showHiddenBarMenu(_ key: MenuBarItemKey, origin: ShellCommandOrigin) {
         guard let hiddenBar = controller?.hiddenBarController else { return }
-        guard let host = shellHost, host.popout != nil, let anchor = origin.anchor else {
+        guard let host = shellHost, let anchor = origin.anchor else {
             hiddenBar.activate(key)
             return
         }
@@ -37,6 +37,7 @@ extension WorkspaceBarManager {
         let shown = host.showHiddenBarMenu(
             Self.hiddenBarMenuMessage("Loading…"),
             anchor: anchor,
+            on: origin.monitor,
             onSelect: { [weak host, weak session] id in
                 guard let host, let session else { return }
                 switch session.select(id: id) {
@@ -139,7 +140,7 @@ extension WorkspaceBarManager {
         guard controller?.hiddenBarController.menuSession.bundleID == nil else { return }
         popout.move(to: placement)
         shellHost?.closeHiddenBarMenu()
-        controller?.hiddenBarController.refreshPanelIfVisible()
+        controller?.hiddenBarController.publishGlyphs()
     }
 
     func publishShellHiddenBar(_ glyphs: [HiddenBarGlyph], placement explicit: HiddenBarPanelPlacement? = nil) {

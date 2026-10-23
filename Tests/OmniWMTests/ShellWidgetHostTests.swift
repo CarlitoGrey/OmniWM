@@ -215,6 +215,29 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         manager.cleanup()
     }
 
+    func testABarSlotOpensTheHiddenBarMenuWithoutAPopout() async throws {
+        executionTimeAllowance = 60
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        let manager = makeManager()
+        defer { manager.cleanup() }
+        manager.apply([barSurface()])
+        await waitForShellWidgets(manager)
+        let host = try XCTUnwrap(manager.shellHost)
+        XCTAssertNil(host.popout)
+        let anchor = ShellAnchor(
+            frame: CGRect(x: screen.frame.midX, y: screen.frame.midY, width: 20, height: 20),
+            level: .popUpMenu
+        )
+
+        manager.showHiddenBarMenu(
+            MenuBarItemKey(bundleID: "com.example.menu", ordinal: 0),
+            origin: ShellCommandOrigin(monitor: monitor.id, anchor: anchor)
+        )
+
+        XCTAssertNotNil(host.hiddenBarMenu)
+        host.closeHiddenBarMenu()
+    }
+
     func testBarsStartTheShellAndInstallTheDefaultProfile() async throws {
         executionTimeAllowance = 60
         let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
@@ -2517,6 +2540,7 @@ final class ShellWidgetClickTests: XCTestCase {
         XCTAssertTrue(harness.host.showHiddenBarMenu(
             page,
             anchor: ShellAnchor(frame: CGRect(x: 200, y: 500, width: 20, height: 20), level: .popUpMenu),
+            on: main,
             onSelect: { _ in XCTFail("closed menu must not dispatch") },
             onClose: { closed += 1 }
         ))
@@ -2528,6 +2552,32 @@ final class ShellWidgetClickTests: XCTestCase {
         XCTAssertEqual(closed, 1)
         XCTAssertFalse(menu.popout.panel.isVisible)
         harness.host.closePopout(animated: false)
+        XCTAssertEqual(closed, 1)
+    }
+
+    func testHiddenBarMenuOpensFromABarSlotWithoutAParentPopout() async throws {
+        executionTimeAllowance = 60
+        let main = Monitor.ID(displayId: CGMainDisplayID())
+        let harness = try harness("""
+        function render(ctx) return ui.box{ w = 10, h = 10 } end
+        """, bars: [ShellBarKey(monitor: main): ShellBarData()])
+        defer { harness.close() }
+        var changes = harness.layoutChanges.makeAsyncIterator()
+        try await changes.change()
+        XCTAssertNil(harness.host.popout)
+        var closed = 0
+        XCTAssertTrue(harness.host.showHiddenBarMenu(
+            HiddenBarMenuPage(title: nil, rows: [], backID: nil),
+            anchor: ShellAnchor(frame: CGRect(x: 200, y: 500, width: 20, height: 20), level: .popUpMenu),
+            on: main,
+            onSelect: { _ in XCTFail("closed menu must not dispatch") },
+            onClose: { closed += 1 }
+        ))
+        let menu = try XCTUnwrap(harness.host.hiddenBarMenu)
+        XCTAssertEqual(menu.popout.key, ShellBarKey(monitor: main))
+        XCTAssertNil(harness.host.popout)
+        harness.host.closePopout(animated: false)
+        XCTAssertNil(harness.host.hiddenBarMenu)
         XCTAssertEqual(closed, 1)
     }
 
@@ -2550,6 +2600,7 @@ final class ShellWidgetClickTests: XCTestCase {
         XCTAssertTrue(harness.host.showHiddenBarMenu(
             HiddenBarMenuPage(title: nil, rows: [], backID: nil),
             anchor: ShellAnchor(frame: CGRect(x: 200, y: 500, width: 20, height: 20), level: .popUpMenu),
+            on: main,
             onSelect: { _ in XCTFail("closed menu must not dispatch") },
             onClose: { closed += 1 }
         ))
