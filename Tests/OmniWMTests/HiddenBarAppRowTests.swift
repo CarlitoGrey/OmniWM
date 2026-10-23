@@ -20,7 +20,7 @@ final class HiddenBarAppRowTests: XCTestCase {
         let expected = [
             ("calc", FileManager.default.displayName(atPath: urls["calc"]!.path), false, true),
             ("chess", FileManager.default.displayName(atPath: urls["chess"]!.path), true, true),
-            ("kept", "kept", false, false),
+            ("kept", "kept", false, false)
         ].sorted { $0.1.localizedCaseInsensitiveCompare($1.1) == .orderedAscending }
 
         XCTAssertEqual(rows.map(\.bundleID), expected.map(\.0))
