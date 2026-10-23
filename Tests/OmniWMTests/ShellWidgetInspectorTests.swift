@@ -13,7 +13,8 @@ final class ShellWidgetInspectorTests: XCTestCase {
         let key: String
         let minimum: Double
         let maximum: Double
-        let defaultValue: Double
+        let schemaDefault: Double
+        let styleDefault: Double
     }
 
     private let options = [
@@ -22,21 +23,24 @@ final class ShellWidgetInspectorTests: XCTestCase {
             key: "shownWindows",
             minimum: 0,
             maximum: 6,
-            defaultValue: 2
+            schemaDefault: 3,
+            styleDefault: 2
         ),
         Option(
             widget: "calendar",
             key: "agendaEvents",
             minimum: 1,
             maximum: 12,
-            defaultValue: 6
+            schemaDefault: 6,
+            styleDefault: 6
         ),
         Option(
             widget: "weather",
             key: "forecastHours",
             minimum: 4,
             maximum: 12,
-            defaultValue: 12
+            schemaDefault: 12,
+            styleDefault: 12
         )
     ]
 
@@ -86,7 +90,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
                 XCTAssertNotEqual(pixels["default"], pixels["minimum"], option.widget)
                 XCTAssertNotEqual(pixels["minimum"], pixels["maximum"], option.widget)
                 XCTAssertEqual(pixels["default"], pixels["reset"], option.widget)
-                if option.defaultValue == option.maximum {
+                if option.styleDefault == option.maximum {
                     XCTAssertEqual(pixels["default"], pixels["maximum"], option.widget)
                 }
             }
@@ -112,6 +116,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
         for option in options {
             XCTAssertNil(ShellWidgetSettingsModel.values(widget: option.widget, config: reloaded.config)[option.key])
         }
+        XCTAssertEqual(reloaded.widgetSchemas["scratchpads"]?.options["shownWindows"]?.defaultValue, .number(3))
         try await reloaded.selectProfile("nocturne")
         for option in options {
             XCTAssertEqual(
@@ -123,10 +128,16 @@ final class ShellWidgetInspectorTests: XCTestCase {
         let reset = ShellConfigurationCoordinator(shellDirectory: directory)
         try await reset.ensureLoaded()
         for option in options {
-            XCTAssertNil(ShellWidgetSettingsModel.values(widget: option.widget, config: reset.config)[option.key])
+            XCTAssertFalse(ShellProfiles.hasTopLevel(
+                [ShellProfiles.key("widgets", of: "nocturne") + [option.widget, option.key]], in: directory
+            ), option.widget)
+            let schemaDefault = try XCTUnwrap(reset.widgetSchemas[option.widget]?.options[option.key]?.defaultValue)
+            XCTAssertEqual(schemaDefault, .number(option.schemaDefault), option.widget)
             XCTAssertEqual(
-                reset.widgetSchemas[option.widget]?.options[option.key]?.defaultValue,
-                .number(option.defaultValue)
+                ShellWidgetSettingsModel.values(widget: option.widget, config: reset.config)[option.key]
+                    ?? schemaDefault,
+                .number(option.styleDefault),
+                option.widget
             )
         }
     }

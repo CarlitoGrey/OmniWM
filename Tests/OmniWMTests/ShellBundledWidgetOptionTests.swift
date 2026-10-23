@@ -7,6 +7,8 @@ import XCTest
 
 extension ShellBundledWidgetTests {
     func testNocturneScratchpadOptionControlsIconsAndOverflowAtBothOrientations() throws {
+        let directory = try nocturneShellDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
         let references = (0 ..< 8).map { "ow_option_\($0)" }
         for vertical in [false, true] {
             for shown: Int? in [nil, 0, 1, 6] {
@@ -26,7 +28,9 @@ extension ShellBundledWidgetTests {
                         }
                     )]
                 }
-                if let shown { data.append(("settings", option("shownWindows", shown))) }
+                if let settings = try resolvedSettings(
+                    widget: "scratchpads", key: "shownWindows", value: shown, directory: directory
+                ) { data.append(("settings", settings)) }
                 let expected = shown ?? 2
                 try renderStyle("nocturne", widget: "scratchpads", data: data, capture: { view, bytes, text in
                     guard view == OMNI_VIEW_BAR else { return }
@@ -50,6 +54,8 @@ extension ShellBundledWidgetTests {
     }
 
     func testNocturneCalendarOptionLimitsUpcomingEventsAfterFilteringExpiredOnes() throws {
+        let directory = try nocturneShellDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
         let titles = (0 ..< 14).map { "Upcoming event \($0)" }
         let events = (["Expired event"] + titles).enumerated().map { index, title in
             ShellCalendarEvent(
@@ -67,7 +73,9 @@ extension ShellBundledWidgetTests {
             var inspectedPopout = false
             var data = try fullData().filter { $0.0 != "calendar" }
             data.append(("calendar", value { calendar.write(into: &$0) }))
-            if let limit { data.append(("settings", option("agendaEvents", limit))) }
+            if let settings = try resolvedSettings(
+                widget: "calendar", key: "agendaEvents", value: limit, directory: directory
+            ) { data.append(("settings", settings)) }
             try renderStyle("nocturne", widget: "calendar", data: data, capture: { view, bytes, text in
                 guard view == OMNI_VIEW_POPOUT else { return }
                 try self.writeAppearanceSnapshots(bytes, text: text, name: "nocturne-calendar-\(limit ?? 6)")
@@ -83,10 +91,14 @@ extension ShellBundledWidgetTests {
     }
 
     func testNocturneWeatherOptionControlsForecastHoursAndColumnWidths() throws {
+        let directory = try nocturneShellDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
         var stripWidth: Float?
         for hours: Int? in [nil, 4, 8, 12] {
             var data = try fullData()
-            if let hours { data.append(("settings", option("forecastHours", hours))) }
+            if let settings = try resolvedSettings(
+                widget: "weather", key: "forecastHours", value: hours, directory: directory
+            ) { data.append(("settings", settings)) }
             let expected = hours ?? 12
             var forecastWidth: Float = 0
             var inspectedPopout = false
@@ -115,11 +127,22 @@ extension ShellBundledWidgetTests {
         }
     }
 
-    private func option(_ key: String, _ number: Int) -> [UInt8] {
-        value { writer in
-            writer.map(1)
-            writer.key(key)
-            writer.number(Double(number))
-        }
+    private func nocturneShellDirectory() throws -> URL {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        XCTAssertEqual(ShellDefaults.sync(into: directory), [])
+        XCTAssertTrue(try ShellProfiles.select("nocturne", in: directory))
+        return directory
+    }
+
+    private func resolvedSettings(
+        widget: String, key: String, value: Int?, directory: URL
+    ) throws -> [UInt8]? {
+        _ = try ShellProfiles.setValue(
+            value, at: ShellProfiles.key("widgets", of: "nocturne") + [widget, key], in: directory
+        )
+        var problems: [String] = []
+        let config = try XCTUnwrap(ShellConfig.load(shellDirectory: directory, problems: &problems))
+        XCTAssertTrue(problems.isEmpty, problems.joined(separator: "\n"))
+        return config.widgetSettings[widget]
     }
 }
