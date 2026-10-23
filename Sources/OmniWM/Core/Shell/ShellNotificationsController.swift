@@ -202,11 +202,11 @@ final class ShellNotificationsController {
 
     private static func nativeProcesses() -> (pid_t, pid_t)? {
         guard let notificationPID = NSRunningApplication.runningApplications(
-            withBundleIdentifier: "com.apple.notificationcenterui"
-        ).first?.processIdentifier,
-            let menuPID = NSRunningApplication.runningApplications(
-                withBundleIdentifier: "com.apple.MenuBarAgent"
-            ).first?.processIdentifier
+                  withBundleIdentifier: "com.apple.notificationcenterui"
+              ).first?.processIdentifier,
+              let menuPID = NSRunningApplication.runningApplications(
+                  withBundleIdentifier: "com.apple.MenuBarAgent"
+              ).first?.processIdentifier
         else { return nil }
         return (notificationPID, menuPID)
     }

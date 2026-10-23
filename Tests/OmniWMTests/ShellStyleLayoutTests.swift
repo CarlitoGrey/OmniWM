@@ -94,7 +94,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                         windowIcon: { [applications] id in
                             guard let index = Int(id), applications.indices.contains(index),
                                   let url = NSWorkspace.shared
-                                  .urlForApplication(withBundleIdentifier: applications[index])
+                                      .urlForApplication(withBundleIdentifier: applications[index])
                             else { return nil }
                             return NSWorkspace.shared.icon(forFile: url.path)
                         }
