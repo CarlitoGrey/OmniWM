@@ -28,33 +28,36 @@ final class ShellHiddenBarMenu {
     init(
         page: HiddenBarMenuPage,
         anchor: ShellAnchor,
-        parent: ShellPopout,
+        parent: ShellPopout?,
+        key: ShellBarKey,
+        screen: NSScreen,
         resources: ShellResources,
         resourceStore: ShellResourceStore? = nil,
         source: ShellWidgetSource,
         directories: [URL],
         onSelect: @escaping (String) -> Void,
-        onFailure: @escaping () -> Void
+        onFailure: @escaping () -> Void,
+        onDismiss: (@MainActor @Sendable () -> Void)? = nil
     ) {
         self.page = page
         self.parent = parent
         self.onSelect = onSelect
         self.onFailure = onFailure
         let anchor = ShellAnchor(frame: anchor.frame, level: anchor.level)
-        let visible = parent.screen.visibleFrame
+        let visible = screen.visibleFrame
         let below = PopupAttachment(sourceFrame: anchor.frame, edge: .below).availableSize(in: visible)
         let above = PopupAttachment(sourceFrame: anchor.frame, edge: .above).availableSize(in: visible)
         available = CGSize(width: below.width, height: max(below.height, above.height))
         popout = ShellPopout(
             widget: "hidden-bar-menu",
-            key: parent.key,
+            key: key,
             anchor: anchor,
-            screen: parent.screen,
+            screen: screen,
             resources: resources,
             directories: directories,
-            tracksDismissal: false,
+            tracksDismissal: onDismiss != nil,
             fitsAroundAnchor: true,
-            onDismiss: {}
+            onDismiss: onDismiss ?? {}
         )
         popout.surface.focusAxis = .vertical
         popout.surface.onAction = { [weak self] click in
@@ -74,9 +77,9 @@ final class ShellHiddenBarMenu {
         self.package = package
         let mailbox = startWorker(package, source: source)
         update(page: page)
-        mailbox.yield(.bars([parent.key: ShellBarData()]))
-        mailbox.yield(.popout(parent.key, true))
-        parent.setCompanion(popout)
+        mailbox.yield(.bars([key: ShellBarData()]))
+        mailbox.yield(.popout(key, true))
+        parent?.setCompanion(popout)
         installKeyboardForwarding()
     }
 
