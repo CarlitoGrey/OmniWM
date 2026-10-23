@@ -222,7 +222,8 @@ final class ShellDefaultsTests: XCTestCase {
             "volume",
             "media",
             "clock",
-            "calendar"
+            "calendar",
+            "weather"
         ]
         let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
         XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())

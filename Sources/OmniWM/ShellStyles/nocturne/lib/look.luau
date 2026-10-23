@@ -559,6 +559,130 @@ local function calendarPanel(ctx, m)
     return framedPanel(ctx, rows, CALENDAR_WIDTH)
 end
 
+local WEATHER_WIDTH = 480
+local WEATHER_INNER = WEATHER_WIDTH - 2 - 24
+local WEATHER_CARD = WEATHER_INNER - 20
+
+local function weatherBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local item = { gap = 5, radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14",
+        ui.symbol{ name = m.symbol, w = 22 * scale, h = 22 * scale,
+            size = 20 * scale, weight = "medium", color = "foreground" } }
+    if style.vertical then
+        item.w, item.gap = size, 2
+        table.insert(item, 1, ui.box{ w = 1, h = 4 })
+        item[#item + 1] = ui.text{ text = m.temp, style = "mono", size = 14 * scale, weight = "semibold" }
+        item[#item + 1] = ui.box{ w = 1, h = 4 }
+        return ui.column(item)
+    end
+    item.h = size
+    table.insert(item, 1, ui.box{ w = 1, h = 1 })
+    item[#item + 1] = ui.text{ text = m.temp, size = 14 * scale, weight = "semibold", reserve = "-00°" }
+    item[#item + 1] = ui.box{ w = 2, h = 1 }
+    return ui.row(item)
+end
+
+local function weatherChip(symbol, text)
+    return ui.row{ h = 24, gap = 5, radius = 12, fill = "surface", border = "border", borderWidth = 1,
+        ui.box{ w = 4, h = 1 },
+        ui.symbol{ name = symbol, w = 13, h = 13, size = 11, weight = "semibold", color = "blue" },
+        ui.text{ text = text, size = 12, weight = "medium" },
+        ui.box{ w = 5, h = 1 } }
+end
+
+local function weatherCard(props)
+    props.w, props.pad = WEATHER_INNER, 10
+    return statsCard(props)
+end
+
+local function weatherHourly(m)
+    local strip = { gap = 0 }
+    local column = math.floor(WEATHER_CARD / m.forecastHours)
+    for index, hour in m.hours do
+        strip[#strip + 1] = ui.column{ w = column, gap = 5, help = hour.condition,
+            ui.text{ text = hour.label, size = 12, weight = "medium", color = "secondaryForeground" },
+            ui.symbol{ name = hour.symbol, w = 16, h = 16, size = 13, color = index == 1 and "accent" or "foreground" },
+            ui.text{ text = hour.temp, size = 12, weight = index == 1 and "bold" or "medium",
+                color = index == 1 and "accent" or "foreground" } }
+    end
+    return ui.row(strip)
+end
+
+local function weatherTrailing(element)
+    return ui.row{ w = 30, ui.box{ grow = 1, h = 1 }, element }
+end
+
+local function weatherDaily(m)
+    local track = WEATHER_CARD - 210
+    local rows = { gap = 6 }
+    for index, day in m.days do
+        rows[#rows + 1] = ui.row{ w = WEATHER_CARD, gap = 8,
+            ui.text{ text = day.label, size = 14, weight = index == 1 and "bold" or "medium", w = 52, maxWidth = 52 },
+            ui.symbol{ name = day.symbol, w = 18, h = 16, size = 13, help = day.condition },
+            ui.text{ text = day.rain or "", size = 12, weight = "semibold", color = "blue", w = 34 },
+            weatherTrailing(ui.text{ text = day.low, size = 14, color = "secondaryForeground" }),
+            ui.stack{ w = track, h = 5, radius = 2.5, fill = "foreground/0.1",
+                ui.box{ align = "leading", dx = day.from * track, w = math.max(5, (day.to - day.from) * track),
+                    h = 5, radius = 2.5, fill = "accent" } },
+            weatherTrailing(ui.text{ text = day.high, size = 14, weight = "semibold" }) }
+    end
+    return ui.column(rows)
+end
+
+local function weatherPanel(ctx, m)
+    if not m then
+        return nil
+    end
+    local summary = { gap = 1, center = false,
+        ui.text{ text = m.temp, size = 30, weight = "bold" },
+        ui.text{ text = m.condition, size = 14, weight = "medium", color = "secondaryForeground" } }
+    if m.feels then
+        summary[#summary + 1] = ui.text{ text = m.feels, size = 12, color = "mutedForeground" }
+    end
+    local place = { gap = 3, center = false }
+    if m.place then
+        place[#place + 1] = ui.row{ gap = 4,
+            ui.symbol{ name = "location.fill", size = 9, color = "accent" },
+            ui.text{ text = m.place, size = 14, weight = "bold", maxWidth = 130 } }
+    end
+    if m.high then
+        place[#place + 1] = ui.text{ text = m.high .. "  " .. m.low, size = 12, color = "secondaryForeground" }
+    end
+    local rows = { gap = 10,
+        ui.row{ w = WEATHER_INNER, gap = 12,
+            ui.box{ w = 2, h = 1 },
+            ui.symbol{ name = m.symbol, w = 46, h = 42, size = 36, color = "accent" },
+            ui.column(summary), ui.box{ grow = 1, h = 1 }, ui.column(place), ui.box{ w = 2, h = 1 } } }
+    local chips = { gap = 6 }
+    if m.rain then
+        chips[#chips + 1] = weatherChip("umbrella.fill", m.rain)
+    end
+    if m.wind then
+        chips[#chips + 1] = weatherChip("wind", m.wind)
+    end
+    if #chips > 0 then
+        rows[#rows + 1] = ui.row(chips)
+    end
+    if #m.hours > 0 then
+        rows[#rows + 1] = weatherCard{ weatherHourly(m) }
+    end
+    if #m.days > 0 then
+        rows[#rows + 1] = weatherCard{ weatherDaily(m) }
+    end
+    local footer = { w = WEATHER_INNER, gap = 6, ui.box{ w = 2, h = 1 } }
+    if m.stale then
+        footer[#footer + 1] = ui.symbol{ name = "exclamationmark.triangle.fill", size = 10, color = "warning" }
+        footer[#footer + 1] = ui.text{ text = m.stale, size = 12, color = "warning" }
+        footer[#footer + 1] = ui.box{ grow = 1, h = 1 }
+    end
+    footer[#footer + 1] = ui.text{ text = m.attribution, size = 12, color = "mutedForeground" }
+    rows[#rows + 1] = ui.row(footer)
+    return framedPanel(ctx, rows, WEATHER_WIDTH)
+end
+
 return require("./skin")({
     base = 40,
     hover = "focus/0.14",
@@ -566,6 +690,8 @@ return require("./skin")({
     clockBar = clockBar,
     calendarBar = calendarBar,
     calendarPanel = calendarPanel,
+    weatherBar = weatherBar,
+    weatherPanel = weatherPanel,
     width = 300,
     widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },

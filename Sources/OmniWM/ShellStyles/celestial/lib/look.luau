@@ -9,6 +9,7 @@ local performance = require("./performance")
 local status = require("./status")
 local surface = require("./surface")
 local tokens = require("./tokens")
+local weathertab = require("./weathertab")
 
 local FOCUSED_SHAPES = {
     "Slanted", "Oval", "Pill", "Triangle", "Arrow", "Diamond", "Pentagon", "Gem", "VerySunny", "Sunny", "Cookie4Sided",
@@ -150,6 +151,20 @@ return require("./skin")({
             end
         end
         return surface.pill(style, items, { hover = status.hover })
+    end,
+    weatherBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        return surface.pill(style, {
+            surface.icon(icons.weather(m.code, m.isDay), { size = tokens.icon.medium * scale,
+                color = "secondaryAccent" }),
+            ui.text{ text = m.temp, font = "sans",
+                size = (style.vertical and tokens.label.medium or tokens.label.large) * scale,
+                weight = "medium", color = "accent" },
+        }, { hover = status.hover, help = m.condition })
+    end,
+    weatherPanel = function(ctx, m)
+        return status.panel(weathertab.size.w + 2 * tokens.padding.large, { weathertab.tab(ctx, m) })
     end,
     calendarPanel = function(ctx, m)
         local rows = { dash.calendar(ctx, m) }

@@ -201,6 +201,176 @@ local function mediaLyrics(lyrics)
         ui.column(rows) }, MEDIA_INNER, width)
 end
 
+local WEATHER_WIDTH = 480
+local WEATHER_INNER = WEATHER_WIDTH - 32
+local WEATHER_CARD = WEATHER_INNER - 20
+local WEATHER_RANGE = 120
+local WEATHER_TINTS = {
+    Clear = "yellow",
+    ["Partly cloudy"] = "yellow",
+    Overcast = "secondaryForeground",
+    Fog = "secondaryForeground",
+    Drizzle = "blue",
+    ["Freezing rain"] = "cyan",
+    Rain = "blue",
+    Snow = "foreground",
+    Thunderstorms = "accent",
+}
+
+local function weatherTint(kind)
+    return WEATHER_TINTS[kind] or "mutedForeground"
+end
+
+local function weatherStat(symbol, color, text, width)
+    return ui.column{ w = width, gap = 5, pad = 0, center = true,
+        ui.box{ w = 1, h = 6 },
+        ui.symbol{ name = symbol, size = 15, weight = "semibold", color = color },
+        ui.text{ text = text, size = 12, weight = "semibold", color = "foreground", maxWidth = width - 12, lines = 2 },
+        ui.box{ w = 1, h = 6 } }
+end
+
+local function weatherStats(m)
+    local cells = {}
+    if m.feels then
+        cells[#cells + 1] = { "thermometer.medium", "orange", m.feels }
+    end
+    if m.rain then
+        cells[#cells + 1] = { "umbrella.fill", "blue", m.rain }
+    end
+    if m.wind then
+        cells[#cells + 1] = { "wind", "teal", m.wind }
+    end
+    if #cells == 0 then
+        return nil
+    end
+    local width = (WEATHER_INNER - (#cells - 1)) / #cells
+    local row = { w = WEATHER_INNER, gap = 0, radius = 9, fill = "elevatedSurface" }
+    for index, cell in cells do
+        if index > 1 then
+            row[#row + 1] = ui.box{ w = 1, h = 40, fill = "foreground/0.08" }
+        end
+        row[#row + 1] = weatherStat(cell[1], cell[2], cell[3], width)
+    end
+    return ui.row(row)
+end
+
+local function weatherHourly(hours)
+    local count = #hours
+    if count == 0 then
+        return nil
+    end
+    local width = math.floor((WEATHER_INNER - 8) / count)
+    local strip = { w = WEATHER_INNER, gap = 0, pad = 4, radius = 9, fill = "elevatedSurface" }
+    for index, hour in hours do
+        strip[#strip + 1] = ui.column{ w = width, gap = 5, pad = 0, radius = 7, center = true,
+            fill = index == 1 and "accent/0.14" or nil, help = hour.condition,
+            ui.box{ w = 1, h = 4 },
+            ui.text{ text = hour.label, size = 12, weight = "semibold",
+                color = index == 1 and "accent" or "mutedForeground" },
+            ui.symbol{ name = hour.symbol, size = 13, weight = "medium", color = weatherTint(hour.kind) },
+            ui.text{ text = hour.temp, style = "mono", size = 12, weight = "semibold", color = "foreground" },
+            ui.box{ w = 1, h = 4 } }
+    end
+    return ui.row(strip)
+end
+
+local function weatherRange(day)
+    local from = math.floor(day.from * WEATHER_RANGE)
+    local to = math.max(from + 6, math.floor(day.to * WEATHER_RANGE))
+    local half = (to - from) / 2
+    return ui.stack{ w = WEATHER_RANGE, h = 4, radius = 2, fill = "foreground/0.08",
+        ui.row{ align = "leading", dx = from, gap = 0,
+            ui.box{ w = half, h = 4, radius = 2, fill = "blue" },
+            ui.box{ w = to - from - half, h = 4, radius = 2, fill = "yellow" } } }
+end
+
+local function weatherDaily(days)
+    if #days == 0 then
+        return nil
+    end
+    local rows = {}
+    for index, day in days do
+        rows[#rows + 1] = ui.row{ w = WEATHER_CARD, h = 34, gap = 8,
+            ui.text{ text = day.label, size = 14, weight = index == 1 and "bold" or "medium",
+                color = index == 1 and "accent" or "foreground", w = 70, maxWidth = 70 },
+            ui.stack{ w = 20, h = 20, help = day.condition,
+                ui.symbol{ name = day.symbol, size = 14, weight = "medium", color = weatherTint(day.kind) } },
+            ui.text{ text = day.rain or "", style = "mono", size = 12, weight = "semibold", color = "blue", w = 34 },
+            ui.box{ grow = 1, h = 1 },
+            ui.row{ w = 30, ui.box{ grow = 1, h = 1 },
+                ui.text{ text = day.low, style = "mono", size = 14, weight = "medium", color = "mutedForeground" } },
+            weatherRange(day),
+            ui.row{ w = 30, ui.box{ grow = 1, h = 1 },
+                ui.text{ text = day.high, style = "mono", size = 14, weight = "bold", color = "foreground" } } }
+    end
+    return dividedCard(rows, WEATHER_INNER, WEATHER_CARD)
+end
+
+local function weatherBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size = 32 * scale
+    local item = { gap = 0, radius = math.floor(size * 0.24), fill = "elevatedSurface", hoverOpacity = 0.9,
+        chip(size, style.vertical, "accent", { name = m.symbol, size = math.floor(size * 0.54),
+            weight = "semibold", color = "accentForeground" }) }
+    if style.vertical then
+        item.w, item.gap = size, 2
+        item[#item + 1] = ui.text{ text = m.temp, style = "mono", size = 14 * scale, weight = "semibold", color = "accent" }
+        item[#item + 1] = ui.box{ w = 1, h = 3 }
+        return ui.column(item)
+    end
+    item.h = size
+    item[#item + 1] = ui.box{ w = 8, h = 1 }
+    item[#item + 1] = ui.text{ text = m.temp, style = "mono", size = 14 * scale, weight = "semibold",
+        color = "accent", reserve = "-00°" }
+    item[#item + 1] = ui.box{ w = 8, h = 1 }
+    return ui.row(item)
+end
+
+local function weatherPanel(_, m)
+    if not m then
+        return nil
+    end
+    local header = { w = WEATHER_INNER, gap = 8,
+        ui.symbol{ name = "location.fill", size = 12, weight = "semibold", color = "accent" },
+        ui.text{ text = m.place or m.condition, size = 14, weight = "bold", color = "foreground", maxWidth = 240 },
+        ui.box{ grow = 1, h = 1 } }
+    if m.stale then
+        header[#header + 1] = ui.symbol{ name = "exclamationmark.triangle.fill", size = 12, color = "warning",
+            help = m.stale }
+    end
+    local extremes = { gap = 4, center = false }
+    if m.high then
+        extremes[#extremes + 1] = ui.row{ gap = 4,
+            ui.symbol{ name = "arrow.up", size = 10, weight = "bold", color = "orange" },
+            ui.text{ text = m.high, size = 14, weight = "semibold", color = "foreground" } }
+        extremes[#extremes + 1] = ui.row{ gap = 4,
+            ui.symbol{ name = "arrow.down", size = 10, weight = "bold", color = "blue" },
+            ui.text{ text = m.low, size = 14, weight = "semibold", color = "secondaryForeground" } }
+    end
+    local body = { w = WEATHER_WIDTH, pad = 16, gap = 10, center = false,
+        ui.row{ w = WEATHER_INNER, gap = 14,
+            ui.stack{ w = 52, h = 52, ui.symbol{ name = m.symbol, size = 40, weight = "regular",
+                color = weatherTint(m.kind) } },
+            ui.column{ gap = 0, center = false,
+                ui.text{ text = m.temp, style = "rounded", size = 36, weight = "light", color = "foreground" },
+                ui.text{ text = m.condition, size = 14, weight = "medium", color = "secondaryForeground", maxWidth = 200 } },
+            ui.box{ grow = 1, h = 1 }, ui.column(extremes) } }
+    body[#body + 1] = weatherStats(m)
+    body[#body + 1] = weatherHourly(m.hours)
+    body[#body + 1] = weatherDaily(m.days)
+    local footer = { w = WEATHER_INNER, gap = 6 }
+    if m.stale then
+        footer[#footer + 1] = ui.symbol{ name = "exclamationmark.triangle", size = 10, color = "warning" }
+        footer[#footer + 1] = ui.text{ text = m.stale, size = 12, weight = "semibold",
+            color = "warning" }
+        footer[#footer + 1] = ui.box{ grow = 1, h = 1 }
+    end
+    footer[#footer + 1] = ui.text{ text = m.attribution, size = 12, weight = "medium", color = "mutedForeground" }
+    body[#body + 1] = ui.row(footer)
+    return frame(WEATHER_WIDTH, 44, ui.row(header), ui.column(body))
+end
+
 local CALENDAR_CELL = 38
 local CALENDAR_GRID = CALENDAR_CELL * 7
 local CALENDAR_WIDTH = CALENDAR_GRID + 16 + 32
@@ -375,6 +545,8 @@ return require("./skin")({
     clockBar = clockBar,
     calendarBar = calendarBar,
     calendarPanel = calendarPanel,
+    weatherBar = weatherBar,
+    weatherPanel = weatherPanel,
     mediaBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -831,12 +1003,13 @@ return require("./skin")({
         return ui.column(rows)
     end,
     panel = function(_, props)
+        local width = props.w or 320
         local header = props[1]
         header.h = 44
-        local body = { w = 320, pad = 12, center = false }
+        local body = { w = width, pad = 12, center = false }
         for index = 2, #props do
             body[#body + 1] = props[index]
         end
-        return frame(320, 44, header, ui.column(body))
+        return frame(width, 44, header, ui.column(body))
     end,
 })

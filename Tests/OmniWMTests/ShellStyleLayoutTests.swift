@@ -123,6 +123,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if ["clock", "calendar"].contains(name) || (name == "control-center" && tab == "calendar") {
                         calendarFixture(widget)
                     }
+                    if name == "weather" || (name == "control-center" && tab == "weather") {
+                        weatherFixture(widget)
+                    }
                     widget.render(name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
                         : fixture(config, height: height, vertical: vertical))
@@ -205,6 +208,56 @@ final class ShellStyleLayoutTests: XCTestCase {
                             calendarFixture(widget)
                         }
                     }
+                    if name == "weather" || (name == "control-center" && tab == "weather"), !vertical {
+                        func writeScrolledWeatherSnapshot(_ suffix: String) throws {
+                            guard name == "weather", shared, profile == "celestial" else { return }
+                            let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first)
+                            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: scroll))
+                            let point = CGPoint(x: frame.midX, y: frame.midY)
+                            XCTAssertTrue(widget.surface.scroll(
+                                at: point,
+                                event: ShellEvent(button: .none),
+                                content: CGPoint(x: 0, y: 10_000)
+                            ))
+                            try ShellBundledWidgetTests.writeSnapshot(
+                                widget.surface,
+                                name: "weather-celestial-popout-scrolled-\(suffix)",
+                                dark: dark, directory: directory, background: background
+                            )
+                            XCTAssertTrue(widget.surface.scroll(
+                                at: point,
+                                event: ShellEvent(button: .none),
+                                content: CGPoint(x: 0, y: -10_000)
+                            ))
+                        }
+                        if name == "weather" {
+                            widget.layoutPopout()
+                            try ShellBundledWidgetTests.writeSnapshot(
+                                widget.surface,
+                                name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                                dark: dark, directory: directory, background: background
+                            )
+                            try writeScrolledWeatherSnapshot(dark ? "dark" : "light")
+                        }
+                        if !dark {
+                            for state in ["stale", "unavailable"] {
+                                if state == "stale" {
+                                    weatherFixture(widget, stale: true)
+                                } else {
+                                    widget.set("weather") { $0.null() }
+                                }
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "\(name)-\(profile)-popout-\(state)",
+                                    dark: false, directory: directory, background: background
+                                )
+                                if state == "stale" {
+                                    try writeScrolledWeatherSnapshot(state)
+                                }
+                            }
+                            weatherFixture(widget)
+                        }
+                    }
                     if name == "media", !vertical {
                         widget.layoutPopout()
                         try ShellBundledWidgetTests.writeSnapshot(
@@ -278,6 +331,373 @@ final class ShellStyleLayoutTests: XCTestCase {
         try useSharedLibraries("audio", in: shell)
         XCTAssertTrue(privateAudio.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
         XCTAssertEqual(try Data(contentsOf: shared), sharedBefore)
+    }
+
+    func testSharedWeatherModelLimitsForecastsAndNormalizesRangesAndUnits() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let folder = shell.appendingPathComponent("default/widgets/weather-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local weather = require("../lib/weather")
+        function render(ctx)
+            local m = weather.model(ctx, (ctx.data.settings or {}).compact)
+            local rows = {
+                ui.text{ text = "hours:" .. #m.hours },
+                ui.text{ text = "days:" .. #m.days },
+                ui.text{ text = "limit:" .. m.forecastHours },
+                ui.text{ text = "wind:" .. m.windValue },
+                ui.text{ text = "temperature:" .. m.temperature },
+                ui.text{ text = "stale:" .. tostring(m.stale) },
+                ui.text{ text = "condition:" .. m.condition } }
+            for index, day in m.days do
+                rows[#rows + 1] = ui.text{ text = string.format("range%d:%.4f:%.4f", index, day.from, day.to) }
+            end
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("weather-model-probe", config: config, shell: shell)
+        weatherFixture(widget)
+        let bar = fixture(config, height: 32, vertical: false)
+        widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+        widget.render(bar)
+        XCTAssertTrue(widget.strings().contains("hours:12"))
+        XCTAssertTrue(widget.strings().contains("days:7"))
+        XCTAssertTrue(widget.strings().contains("limit:12"))
+        XCTAssertTrue(widget.strings().contains("stale:nil"))
+        XCTAssertTrue(widget.strings().contains("range1:0.2500:0.8750"))
+        XCTAssertTrue(widget.strings().contains("range3:0.3750:1.0000"))
+        XCTAssertTrue(widget.strings().contains("range5:0.0000:0.5000"))
+        XCTAssertTrue(widget.strings().contains("condition:" + ShellLocalizer.string("Partly cloudy", [])))
+        for hours in 4 ... 12 {
+            widget.set("settings") {
+                ShellServiceValue.object(["forecastHours": .number(Double(hours))]).write(to: &$0)
+            }
+            widget.render(bar)
+            XCTAssertTrue(widget.strings().contains("hours:\(hours)"))
+            XCTAssertTrue(widget.strings().contains("limit:\(hours)"))
+        }
+        widget.set("settings") {
+            ShellServiceValue.object(["compact": .bool(true), "forecastHours": .number(12)]).write(to: &$0)
+        }
+        widget.render(bar)
+        XCTAssertTrue(widget.strings().contains("hours:8"))
+        XCTAssertTrue(widget.strings().contains("days:5"))
+        let number = { ShellFormatter.string(kind: OMNI_FORMAT_NUMBER, $0, digits: 0) }
+        for (unit, windUnit) in [("°C", "km/h"), ("°F", "mph")] {
+            weatherFixture(widget, stale: true, unit: unit, flatRange: true)
+            widget.render(bar)
+            XCTAssertTrue(widget.strings().contains("wind:\(number(14)) \(windUnit)"))
+            XCTAssertTrue(widget.strings().contains("stale:" + ShellLocalizer.string("Last update failed", [])))
+            XCTAssertEqual(widget.strings().filter { $0.hasPrefix("range") }, (1 ... 5).map {
+                "range\($0):0.0000:0.0000"
+            })
+        }
+        var weather = weatherFixture(widget)
+        weather.temp = 12.5
+        weather.wind = 12.5
+        widget.set("weather") { weather.write(into: &$0) }
+        widget.render(bar)
+        XCTAssertTrue(widget.strings().contains("temperature:\(number(13))°C"))
+        XCTAssertTrue(widget.strings().contains("wind:\(number(13)) km/h"))
+        XCTAssertTrue(widget.strings().contains("stale:nil"))
+    }
+
+    func testSharedWeatherBarsKeepSelectionsAndFreshClicksThroughEverySkin() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let base: [String: ShellServiceValue] = [
+            "symbol": .text("cloud.sun"), "temp": .number(18.4), "condition": .text("Partly cloudy"),
+            "code": .number(2), "day": .bool(true), "unit": .text("°C"), "place": .text("Toronto"),
+            "hours": .array([]), "days": .array([]), "status": .text("ok")
+        ]
+        let ignored: [(String, ShellServiceValue)] = [
+            ("hours", .array([.object(["label": .text("Later")])])),
+            ("days", .array([.object(["label": .text("Tomorrow")])])),
+            ("unit", .text("°F")), ("place", .text("Elsewhere")), ("status", .text("stale"))
+        ]
+        let selected: [(String, ShellServiceValue)] = [
+            ("symbol", .text("moon.stars")), ("temp", .number(24)), ("condition", .text("Rain")),
+            ("code", .number(61)), ("day", .bool(false))
+        ]
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            let widget = try makeWidget(
+                "weather",
+                config: config,
+                shell: shell,
+                source: shell.appendingPathComponent("default/widgets/weather/init.luau")
+            )
+            for vertical in [false, true] {
+                for backgrounds in [false, true] {
+                    let context = "\(profile) vertical=\(vertical) backgrounds=\(backgrounds)"
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.backgrounds = backgrounds
+                    widget.set("weather") { ShellServiceValue.object(base).write(to: &$0) }
+                    widget.render(bar)
+                    var stats = omni_render_stats()
+                    var error = [CChar](repeating: 0, count: 256)
+                    XCTAssertEqual(omni_instance_render(
+                        widget.instance,
+                        OMNI_VIEW_BAR,
+                        100_000_000,
+                        &stats,
+                        &error,
+                        error.count
+                    ), OMNI_OK, context)
+                    XCTAssertNotEqual(stats.deps & ShellDataKey.weather.bit, 0, context)
+                    XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0, context)
+                    for (field, value) in ignored {
+                        widget.set("weather") { ShellServiceValue.object(base).write(to: &$0) }
+                        widget.render(bar)
+                        var changed = base
+                        changed[field] = value
+                        widget.set("weather") { ShellServiceValue.object(changed).write(to: &$0) }
+                        XCTAssertFalse(omni_instance_needs_render(
+                            widget.instance,
+                            OMNI_VIEW_BAR,
+                            ShellDataKey.weather.bit
+                        ), context + " " + field)
+                    }
+                    for (field, value) in selected {
+                        widget.set("weather") { ShellServiceValue.object(base).write(to: &$0) }
+                        widget.render(bar)
+                        var changed = base
+                        changed[field] = value
+                        widget.set("weather") { ShellServiceValue.object(changed).write(to: &$0) }
+                        XCTAssertTrue(omni_instance_needs_render(
+                            widget.instance,
+                            OMNI_VIEW_BAR,
+                            ShellDataKey.weather.bit
+                        ), context + " " + field)
+                    }
+                    widget.set("weather") { ShellServiceValue.object(base).write(to: &$0) }
+                    widget.render(bar)
+                    let button = try XCTUnwrap(widget.surface.layout.core.elements {
+                        $0.action == OMNI_ACTION_POPOUT
+                    }.first, context)
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                    let point = CGPoint(x: frame.midX, y: frame.midY)
+                    let before = widget.actions.count
+                    widget.surface.press(at: point)
+                    widget.surface.release(at: point)
+                    XCTAssertEqual(widget.actions.count, before + 1, context)
+                    XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                }
+            }
+            widget.set("weather") { $0.null() }
+            widget.render(fixture(config, height: height, vertical: false))
+            XCTAssertEqual(widget.surface.size, .zero, profile)
+            var stats = omni_render_stats()
+            var error = [CChar](repeating: 0, count: 256)
+            XCTAssertEqual(omni_instance_render(
+                widget.instance,
+                OMNI_VIEW_BAR,
+                100_000_000,
+                &stats,
+                &error,
+                error.count
+            ), OMNI_OK, profile)
+            XCTAssertNotEqual(stats.deps & ShellDataKey.weather.bit, 0, profile)
+            weatherFixture(widget)
+            XCTAssertTrue(omni_instance_needs_render(widget.instance, OMNI_VIEW_BAR, ShellDataKey.weather.bit), profile)
+            widget.render(fixture(config, height: height, vertical: false))
+            XCTAssertGreaterThan(widget.surface.size.width, 0, profile)
+            XCTAssertGreaterThan(widget.surface.size.height, 0, profile)
+        }
+    }
+
+    func testSharedWeatherPanelsKeepForecastLimitsStaleFeedbackAndCompactContent() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let hourLabels = (0 ..< 14).map { "Forecast hour \($0)" }
+        let dayLabels = ["Today", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"]
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["weather", "control-center"] {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: name == "weather" ? shell
+                        .appendingPathComponent("default/widgets/weather/init.luau") : nil
+                )
+                var weather = weatherFixture(widget)
+                weather.hours = weather.hours.enumerated().map { index, hour in
+                    ShellWeatherHour(
+                        time: hour.time,
+                        label: hourLabels[index],
+                        temp: hour.temp,
+                        code: hour.code,
+                        day: hour.day,
+                        rain: hour.rain
+                    )
+                }
+                widget.set("weather") { weather.write(into: &$0) }
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                for limit in [4, 12] {
+                    widget.set("settings") {
+                        ShellServiceValue.object(["tab": .text("weather"), "forecastHours": .number(Double(limit))])
+                            .write(to: &$0)
+                    }
+                    _ = widget.renderPopout()
+                    let strings = widget.strings(OMNI_VIEW_POPOUT)
+                    XCTAssertTrue(strings.contains("Toronto"), context)
+                    XCTAssertTrue(strings.contains(ShellLocalizer.string("Partly cloudy", [])), context)
+                    XCTAssertEqual(strings.filter { hourLabels.contains($0) }, Array(hourLabels.prefix(
+                        name == "control-center" ? 8 : limit
+                    )), context)
+                    XCTAssertEqual(strings.filter { dayLabels.contains($0) }, Array(dayLabels.prefix(
+                        name == "control-center" ? 5 : 7
+                    )), context)
+                }
+                if name == "weather" {
+                    weather.stale = true
+                    widget.set("weather") { weather.write(into: &$0) }
+                    _ = widget.renderPopout()
+                    let strings = widget.strings(OMNI_VIEW_POPOUT)
+                    XCTAssertTrue(strings.contains(ShellLocalizer.string("Last update failed", [])), context)
+                    XCTAssertTrue(
+                        strings.contains(ShellLocalizer.string("Weather by %@", [.text("Open-Meteo.com")])),
+                        context
+                    )
+                    let wind = ShellFormatter.string(kind: OMNI_FORMAT_NUMBER, 14, digits: 0) + " km/h"
+                    XCTAssertTrue(strings.contains { $0.contains(wind) }, context)
+                }
+            }
+        }
+    }
+
+    func testSharedWeatherPanelsRemainNonzeroAndDemandWeatherWithoutData() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["weather", "control-center"] {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: name == "weather" ? shell
+                        .appendingPathComponent("default/widgets/weather/init.luau") : nil
+                )
+                widget.set("settings") { ShellServiceValue.object(["tab": .text("weather")]).write(to: &$0) }
+                widget.set("weather") { $0.null() }
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                widget.layoutPopout()
+                XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                XCTAssertTrue(
+                    widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])),
+                    context
+                )
+                if ["nocturne", "wayline"].contains(profile), name == "weather" {
+                    let elements = widget.surface.layout.core.elements { _ in true }
+                    let body = try XCTUnwrap(elements.first {
+                        let paint = widget.surface.layout.core.paint(of: $0)
+                        return paint.cornerRadius == (profile == "nocturne" ? 18 : 12)
+                    }, context)
+                    let label = try XCTUnwrap(elements.first {
+                        widget.text.string(widget.surface.layout.core.content(of: $0).text)
+                            == ShellLocalizer.string("Unavailable", [])
+                    }, context)
+                    let card = widget.surface.layout.core.parent(of: label)
+                    let bounds = CGRect(widget.surface.layout.core.absoluteFrame(of: body))
+                    let content = CGRect(widget.surface.layout.core.absoluteFrame(of: card))
+                    XCTAssertTrue(bounds.contains(content), context + ": \(content) outside \(bounds)")
+                }
+                if profile == "celestial", name == "weather" {
+                    let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first, context)
+                    let viewport = CGRect(widget.surface.layout.core.absoluteFrame(of: scroll))
+                    XCTAssertEqual(viewport.size, CGSize(width: 840, height: 530), context)
+                }
+                var stats = omni_render_stats()
+                var error = [CChar](repeating: 0, count: 256)
+                XCTAssertEqual(omni_instance_render(
+                    widget.instance,
+                    OMNI_VIEW_POPOUT,
+                    100_000_000,
+                    &stats,
+                    &error,
+                    error.count
+                ), OMNI_OK, context)
+                XCTAssertNotEqual(stats.deps & ShellDataKey.weather.bit, 0, context)
+                XCTAssertEqual(stats.deps & ShellDataKey.seconds.bit, 0, context)
+                weatherFixture(widget)
+                _ = widget.renderPopout()
+                XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("Toronto"), context)
+            }
+        }
+    }
+
+    func testCelestialDashboardWeatherUsesTheSharedModelAndKeepsItsTabAndMissingState() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("dashboard", config: config, shell: shell)
+        calendarFixture(widget)
+        weatherFixture(widget)
+        widget.set("media") { $0.null() }
+        widget.render(fixture(config, height: config.barOverride?.settings.height ?? 60, vertical: false))
+        _ = widget.renderPopout()
+        let temperature = ShellFormatter.string(kind: OMNI_FORMAT_NUMBER, 18, digits: 0)
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(temperature + "°C"))
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Partly cloudy", [])))
+        let weather = weatherFixture(widget, stale: true, unit: "°F")
+        _ = widget.renderPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(temperature + "°F"))
+        widget.layoutPopout()
+        let label = try XCTUnwrap(widget.surface.layout.core.elements {
+            widget.text.string($0.text) == ShellLocalizer.string("Weather", [])
+        }.first)
+        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: label))
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let before = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, before + 1)
+        XCTAssertEqual(widget.invoke(try XCTUnwrap(widget.actions.last), view: OMNI_VIEW_POPOUT), [])
+        _ = widget.renderPopout()
+        let strings = widget.strings(OMNI_VIEW_POPOUT)
+        XCTAssertTrue(strings.contains("Toronto"))
+        XCTAssertTrue(strings.contains(temperature + "°F"))
+        let wind = ShellFormatter.string(kind: OMNI_FORMAT_NUMBER, 14, digits: 0) + " mph"
+        XCTAssertTrue(strings.contains { $0.contains(wind) })
+        XCTAssertTrue(strings.contains(ShellLocalizer.string("7-day forecast", [])))
+        try assertCelestialWeatherLayout(widget, weather: weather, context: "dashboard")
+        widget.set("weather") { $0.null() }
+        _ = widget.renderPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])))
+        widget.layoutPopout()
+        let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first)
+        XCTAssertEqual(
+            CGRect(widget.surface.layout.core.absoluteFrame(of: scroll)).size,
+            CGSize(width: 840, height: 530)
+        )
+    }
+
+    func testCelestialWeatherPopoutKeepsExtrasReachableWithinItsViewport() throws {
+        let shell = try sharedLibraryShell("weather")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget(
+            "weather",
+            config: config,
+            shell: shell,
+            source: shell.appendingPathComponent("default/widgets/weather/init.luau")
+        )
+        let weather = weatherFixture(widget, stale: true)
+        widget.render(fixture(config, height: config.barOverride?.settings.height ?? 60, vertical: false))
+        try assertCelestialWeatherLayout(widget, weather: weather, context: "weather")
     }
 
     func testSharedClockBarsKeepOptionsTimeAndGesturesWithoutCalendarDemand() throws {
@@ -2442,6 +2862,78 @@ final class ShellStyleLayoutTests: XCTestCase {
         XCTAssertEqual(widget.clicks.last?.action, command, context)
     }
 
+    private func assertCelestialWeatherLayout(
+        _ widget: ShellRenderedWidget,
+        weather: ShellWeather,
+        context: String
+    ) throws {
+        widget.layoutPopout()
+        let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first, context)
+        let viewport = CGRect(widget.surface.layout.core.absoluteFrame(of: scroll))
+        XCTAssertEqual(viewport.height, 530, context)
+        func frame(_ element: ElementHandle, relativeTo ancestor: ElementHandle) -> CGRect {
+            var result = CGRect(widget.surface.layout.core.layoutFrame(of: element))
+            var parent = widget.surface.layout.core.parent(of: element)
+            while parent != .none, parent != ancestor {
+                let position = widget.surface.layout.core.layoutFrame(of: parent)
+                result.origin.x += CGFloat(position.x)
+                result.origin.y += CGFloat(position.y)
+                parent = widget.surface.layout.core.parent(of: parent)
+            }
+            XCTAssertEqual(parent, ancestor, context)
+            return result
+        }
+        let elements = widget.surface.layout.core.elements { _ in true }
+        for day in weather.days {
+            let label = try XCTUnwrap(elements.first {
+                widget.text.string(widget.surface.layout.core.content(of: $0).text) == day.label
+            }, context + ": " + day.label)
+            let card = widget.surface.layout.core.parent(of: label)
+            let bounds = CGRect(widget.surface.layout.core.absoluteFrame(of: card))
+            XCTAssertEqual(bounds.height, 162, context + ": " + day.label)
+            let local = frame(card, relativeTo: scroll)
+            XCTAssertTrue(
+                CGRect(origin: .zero, size: viewport.size).contains(local),
+                context + ": \(day.label) \(local) outside \(viewport.size)"
+            )
+            for child in elements {
+                var parent = widget.surface.layout.core.parent(of: child)
+                while parent != .none, parent != card {
+                    parent = widget.surface.layout.core.parent(of: parent)
+                }
+                if parent == card {
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: child))
+                    XCTAssertTrue(bounds.contains(frame), context + ": \(day.label) child \(frame) outside \(bounds)")
+                }
+            }
+        }
+        if weather.stale {
+            let stale = ShellLocalizer.string("Last update failed", [])
+            let cue = try XCTUnwrap(elements.first {
+                widget.text.string(widget.surface.layout.core.content(of: $0).help) == stale
+            }, context)
+            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: cue))
+            XCTAssertGreaterThan(frame.width, 0, context)
+            XCTAssertGreaterThan(frame.height, 0, context)
+            XCTAssertTrue(viewport.contains(frame), context + ": stale cue \(frame) outside \(viewport)")
+        }
+        let attribution = try XCTUnwrap(widget.surface.layout.core.elements {
+            widget.text.string($0.text) == ShellLocalizer.string("Weather by %@", [.text("Open-Meteo.com")])
+        }.first, context)
+        let before = CGRect(widget.surface.layout.core.absoluteFrame(of: attribution))
+        XCTAssertGreaterThanOrEqual(before.minY, viewport.maxY, context)
+        XCTAssertTrue(
+            widget.surface.scroll(
+                at: CGPoint(x: viewport.midX, y: viewport.midY),
+                event: ShellEvent(button: .none),
+                content: CGPoint(x: 0, y: 10_000)
+            ),
+            context
+        )
+        let after = CGRect(widget.surface.layout.core.absoluteFrame(of: attribution))
+        XCTAssertTrue(viewport.contains(after), context + ": \(after) outside \(viewport)")
+    }
+
     private func audioFixture(_ widget: ShellRenderedWidget, access: AppVolumeAccess) {
         widget.set("volume") { $0.number(62) }
         widget.set("muted") { $0.bool(false) }
@@ -2490,6 +2982,34 @@ final class ShellStyleLayoutTests: XCTestCase {
         widget.set("seconds") { $0.number(now) }
         widget.set("clock") { $0.string("9:41 AM") }
         widget.set("date") { $0.string("Fri Oct 23") }
+    }
+
+    @discardableResult
+    private func weatherFixture(
+        _ widget: ShellRenderedWidget,
+        stale: Bool = false,
+        unit: String = "°C",
+        flatRange: Bool = false
+    ) -> ShellWeather {
+        let codes = [2, 1, 2, 3, 61, 63, 80, 95, 3, 2, 1, 0, 0, 1]
+        let weather = ShellWeather(
+            temp: 18.4, feels: 17, high: 21, low: 11, rain: 30, wind: 14, humidity: 64, sunrise: 999_000,
+            sunset: 1_040_000, code: 2, day: true, unit: unit, place: "Toronto", stale: stale,
+            hours: (0 ..< 14).map { index in ShellWeatherHour(
+                time: 1_000_000 + Double(index) * 3600, label: index == 0 ? "Now" : "\((9 + index) % 24)",
+                temp: 18 + sin(Double(index) / 3) * 3, code: codes[index], day: index < 10, rain: Double(index * 5)
+            ) },
+            days: ["Today", "Sat", "Sun", "Mon", "Tue", "Wed", "Thu"].enumerated().map { index, label in
+                ShellWeatherDay(
+                    time: 1_000_000 + Double(index) * 86400, label: label,
+                    high: flatRange ? 10 : [21, 19, 23, 17, 15, 18, 22][index],
+                    low: flatRange ? 10 : [11, 10, 13, 9, 7, 8, 12][index],
+                    code: [2, 61, 0, 63, 95, 3, 1][index], rain: [30, 80, 0, 60, 90, 20, 10][index]
+                )
+            }
+        )
+        widget.set("weather") { weather.write(into: &$0) }
+        return weather
     }
 
     private func mediaFixture(

@@ -4,6 +4,7 @@
 local audio = require("../lib/audio")
 local media = require("../lib/media")
 local calendar = require("../lib/calendar")
+local weather = require("../lib/weather")
 
 local HOVER = "foreground/0.12"
 local WIDTH = 340
@@ -32,88 +33,8 @@ local function calendarTab(ctx)
     return calendar.content(ctx, CONTENT)
 end
 
-local CONDITIONS = {
-    Clear = omniwm.l10n("Clear"),
-    ["Partly cloudy"] = omniwm.l10n("Partly cloudy"),
-    Overcast = omniwm.l10n("Overcast"),
-    Fog = omniwm.l10n("Fog"),
-    Drizzle = omniwm.l10n("Drizzle"),
-    ["Freezing rain"] = omniwm.l10n("Freezing rain"),
-    Rain = omniwm.l10n("Rain"),
-    Snow = omniwm.l10n("Snow"),
-    Thunderstorms = omniwm.l10n("Thunderstorms"),
-    Unknown = omniwm.l10n("Unknown"),
-}
-
-local function degrees(value: number?): string
-    return value and string.format("%d°", math.round(value)) or "–"
-end
-
 local function weatherTab(ctx)
-    local weather = ctx.data.weather
-    if not weather then
-        return card{ ui.text{ text = omniwm.l10n("Unavailable"), color = "secondaryForeground" } }
-    end
-    local now = { gap = 1, center = false,
-        ui.text{ text = degrees(weather.temp), style = "rounded", size = 30, weight = "semibold" },
-        ui.text{ text = CONDITIONS[weather.condition] or weather.condition, maxWidth = 140 } }
-    if weather.place then
-        now[#now + 1] = ui.text{ text = weather.place, style = "small", color = "secondaryForeground", maxWidth = 140 }
-    end
-    local facts = { gap = 3, center = false }
-    if weather.high and weather.low then
-        facts[#facts + 1] = ui.text{ text = omniwm.l10n("High %@", degrees(weather.high)) .. "  "
-            .. omniwm.l10n("Low %@", degrees(weather.low)), style = "small" }
-    end
-    if weather.feels then
-        facts[#facts + 1] = ui.text{ text = omniwm.l10n("Feels like %@", degrees(weather.feels)), style = "small",
-            color = "secondaryForeground" }
-    end
-    if weather.rain then
-        facts[#facts + 1] = ui.text{ text = omniwm.l10n("%lld%% chance of rain", weather.rain), style = "small",
-            color = "secondaryForeground" }
-    end
-    local hours = { gap = 0 }
-    for index, hour in weather.hours do
-        if index > 8 then
-            break
-        end
-        hours[#hours + 1] = ui.column{ w = INNER / 8, gap = 4,
-            ui.text{ text = hour.label, size = 10, color = "secondaryForeground" },
-            ui.symbol{ name = hour.symbol, w = 16, h = 16 },
-            ui.text{ text = degrees(hour.temp), style = "small" } }
-    end
-    local low, high = math.huge, -math.huge
-    for _, day in weather.days do
-        low = math.min(low, day.low)
-        high = math.max(high, day.high)
-    end
-    local span = math.max(1, high - low)
-    local track = INNER - 190
-    local days = { gap = 5 }
-    for index, day in weather.days do
-        if index > 5 then
-            break
-        end
-        days[#days + 1] = ui.row{ w = INNER, gap = 8,
-            ui.text{ text = day.label, w = 50, maxWidth = 50 },
-            ui.symbol{ name = day.symbol, w = 16, h = 16 },
-            ui.text{ text = if day.rain and day.rain > 0 then ctx.format.percent(day.rain / 100) else "",
-                style = "small", color = "cyan", w = 30 },
-            ui.text{ text = degrees(day.low), color = "secondaryForeground", w = 28 },
-            ui.stack{ w = track, h = 4, radius = 2, fill = "foreground/0.12",
-                ui.box{ align = "leading", dx = (day.low - low) / span * track,
-                    w = math.max(4, (day.high - day.low) / span * track), h = 4, radius = 2, fill = "accent" } },
-            ui.text{ text = degrees(day.high), w = 28 } }
-    end
-    return ui.column{ gap = 8,
-        card{ ui.row{ w = INNER, gap = 12,
-            ui.symbol{ name = weather.symbol, w = 40, h = 40 },
-            ui.column(now),
-            ui.box{ grow = 1 },
-            ui.column(facts) } },
-        card{ ui.row(hours) },
-        card(days) }
+    return weather.content(ctx, true, CONTENT)
 end
 
 local function arc(fraction: number): string
