@@ -545,6 +545,28 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testOmniWMButtonUsesAValidConfiguredIconColor() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let terracotta: UInt32 = 0xB665_45FF
+        let cases: [String: UInt32] = [
+            "\"#1E90FF\"": 0x1E90_FFFF, "\"#1E90FF80\"": 0x1E90_FF80, "\"#1E90F\"": terracotta,
+            "\"#GG90FF\"": terracotta, "\"blue\"": terracotta, "3": terracotta
+        ]
+        for (value, expected) in cases {
+            try Data("[profiles.default.widgets.omniwm]\niconColor = \(value)\n".utf8)
+                .write(to: shell.appendingPathComponent("shell.toml"))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget("omniwm", config: config, shell: shell)
+            widget.render(fixture(config, height: 32, vertical: false))
+            let logo = try XCTUnwrap(widget.tree().first {
+                $0.kind == .symbol && widget.text.string($0.content.text) == "omniwm"
+            }, value)
+            XCTAssertEqual(logo.content.color, Color(packed: expected), value)
+        }
+    }
+
     func testOccupiedHighlightReachesSkinnedWorkspacePills() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
