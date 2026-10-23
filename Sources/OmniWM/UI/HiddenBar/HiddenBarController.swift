@@ -18,17 +18,22 @@ final class HiddenBarController {
     let menuSession = HiddenBarMenuSession()
     let settings: SettingsStore
     let hider: NativeMenuBarHider
-    private let itemService: MenuBarItemService
+    let itemService: MenuBarItemService
     let iconCache = HiddenBarIconCache()
     private let forwarder: HiddenBarClickForwarder
-    private let setMenuAccess: (Bool) -> Bool
+    let setMenuAccess: (Bool) -> Bool
+    let menuBarHiddenByBar: () -> Bool
+    let coversPoint: (CGPoint) -> Bool
+    let resolveOverride: ((String, HiddenBarActivationOwner) async -> [ResolvedMenuBarItem]?)?
+    var holdsMenuAccess = false
 
     private var activationTask: Task<Void, Never>?
     private var activationGeneration = 0
     private var activeActivation: ActiveActivation?
     var temporarilyRevealed: Set<String> = [] {
         didSet {
-            if !oldValue.isEmpty, temporarilyRevealed.isEmpty {
+            if !oldValue.isEmpty, temporarilyRevealed.isEmpty, holdsMenuAccess {
+                holdsMenuAccess = false
                 _ = setMenuAccess(false)
             }
         }
@@ -40,11 +45,17 @@ final class HiddenBarController {
     init(
         settings: SettingsStore,
         hider: NativeMenuBarHider = NativeMenuBarHider(),
-        setMenuAccess: @escaping (Bool) -> Bool = { _ in true }
+        setMenuAccess: @escaping (Bool) -> Bool = { _ in true },
+        menuBarHiddenByBar: @escaping () -> Bool = { false },
+        coversPoint: @escaping (CGPoint) -> Bool = HiddenBarClickForwarder.isCoveredByOwnWindow,
+        resolveItems: ((String, HiddenBarActivationOwner) async -> [ResolvedMenuBarItem]?)? = nil
     ) {
         self.hider = hider
         self.settings = settings
         self.setMenuAccess = setMenuAccess
+        self.menuBarHiddenByBar = menuBarHiddenByBar
+        self.coversPoint = coversPoint
+        resolveOverride = resolveItems
         let itemService = MenuBarItemService()
         self.itemService = itemService
         forwarder = HiddenBarClickForwarder(itemService: itemService)
@@ -326,7 +337,8 @@ extension HiddenBarController {
     ) async {
         guard let freshItems = await resolveRevealedItems(
             for: key.bundleID,
-            owner: owner
+            owner: owner,
+            clicking: key
         ) else {
             finishActivation(activation)
             return
@@ -369,24 +381,6 @@ extension HiddenBarController {
         finishActivation(activation)
     }
 
-    private func resolveRevealedItems(
-        for bundleID: String,
-        owner: HiddenBarActivationOwner
-    ) async -> [ResolvedMenuBarItem]? {
-        let snapshot = HiddenBarRunningAppsSnapshot.current()
-        let candidates = snapshot.candidates.filter { $0.bundleID == bundleID && $0.pid == owner.pid }
-        guard !candidates.isEmpty else { return nil }
-        let resolution = await itemService.resolveItems(
-            candidates: candidates,
-            bundleIDs: [bundleID],
-            allowEmptyBundleIDs: owner.allowsAuthoritativeEmpty ? [bundleID] : []
-        )
-        guard !Task.isCancelled, temporarilyRevealed.contains(bundleID),
-              let items = resolution.itemsByBundleID[bundleID]
-        else { return nil }
-        return items
-    }
-
     private func temporarilyReveal(_ bundleID: String, ownerPID: pid_t) -> Bool {
         guard settings.effectiveHiddenBarEnabled, hider.available else { return false }
         let hidden = Set(settings.hiddenBar.hiddenBundleIDs)
@@ -395,7 +389,7 @@ extension HiddenBarController {
               snapshot.candidates.contains(where: { $0.bundleID == bundleID && $0.pid == ownerPID })
         else { return false }
 
-        guard !temporarilyRevealed.isEmpty || setMenuAccess(true) else { return false }
+        guard takeMenuAccessForReveal() else { return false }
         temporarilyRevealed.insert(bundleID)
         capture.reconcile(
             snapshot: snapshot,
@@ -476,7 +470,7 @@ extension HiddenBarController {
     }
 
     func startReconcealForTests(revealedBundleIDs: Set<String>) {
-        guard !temporarilyRevealed.isEmpty || revealedBundleIDs.isEmpty || setMenuAccess(true) else { return }
+        guard !temporarilyRevealed.isEmpty || revealedBundleIDs.isEmpty || takeMenuAccessForReveal() else { return }
         temporarilyRevealed = revealedBundleIDs
         reconcealment.schedule(intervalSeconds: settings.hiddenBar.resolvedRehideIntervalSeconds)
     }
