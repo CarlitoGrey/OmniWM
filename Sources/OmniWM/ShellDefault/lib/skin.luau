@@ -131,22 +131,33 @@ local function skin(look)
     look.section = look.section or function(text, width)
         return look.heading(text, width)
     end
-    look.button = look.button or function(name, action, props)
-        props = props or {}
-        local primary = props.primary
-        local active = props.active
-        local color = props.color or (if active then "accent" else nil)
-        props.primary = nil
-        props.active = nil
+    look.primaryButton = look.primaryButton or { w = 36, h = 36, radius = look.radius(18), fill = "foreground/0.06" }
+    local drawButton = look.button or function(name, action, props)
+        local color = props.color
         props.color = nil
-        props.w = props.w or (if primary then 36 else 28)
-        props.h = props.h or (if primary then 36 else 28)
-        props.radius = props.radius or look.radius(if primary then 18 else 7)
-        props.fill = props.fill or (if primary then "foreground/0.06" else nil)
+        props.w = props.w or 28
+        props.h = props.h or 28
+        props.radius = props.radius or look.radius(7)
         props.hover = look.hover
         props.onClick = action
         props[#props + 1] = look.glyph{ name = name, size = 14, weight = "medium", color = color }
         return ui.stack(props)
+    end
+    look.button = function(name, action, props)
+        props = props or {}
+        if props.primary then
+            for key, value in look.primaryButton do
+                if props[key] == nil then
+                    props[key] = value
+                end
+            end
+        end
+        if props.active then
+            props.color = props.color or "accent"
+        end
+        props.primary = nil
+        props.active = nil
+        return drawButton(name, action, props)
     end
     return table.freeze(look)
 end

@@ -70,7 +70,7 @@ local function backdrop(ctx: Context, playing: boolean)
     return ui.stack(layers)
 end
 
-local function cover(ctx: Context, media: Media?)
+local function cover(ctx: Context, media)
     local playing = media ~= nil and media.playing
     local base = COVER * 0.515 + tokens.spacing.medium + 2
     local art = { w = COVER, h = COVER,
@@ -85,25 +85,8 @@ local function cover(ctx: Context, media: Media?)
         ui.stack(art) }
 end
 
-local function clock(seconds: number): string
-    local total = math.max(0, math.floor(seconds))
-    local hours, minutes, rest = total // 3600, total % 3600 // 60, total % 60
-    if hours > 0 then
-        return string.format("%d:%02d:%02d", hours, minutes, rest)
-    end
-    return string.format("%d:%02d", minutes, rest)
-end
-
-local function position(ctx: Context, media: Media): number
-    local elapsed = media.elapsed or 0
-    if media.playing then
-        elapsed += math.max(0, ctx.data.seconds - media.sampledAt) * media.rate
-    end
-    return math.clamp(elapsed, 0, media.duration or elapsed)
-end
-
-local function slider(ctx: Context, media: Media, width: number)
-    local fraction = media.duration and media.duration > 0 and position(ctx, media) / media.duration or 0
+local function slider(media, width: number)
+    local fraction = media.fraction or 0
     local height = 24
     local filled = math.max(width * fraction, 1)
     local layers = { w = width, h = height }
@@ -116,21 +99,15 @@ local function slider(ctx: Context, media: Media, width: number)
             border = "accent", borderWidth = 4, loop = { dx = { -30, 0, 2 }, paused = not media.playing } } }
     layers[#layers + 1] = ui.box{ align = "leading", dx = filled - 2, w = 4, h = height, radius = 2, fill = "accent" }
     layers[#layers + 1] = ui.slider{ w = width, h = height, value = fraction, opacity = 0.02,
-        onChange = function(ctx, event)
-            if event.phase == "ended" and event.value and media.duration then
-                omniwm.run(string.format("media seek %.1f", event.value * media.duration))
-            end
-        end }
+        onChange = media.seek }
     return ui.stack(layers)
 end
 
-local function details(ctx: Context, media: Media)
+local function details(media)
     local width = DETAILS
     local function line(text: string, size: number, color: string)
         return ui.text{ text = text, font = "sans", size = size, color = color, maxWidth = width }
     end
-    local time = media.duration and position(ctx, media) or 0
-    local repeating = media.repeatMode == "one" or media.repeatMode == "all"
     local function toggle(icon: string, on: boolean?, command: string)
         return surface.button(icon, "tonal", { onClick = command, fill = on and "secondaryAccent" or "secondaryContainer",
             color = on and "background" or "secondaryContainerForeground", radius = on and tokens.rounding.medium or nil,
@@ -142,32 +119,21 @@ local function details(ctx: Context, media: Media)
         line(media.album, tokens.title.medium, "secondaryAccent"),
         ui.box{ w = 1, h = tokens.spacing.extraLargeIncreased },
         ui.row{ w = width, gap = tokens.spacing.small,
-            ui.text{ text = clock(time), font = "sans", size = tokens.label.medium, color = "secondaryForeground",
+            ui.text{ text = media.elapsedText or "0:00", font = "sans", size = tokens.label.medium, color = "secondaryForeground",
                 reserve = "00:00" },
-            slider(ctx, media, width - 2 * 48 - 2 * tokens.spacing.small),
-            ui.text{ text = media.duration and clock(media.duration) or "--:--", font = "sans", size = tokens.label.medium,
+            slider(media, width - 2 * 48 - 2 * tokens.spacing.small),
+            ui.text{ text = media.durationText or "--:--", font = "sans", size = tokens.label.medium,
                 color = "secondaryForeground", reserve = "00:00" } },
         ui.box{ w = 1, h = tokens.spacing.largeIncreased },
         ui.row{ w = width, gap = tokens.spacing.extraSmall,
-            toggle("shuffle", media.shuffle, "media shuffle"),
-            surface.button("skip_previous", "tonal", { onClick = "media previous", glyph = tokens.icon.large }),
+            media.shuffle ~= nil and toggle("shuffle", media.shuffle, media.shuffleCommand) or nil,
+            surface.button("skip_previous", "tonal", { onClick = media.previous, glyph = tokens.icon.large }),
             surface.button(media.playing and "pause" or "play_arrow", "filled", { grow = 1, w = 0,
-                radius = media.playing and tokens.rounding.medium or nil, onClick = "media toggle",
+                radius = media.playing and tokens.rounding.medium or nil, onClick = media.toggle,
                 glyph = tokens.icon.large }),
-            surface.button("skip_next", "tonal", { onClick = "media next", glyph = tokens.icon.large }),
-            toggle(media.repeatMode == "one" and "repeat_one" or "repeat", repeating, "media repeat") } }
-end
-
-local function currentLine(lines: { { time: number, text: string } }, time: number): number
-    local current = 1
-    for index, entry in lines do
-        if entry.time <= time then
-            current = index
-        else
-            break
-        end
-    end
-    return current
+            surface.button("skip_next", "tonal", { onClick = media.next, glyph = tokens.icon.large }),
+            media.repeatMode ~= nil and toggle(media.repeatMode == "one" and "repeat_one" or "repeat", media.repeating,
+                media.repeatCommand) or nil } }
 end
 
 local function state(icon: string, text: string, tint: string)
@@ -176,12 +142,12 @@ local function state(icon: string, text: string, tint: string)
         ui.text{ text = text, font = "sans", size = tokens.title.medium, color = tint } }
 end
 
-local function lyrics(ctx: Context, media: Media)
-    local data = ctx.data.lyrics
+local function lyrics(media)
+    local data = media.lyrics
     local height = INNER - 40 - tokens.spacing.medium
     local body
-    if data and data.status == "synced" and #data.lines > 0 then
-        local current = currentLine(data.lines, position(ctx, media))
+    if data and data.lines then
+        local current = data.current
         local column = { gap = 0, center = false, align = "top", dy = height / 2 - LINE / 2 - (current - 1) * LINE,
             animate = motion.large }
         for index, entry in data.lines do
@@ -189,7 +155,7 @@ local function lyrics(ctx: Context, media: Media)
             local shown = distance <= 8
             column[#column + 1] = ui.stack{ key = "line" .. index, w = SECTION - tokens.padding.medium, h = LINE,
                 hover = shown and "foreground/0.06" or nil, radius = tokens.rounding.small,
-                onClick = shown and string.format("media seek %.1f", entry.time) or nil,
+                onClick = shown and data.seek(entry.time) or nil,
                 shown and ui.text{ align = "leading", text = entry.text ~= "" and entry.text or ". . .", font = "sans",
                     size = tokens.body.medium, maxWidth = SECTION - tokens.padding.medium,
                     color = index == current and "accent" or "mutedForeground",
@@ -211,9 +177,9 @@ local function lyrics(ctx: Context, media: Media)
             ui.text{ text = omniwm.l10n("Lyrics"), font = "sans", size = tokens.title.medium } },
         body,
         ui.row{ h = 40, gap = tokens.spacing.small, pad = tokens.padding.medium, radius = 20, fill = "secondaryContainer",
-            hover = "secondaryContainerForeground/0.08", onClick = "media open",
+            hover = "secondaryContainerForeground/0.08", onClick = media.open,
             ui.icon{ app = media.bundle, w = 20, h = 20, placeholder = "music.note" },
-            ui.text{ text = media.app ~= "" and media.app or media.bundle, font = "sans", size = tokens.label.large,
+            ui.text{ text = media.app, font = "sans", size = tokens.label.large,
                 color = "secondaryContainerForeground", maxWidth = SECTION - 80 } } }
 end
 
@@ -229,10 +195,10 @@ local function empty()
             color = "secondaryForeground" } }
 end
 
-local function tab(ctx: Context)
-    local media = ctx.data.media
+local function tab(ctx: Context, media)
+    media = media or require("./media").model(ctx)
     local playing = media ~= nil and media.playing
-    local content = media and ui.row{ gap = GAP, center = false, details(ctx, media), lyrics(ctx, media) } or empty()
+    local content = media and ui.row{ gap = GAP, center = false, details(media), lyrics(media) } or empty()
     return ui.stack{ w = WIDTH, h = HEIGHT,
         backdrop(ctx, playing),
         ui.row{ w = WIDTH, h = HEIGHT, pad = PAD, gap = GAP, cover(ctx, media), content } }

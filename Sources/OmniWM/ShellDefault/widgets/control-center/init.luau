@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local audio = require("../lib/audio")
+local media = require("../lib/media")
 
 local HOVER = "foreground/0.12"
 local WIDTH = 340
@@ -30,58 +31,6 @@ local function card(props)
     props.gap = props.gap or 6
     props.center = false
     return ui.column(props)
-end
-
-local function clock(seconds: number): string
-    local whole = math.max(0, math.floor(seconds))
-    return string.format("%d:%02d", whole // 60, whole % 60)
-end
-
-local function media(ctx)
-    local playing = ctx.data.media
-    if not playing or playing.title == "" then
-        return card{ ui.text{ text = omniwm.l10n("Nothing is playing"), color = "secondaryForeground" } }
-    end
-    local cover = if playing.artwork
-        then ui.image{ image = playing.artwork, w = 76, h = 76, radius = 10 }
-        else ui.box{ w = 76, h = 76, radius = 10, fill = "foreground/0.08", center = true,
-            ui.icon{ app = playing.bundle, w = 40, h = 40, placeholder = "music.note" } }
-    local rows = { gap = 10,
-        ui.row{ w = INNER, gap = 12,
-            cover,
-            ui.column{ gap = 2, center = false,
-                ui.text{ text = playing.title, style = "bold", maxWidth = INNER - 90 },
-                ui.text{ text = playing.artist, color = "secondaryForeground", maxWidth = INNER - 90 },
-                ui.text{ text = playing.album, style = "small", color = "mutedForeground", maxWidth = INNER - 90 } } } }
-    if playing.duration and playing.elapsed and playing.duration > 0 then
-        local duration = playing.duration
-        local elapsed = playing.elapsed
-        if playing.playing then
-            elapsed += (ctx.data.seconds - playing.sampledAt) * playing.rate
-        end
-        elapsed = math.clamp(elapsed, 0, duration)
-        rows[#rows + 1] = ui.column{ gap = 3,
-            ui.slider{ value = elapsed / duration, w = INNER, h = 12, onChange = function(_, event)
-                if event.value and event.phase == "ended" then
-                    omniwm.run(string.format("media seek %.1f", event.value * duration))
-                end
-            end },
-            ui.row{ w = INNER,
-                ui.text{ text = clock(elapsed), style = "small", color = "secondaryForeground" },
-                ui.box{ grow = 1 },
-                ui.text{ text = clock(duration), style = "small", color = "secondaryForeground" } } }
-    end
-    rows[#rows + 1] = ui.row{ w = INNER, gap = 10,
-        ui.box{ grow = 1 },
-        button("backward.fill", "media previous", 16),
-        ui.stack{ w = 40, h = 40, radius = 20, fill = "accent", hover = "accentForeground/0.15",
-            onClick = "media toggle",
-            ui.symbol{ name = if playing.playing then "pause.fill" else "play.fill", w = 18, h = 18,
-                color = "accentForeground" } },
-        button("forward.fill", "media next", 16),
-        ui.box{ grow = 1 },
-        button("arrow.up.forward.app", "media open") }
-    return card(rows)
 end
 
 local function month(calendar)
@@ -307,7 +256,11 @@ local function audioTab(ctx)
     return audio.content(ctx, CONTENT)
 end
 
-local SECTIONS = { audio = audioTab, media = media, calendar = calendarTab, weather = weatherTab, system = systemTab }
+local function mediaTab(ctx)
+    return media.content(ctx, false, CONTENT)
+end
+
+local SECTIONS = { audio = audioTab, media = mediaTab, calendar = calendarTab, weather = weatherTab, system = systemTab }
 
 local function selected(ctx): string
     local tab = ctx.state.tab or (ctx.data.settings or {}).tab

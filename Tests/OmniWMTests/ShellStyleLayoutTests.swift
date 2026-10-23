@@ -76,6 +76,7 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
         let name = ProcessInfo.processInfo.environment["OMNIWM_STEP_WIDGET"] ?? "workspaces"
         let shared = ProcessInfo.processInfo.environment["OMNIWM_STEP_SHARED"] == "1"
+        let tab = ProcessInfo.processInfo.environment["OMNIWM_STEP_TAB"] ?? "audio"
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
@@ -111,6 +112,9 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if ["volume", "control-center"].contains(name) {
                         audioFixture(widget, access: .granted)
                     }
+                    if name == "media" || (name == "control-center" && tab == "media") {
+                        mediaFixture(widget)
+                    }
                     widget.render(name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
                         : fixture(config, height: height, vertical: vertical))
@@ -128,7 +132,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                     if ["volume", "control-center"].contains(name), !vertical {
                         audioFixture(widget, access: .granted)
                         if name == "control-center" {
-                            widget.set("settings") { ShellServiceValue.object(["tab": .text("audio")]).write(to: &$0) }
+                            widget.set("settings") { ShellServiceValue.object(["tab": .text(tab)]).write(to: &$0) }
                         }
                         widget.layoutPopout()
                         try ShellBundledWidgetTests.writeSnapshot(
@@ -161,6 +165,31 @@ final class ShellStyleLayoutTests: XCTestCase {
                                         dark: false, directory: directory, background: background
                                     )
                                 }
+                            }
+                        }
+                    }
+                    if name == "media", !vertical {
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                        if !dark {
+                            for state in ["paused", "loading", "nolyrics", "nothing"] {
+                                switch state {
+                                case "paused": mediaFixture(widget, playing: false)
+                                case "loading": mediaFixture(widget, lyrics: .loading)
+                                case "nolyrics": mediaFixture(widget, lyrics: .missing)
+                                default:
+                                    widget.set("media") { $0.null() }
+                                    widget.set("lyrics") { $0.null() }
+                                }
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "media-\(profile)-popout-\(state)",
+                                    dark: false, directory: directory, background: background
+                                )
                             }
                         }
                     }
@@ -212,6 +241,266 @@ final class ShellStyleLayoutTests: XCTestCase {
         try useSharedLibraries("audio", in: shell)
         XCTAssertTrue(privateAudio.allSatisfy { !FileManager.default.fileExists(atPath: $0.path) })
         XCTAssertEqual(try Data(contentsOf: shared), sharedBefore)
+    }
+
+    func testSharedMediaBarsKeepSelectionsAndInputThroughEverySkin() throws {
+        let shell = try sharedLibraryShell("media")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let height = config.barOverride?.settings.height ?? 32
+            let widget = try makeWidget(
+                "media", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/media/init.luau")
+            )
+            for vertical in [false, true] {
+                for backgrounds in [false, true] {
+                    mediaFixture(widget)
+                    var bar = fixture(config, height: height, vertical: vertical)
+                    bar.style.backgrounds = backgrounds
+                    widget.render(bar)
+                    let context = "\(profile) vertical=\(vertical) backgrounds=\(backgrounds)"
+                    var stats = omni_render_stats()
+                    var error = [CChar](repeating: 0, count: 256)
+                    XCTAssertEqual(
+                        omni_instance_render(widget.instance, OMNI_VIEW_BAR, 100_000_000, &stats, &error, error.count),
+                        OMNI_OK, context
+                    )
+                    XCTAssertNotEqual(stats.deps & ShellDataKey.media.bit, 0, context)
+                    XCTAssertEqual(stats.deps & (ShellDataKey.seconds.bit | ShellDataKey.lyrics.bit), 0, context)
+                    mediaFixture(widget, elapsed: 120)
+                    XCTAssertFalse(
+                        omni_instance_needs_render(widget.instance, OMNI_VIEW_BAR, ShellDataKey.media.bit),
+                        context
+                    )
+                    XCTAssertFalse(
+                        omni_instance_needs_render(widget.instance, OMNI_VIEW_BAR, ShellDataKey.seconds.bit),
+                        context
+                    )
+                    mediaFixture(widget, title: "Changed track")
+                    XCTAssertTrue(
+                        omni_instance_needs_render(widget.instance, OMNI_VIEW_BAR, ShellDataKey.media.bit),
+                        context
+                    )
+                    mediaFixture(widget)
+                    widget.render(bar)
+                    XCTAssertLessThanOrEqual(
+                        vertical ? widget.surface.size.width : widget.surface.size.height,
+                        height,
+                        context
+                    )
+                    let button = try XCTUnwrap(
+                        widget.surface.layout.core.elements { $0.action == OMNI_ACTION_POPOUT }.first,
+                        context
+                    )
+                    let content = widget.surface.layout.core.content(of: button)
+                    XCTAssertEqual(widget.text.string(content.help), "Northern Lights — Sample Artist", context)
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                    let point = CGPoint(x: frame.midX, y: frame.midY)
+                    let beforePopout = widget.actions.count
+                    widget.surface.press(at: point)
+                    widget.surface.release(at: point)
+                    XCTAssertEqual(widget.actions.count, beforePopout + 1, context)
+                    XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                    let before = widget.clicks.count
+                    widget.surface.press(at: point, button: .right)
+                    widget.surface.release(at: point, event: ShellEvent(button: .right))
+                    XCTAssertEqual(widget.clicks.count, before + 1, context)
+                    XCTAssertEqual(widget.clicks.last?.action, "media toggle", context)
+                }
+            }
+            widget.set("media") { $0.null() }
+            widget.render(fixture(config, height: height, vertical: false))
+            XCTAssertEqual(widget.surface.size, .zero, profile)
+        }
+    }
+
+    func testSharedMediaPanelsDeliverControlsSeekAndLyricsThroughEverySkin() throws {
+        let shell = try sharedLibraryShell("media")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in profile == "celestial" ? ["media", "control-center", "dashboard"] :
+                ["media", "control-center"]
+            {
+                let context = "\(profile)/\(name)"
+                let widget = try makeWidget(
+                    name, config: config, shell: shell,
+                    source: name == "media" ? shell.appendingPathComponent("default/widgets/media/init.luau") : nil
+                )
+                mediaFixture(widget)
+                widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
+                try selectMediaTab(widget, name: name)
+                let nodes = widget.renderPopout()
+                if name == "control-center", ["wayline", "nocturne", "celestial"].contains(profile) {
+                    let index = try XCTUnwrap(
+                        nodes.firstIndex { widget.text.string($0.content.action) == "media toggle" },
+                        context
+                    )
+                    let play = nodes[index]
+                    XCTAssertEqual(play.paint.fill.role & 0xFF, UInt16(ShellRole.accent.rawValue + 1), context)
+                    XCTAssertEqual(play.paint.cornerRadius, 20, context)
+                    let glyph = try XCTUnwrap(
+                        nodes[(index + 1) ..< Int(play.subtreeEnd)].first { $0.kind == .symbol },
+                        context
+                    )
+                    XCTAssertEqual(
+                        glyph.content.color.role & 0xFF,
+                        UInt16(ShellRole.accentForeground.rawValue + 1),
+                        context
+                    )
+                    widget.layoutPopout()
+                    let handle = try XCTUnwrap(
+                        widget.surface.layout.core.elements { widget.text.string($0.action) == "media toggle" }.first,
+                        context
+                    )
+                    let frame = widget.surface.layout.core.absoluteFrame(of: handle)
+                    XCTAssertEqual(frame.width, 40, context)
+                    XCTAssertEqual(frame.height, 40, context)
+                }
+                if profile == "wayline", name == "media" {
+                    let current = try XCTUnwrap(
+                        nodes.first { widget.text.string($0.content.text) == "Every window holds a song" },
+                        context
+                    )
+                    XCTAssertEqual(current.content.color.role & 0xFF, UInt16(ShellRole.accent.rawValue + 1), context)
+                }
+                for command in [
+                    "media previous",
+                    "media toggle",
+                    "media next",
+                    "media open",
+                    "media shuffle",
+                    "media repeat"
+                ] {
+                    widget.layoutPopout()
+                    try clickCommand(command, widget: widget, context: context)
+                }
+                let sliders = nodes.filter { $0.kind == .slider }
+                let slider = try XCTUnwrap(sliders.first, context)
+                XCTAssertEqual(sliders.count, 1, context)
+                XCTAssertEqual(slider.content.value, 407, context)
+                var event = ShellEvent(button: .left)
+                event.kind = .slider
+                event.value = 0.5
+                event.phase = .changed
+                XCTAssertEqual(widget.invoke(slider.content.action, view: OMNI_VIEW_POPOUT, event: event), [], context)
+                event.phase = .ended
+                XCTAssertEqual(
+                    widget.invoke(slider.content.action, view: OMNI_VIEW_POPOUT, event: event),
+                    ["media seek 121.5"],
+                    context
+                )
+                widget.layoutPopout()
+                try clickCommand("media seek 98.0", widget: widget, context: context)
+                var stats = omni_render_stats()
+                var error = [CChar](repeating: 0, count: 256)
+                XCTAssertEqual(
+                    omni_instance_render(widget.instance, OMNI_VIEW_POPOUT, 100_000_000, &stats, &error, error.count),
+                    OMNI_OK, context
+                )
+                let timing = ShellDataKey.seconds.bit | ShellDataKey.lyrics.bit
+                XCTAssertEqual(stats.deps & timing, timing, context)
+                mediaFixture(widget, shuffle: nil, repeatMode: nil)
+                let unsupported = widget.renderPopout()
+                let actions = unsupported.map { widget.text.string($0.content.action) }
+                XCTAssertFalse(actions.contains("media shuffle"), context)
+                XCTAssertFalse(actions.contains("media repeat"), context)
+                mediaFixture(widget, playing: false, shuffle: true, repeatMode: .one)
+                let paused = widget.renderPopout()
+                let symbols = paused.filter { $0.kind == .symbol || $0.kind == .label }
+                    .map { widget.text.string($0.content.text) }
+                XCTAssertTrue(
+                    symbols.contains(profile == "celestial" && name != "control-center" ? "play_arrow" : "play.fill"),
+                    context
+                )
+                XCTAssertTrue(
+                    symbols.contains(profile == "celestial" && name != "control-center" ? "repeat_one" : "repeat.1"),
+                    context
+                )
+                for (lyrics, expected) in [(ShellLyrics.loading, "Loading lyrics…"), (
+                    .missing,
+                    "No lyrics found"
+                )] {
+                    mediaFixture(widget, lyrics: lyrics)
+                    let state = widget.renderPopout()
+                    XCTAssertTrue(
+                        widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(expected, [])),
+                        context
+                    )
+                    XCTAssertFalse(
+                        state.contains { widget.text.string($0.content.action).hasPrefix("media seek ") },
+                        context
+                    )
+                }
+                widget.set("media") { $0.null() }
+                widget.set("lyrics") { $0.null() }
+                _ = widget.renderPopout()
+                XCTAssertTrue(
+                    widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Nothing is playing", [])),
+                    context
+                )
+                if name == "media", profile == "nocturne" {
+                    widget.layoutPopout()
+                    let label = try XCTUnwrap(widget.surface.layout.core.elements {
+                        widget.text.string($0.text) == ShellLocalizer.string("Nothing is playing", [])
+                    }.first, context)
+                    let frame = widget.surface.layout.core.absoluteFrame(of: label)
+                    XCTAssertEqual(
+                        CGFloat(frame.x + frame.width / 2),
+                        widget.surface.size.width / 2,
+                        accuracy: 0.5,
+                        context
+                    )
+                }
+                if name == "control-center", ["system", "matrix", "sakura"].contains(profile) {
+                    mediaFixture(widget)
+                    widget.set("settings") { ShellServiceValue.object(["tab": .text("overview")]).write(to: &$0) }
+                    let overview = widget.renderPopout()
+                    XCTAssertFalse(
+                        overview.contains { widget.text.string($0.content.action).hasPrefix("media seek ") },
+                        context
+                    )
+                    XCTAssertEqual(
+                        omni_instance_render(
+                            widget.instance,
+                            OMNI_VIEW_POPOUT,
+                            100_000_000,
+                            &stats,
+                            &error,
+                            error.count
+                        ),
+                        OMNI_OK, context
+                    )
+                    XCTAssertEqual(stats.deps & timing, 0, context)
+                }
+            }
+        }
+    }
+
+    func testSharedMediaModelsClampProgressAndFormatLongDurations() throws {
+        let shell = try sharedLibraryShell("media")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("media", config: config, shell: shell)
+        widget.render(fixture(config, height: 32, vertical: false))
+        for (elapsed, playing, expected) in [(-50.0, false, 0), (5000.0, false, 1000), (20.0, false, 5)] {
+            mediaFixture(widget, playing: playing, elapsed: elapsed, duration: 3661)
+            let slider = try XCTUnwrap(widget.renderPopout().first { $0.kind == .slider })
+            XCTAssertEqual(slider.content.value, UInt32(expected))
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("1:01:01"))
+        }
+        mediaFixture(widget, elapsed: nil)
+        XCTAssertFalse(widget.renderPopout().contains { $0.kind == .slider })
+        mediaFixture(widget, duration: nil)
+        let unknownDuration = widget.renderPopout()
+        XCTAssertFalse(unknownDuration.contains { $0.kind == .slider })
+        XCTAssertEqual(
+            unknownDuration.map { widget.text.string($0.content.action) }.filter { $0.hasPrefix("media seek ") },
+            ["media seek 86.0", "media seek 92.0", "media seek 98.0", "media seek 104.0", "media seek 110.0"]
+        )
     }
 
     func testSharedVolumeBarsKeepInputAndAvoidOutputAndAppDemand() throws {
@@ -344,7 +633,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                     "volume app com.apple.Safari mute",
                     "volume app com.apple.Podcasts mute"
                 ] {
-                    try clickAudioCommand(command, widget: widget, context: context)
+                    try clickCommand(command, widget: widget, context: context)
                 }
                 var stats = omni_render_stats()
                 var error = [CChar](repeating: 0, count: 256)
@@ -357,7 +646,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                 audioFixture(widget, access: .denied)
                 XCTAssertEqual(widget.renderPopout().filter { $0.kind == .slider }.count, 1, context)
                 widget.layoutPopout()
-                try clickAudioCommand("volume permission", widget: widget, context: context)
+                try clickCommand("volume permission", widget: widget, context: context)
                 widget.set("volume") { $0.null() }
                 widget.set("outputs") { $0.null() }
                 widget.set("audioApps") { $0.null() }
@@ -413,7 +702,7 @@ final class ShellStyleLayoutTests: XCTestCase {
             )
             XCTAssertLessThanOrEqual(lines.count, Int(content.lines), name)
             XCTAssertLessThanOrEqual(ShellTextStyle.wrappedSize(of: lines, font: font).height, labelFrame.height, name)
-            try clickAudioCommand("volume permission", widget: widget, context: name)
+            try clickCommand("volume permission", widget: widget, context: name)
         }
     }
 
@@ -1762,10 +2051,14 @@ final class ShellStyleLayoutTests: XCTestCase {
     }
 
     private func sharedAudioShell() throws -> URL {
+        try sharedLibraryShell("audio")
+    }
+
+    private func sharedLibraryShell(_ library: String) throws -> URL {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         for profile in ShellProfiles.names(in: shell) where profile != "default" {
-            let audio = shell.appendingPathComponent("\(profile)/lib/audio.luau")
+            let audio = shell.appendingPathComponent("\(profile)/lib/\(library).luau")
             if FileManager.default.fileExists(atPath: audio.path) {
                 try FileManager.default.removeItem(at: audio)
             }
@@ -1773,7 +2066,27 @@ final class ShellStyleLayoutTests: XCTestCase {
         return shell
     }
 
-    private func clickAudioCommand(_ command: String, widget: ShellRenderedWidget, context: String) throws {
+    private func selectMediaTab(_ widget: ShellRenderedWidget, name: String) throws {
+        if name == "control-center" {
+            widget.set("settings") { ShellServiceValue.object(["tab": .text("media")]).write(to: &$0) }
+        } else if name == "dashboard" {
+            widget.set("clock") { $0.string("9:41 AM") }
+            widget.layoutPopout()
+            let label = try XCTUnwrap(widget.surface.layout.core.elements {
+                widget.text.string($0.text) == ShellLocalizer.string("Media", [])
+            }.first)
+            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: label))
+            let point = CGPoint(x: frame.midX, y: frame.midY)
+            let before = widget.actions.count
+            widget.surface.press(at: point)
+            widget.surface.release(at: point)
+            XCTAssertEqual(widget.actions.count, before + 1)
+            let action = try XCTUnwrap(widget.actions.last)
+            XCTAssertEqual(widget.invoke(action, view: OMNI_VIEW_POPOUT), [])
+        }
+    }
+
+    private func clickCommand(_ command: String, widget: ShellRenderedWidget, context: String) throws {
         let element = try XCTUnwrap(
             widget.surface.layout.core.elements { widget.text.string($0.action) == command }.first,
             context + ": " + command
@@ -1805,6 +2118,41 @@ final class ShellStyleLayoutTests: XCTestCase {
             ShellAudioApp(id: "com.apple.Podcasts", name: "Podcasts", playing: false, volume: 45, muted: true)
         ] : []
         widget.set("audioApps") { ShellAudioApps(access: access, apps: apps).write(into: &$0) }
+    }
+
+    private func mediaFixture(
+        _ widget: ShellRenderedWidget,
+        playing: Bool = true,
+        title: String = "Northern Lights",
+        elapsed: Double? = 87,
+        duration: Double? = 243,
+        shuffle: Bool? = false,
+        repeatMode: ShellMedia.Repeat? = .all,
+        lyrics: ShellLyrics = ShellLyrics(status: .synced, lines: [
+            .init(time: 80, text: "Lights across the harbour"),
+            .init(time: 86, text: "Waiting for the morning train"),
+            .init(time: 92, text: ""),
+            .init(time: 98, text: "Every window holds a song"),
+            .init(time: 104, text: "Carried on the evening rain"),
+            .init(time: 110, text: "Until the city sings along")
+        ])
+    ) {
+        var media = ShellMedia()
+        media.title = title
+        media.artist = "Sample Artist"
+        media.album = "Sample Album"
+        media.app = "Music"
+        media.bundle = "com.apple.Music"
+        media.playing = playing
+        media.duration = duration
+        media.elapsed = elapsed
+        media.rate = playing ? 1 : 0
+        media.sampledAt = 1000
+        media.shuffle = shuffle
+        media.repeatMode = repeatMode
+        widget.set("media") { media.write(into: &$0) }
+        widget.set("seconds") { $0.number(1012) }
+        widget.set("lyrics") { lyrics.write(into: &$0) }
     }
 
     private func systemStatsFixture(_ widget: ShellRenderedWidget) {

@@ -27,6 +27,7 @@ return require("./skin")({
     group = legacy.group,
     heading = legacy.heading,
     button = legacy.button,
+    primaryButton = { w = 36, h = 36, radius = 2, fill = "accent", color = "accentForeground" },
     workspaceMarker = function(ctx, workspace, style, m)
         if m.indicator ~= "numbers" or (m.compact and not style.labels) then
             return nil

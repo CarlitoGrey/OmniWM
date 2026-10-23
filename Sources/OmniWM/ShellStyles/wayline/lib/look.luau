@@ -162,6 +162,42 @@ local function audioApp(app)
         ui.box{ w = 1, h = 6 } }
 end
 
+local MEDIA_WIDTH = 360
+local MEDIA_INNER = MEDIA_WIDTH - 32
+
+local function mediaButton(symbol, command, size, active)
+    return ui.stack{ w = size + 18, h = size + 18, radius = (size + 18) / 2,
+        fill = active and "accent/0.15" or nil, hover = "foreground/0.08", onClick = command,
+        ui.symbol{ name = symbol, size = size, weight = "semibold",
+            color = active and "accent" or "secondaryForeground" } }
+end
+
+local function mediaLyrics(lyrics)
+    if not lyrics then
+        return nil
+    end
+    local width = MEDIA_INNER - 20
+    local rows = { w = width, pad = 0, gap = 4, center = false, ui.box{ w = 1, h = 4 } }
+    if lyrics.visible then
+        for _, entry in lyrics.visible do
+            rows[#rows + 1] = ui.row{ w = width, pad = 6, radius = 6,
+                fill = entry.current and "accent/0.12" or nil, hover = HOVER,
+                onClick = entry.seek,
+                ui.text{ text = entry.text, size = 13,
+                    weight = entry.current and "semibold" or "medium",
+                    color = entry.current and "accent" or "secondaryForeground", maxWidth = width - 12, lines = 2 } }
+        end
+    else
+        rows[#rows + 1] = ui.text{ text = lyrics.message,
+            size = 13, color = "secondaryForeground", maxWidth = width }
+    end
+    rows[#rows + 1] = ui.box{ w = 1, h = 4 }
+    return dividedCard({
+        ui.row{ w = width, h = 32,
+            ui.text{ text = caps(omniwm.l10n("Lyrics")), size = 12, weight = "bold", color = "mutedForeground" } },
+        ui.column(rows) }, MEDIA_INNER, width)
+end
+
 return require("./skin")({
     base = 40,
     hover = HOVER,
@@ -169,6 +205,75 @@ return require("./skin")({
     width = 320,
     widths = { workspaces = 296, ["system-stats"] = 348 },
     size = { text = 14, icon = 24, slot = 28 },
+    primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    mediaBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        local props = { gap = 0, radius = math.floor(size * 0.24),
+            fill = style.backgrounds and "elevatedSurface" or nil, hoverOpacity = 0.9,
+            chip(size, style.vertical, "blue", { name = m.symbol, size = math.floor(size * 0.46),
+                weight = "bold", color = "accentForeground" }) }
+        if style.vertical then
+            props.w = size
+            return ui.column(props)
+        end
+        props.h = size
+        props[#props + 1] = ui.box{ w = 8, h = 1 }
+        props[#props + 1] = ui.text{ text = m.title, size = 14 * scale, weight = "semibold",
+            color = style.textColor ~= nil and "foreground" or "blue", maxWidth = 150 }
+        props[#props + 1] = ui.box{ w = 9, h = 1 }
+        return ui.row(props)
+    end,
+    mediaPanel = function(_, m)
+        if not m then
+            return ui.column{ w = MEDIA_WIDTH, gap = 0, material = "clear", radius = 12, fill = "surface",
+                border = "border", borderWidth = 1, center = false,
+                ui.box{ w = MEDIA_WIDTH, pad = 16,
+                    ui.text{ text = omniwm.l10n("Nothing is playing"), color = "secondaryForeground" } } }
+        end
+        local cover = if m.artwork then ui.image{ image = m.artwork, w = 72, h = 72, radius = 8 }
+            else ui.stack{ w = 72, h = 72, radius = 8, fill = "elevatedSurface",
+                ui.icon{ app = m.bundle, w = 40, h = 40, placeholder = "music.note" } }
+        local header = ui.row{ w = MEDIA_INNER, gap = 8,
+            ui.icon{ app = m.bundle, w = 16, h = 16, placeholder = "music.note" },
+            ui.text{ text = m.app, size = 14, weight = "bold", color = "foreground", maxWidth = MEDIA_INNER - 60 },
+            ui.box{ grow = 1, h = 1 },
+            ui.stack{ w = 26, h = 26, radius = 6, hover = "foreground/0.08", onClick = m.open,
+                ui.symbol{ name = "arrow.up.forward.app", size = 12, color = "secondaryForeground" } } }
+        local body = { w = MEDIA_WIDTH, pad = 16, gap = 14, center = false,
+            ui.row{ w = MEDIA_INNER, gap = 14, cover,
+                ui.column{ gap = 3, center = false,
+                    ui.text{ text = m.title, size = 14, weight = "bold", color = "foreground", maxWidth = MEDIA_INNER - 86 },
+                    ui.text{ text = m.artist, size = 14, weight = "semibold", color = "secondaryForeground",
+                        maxWidth = MEDIA_INNER - 86 },
+                    ui.text{ text = m.album, size = 12, weight = "medium", color = "mutedForeground",
+                        maxWidth = MEDIA_INNER - 86 } } } }
+        if m.duration then
+            body[#body + 1] = ui.column{ gap = 5, center = false,
+                ui.slider{ value = m.fraction, w = MEDIA_INNER, h = 12, color = "accent", onChange = m.seek },
+                ui.row{ w = MEDIA_INNER,
+                    ui.text{ text = m.elapsedText, style = "mono", size = 12, weight = "semibold", color = "mutedForeground" },
+                    ui.box{ grow = 1, h = 1 },
+                    ui.text{ text = m.durationText, style = "mono", size = 12, weight = "semibold", color = "mutedForeground" } } }
+        end
+        local controls = { w = MEDIA_INNER, gap = 10, ui.box{ grow = 1, h = 1 } }
+        if m.shuffle ~= nil then
+            controls[#controls + 1] = mediaButton("shuffle", m.shuffleCommand, 13, m.shuffle)
+        end
+        controls[#controls + 1] = mediaButton("backward.fill", m.previous, 15)
+        controls[#controls + 1] = ui.stack{ w = 48, h = 48, radius = 24, fill = "accent", hoverOpacity = 0.85,
+            onClick = m.toggle,
+            ui.symbol{ name = m.playSymbol, size = 20, weight = "bold", color = "accentForeground" } }
+        controls[#controls + 1] = mediaButton("forward.fill", m.next, 15)
+        if m.repeatMode ~= nil then
+            controls[#controls + 1] = mediaButton(m.repeatSymbol, m.repeatCommand, 13, m.repeating)
+        end
+        controls[#controls + 1] = ui.box{ grow = 1, h = 1 }
+        body[#body + 1] = ui.row(controls)
+        body[#body + 1] = mediaLyrics(m.lyrics)
+        return frame(MEDIA_WIDTH, 44, header, ui.column(body))
+    end,
     volumeBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40

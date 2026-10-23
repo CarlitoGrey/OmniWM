@@ -278,9 +278,120 @@ local function audioPanel(ctx, m)
     return framedPanel(ctx, rows, AUDIO_WIDTH)
 end
 
+local MEDIA_WIDTH = 360
+local MEDIA_INNER = MEDIA_WIDTH - 2 - 24
+local MEDIA_CARD = MEDIA_INNER - 24
+
+local function mediaCover(artwork, bundle, size, radius)
+    if artwork then
+        return ui.image{ image = artwork, w = size, h = size, radius = radius }
+    end
+    return ui.stack{ w = size, h = size, radius = radius, fill = "elevatedSurface",
+        ui.icon{ app = bundle, w = size * 0.6, h = size * 0.6, placeholder = "music.note" } }
+end
+
+local function mediaButton(name, command, size, active)
+    return ui.stack{ w = size + 16, h = size + 16, radius = 10, hover = "focus/0.14", onClick = command,
+        fill = active and "accent/0.18" or nil,
+        ui.symbol{ name = name, size = size, weight = "semibold", color = active and "accent" or "foreground" } }
+end
+
+local function mediaBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local size, art = 32 * scale, 24 * scale
+    local item = { gap = 6, radius = size / 2 - 1, fill = style.backgrounds and "surface" or nil,
+        border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14" }
+    local disc = ui.stack{ w = art, h = art,
+        mediaCover(ctx.select("media", "artwork"), ctx.select("media", "bundle"), art, art / 2),
+        ui.stack{ align = "bottomTrailing", dx = 3, dy = 3, w = 11, h = 11, radius = 5.5, fill = "accent",
+            border = "surface", borderWidth = 1,
+            ui.symbol{ name = m.symbol, size = 5, weight = "black", color = "accentForeground" } } }
+    if style.vertical then
+        item.w, item.h, item[1] = size, size, disc
+        return ui.stack(item)
+    end
+    item.h = size
+    item[1], item[2] = ui.box{ w = 0, h = 1 }, disc
+    item[3] = ui.text{ text = m.title, size = 14 * scale, weight = "medium", maxWidth = 130 }
+    item[4] = ui.box{ w = 3, h = 1 }
+    return ui.row(item)
+end
+
+local function mediaLyrics(m)
+    local lyric = m.lyrics
+    if not lyric then
+        return nil
+    end
+    local rows = { w = MEDIA_INNER, pad = 12, gap = 6,
+        ui.text{ text = omniwm.l10n("Lyrics"), size = 12, weight = "semibold", color = "secondaryForeground" } }
+    if lyric.visible then
+        for _, entry in lyric.visible do
+            rows[#rows + 1] = ui.row{ w = MEDIA_CARD, pad = 4, radius = 8, hover = "focus/0.14",
+                fill = entry.current and "accent/0.1" or nil, onClick = entry.seek,
+                ui.text{ text = entry.text, size = 13, maxWidth = MEDIA_CARD - 8,
+                    lines = 2, weight = entry.current and "semibold" or nil,
+                    color = entry.current and "accent" or "secondaryForeground" } }
+        end
+    else
+        rows[#rows + 1] = ui.text{ text = lyric.message, size = 13, color = "secondaryForeground", maxWidth = MEDIA_CARD }
+    end
+    return statsCard(rows)
+end
+
+local function mediaPanel(ctx, m)
+    if not m then
+        return framedPanel(ctx, { pad = 16,
+            ui.stack{ w = MEDIA_WIDTH - 2 - 32,
+                ui.text{ text = omniwm.l10n("Nothing is playing"), color = "secondaryForeground" } } }, MEDIA_WIDTH)
+    end
+    local controls = { w = MEDIA_CARD, gap = 6,
+        ui.stack{ w = 30, h = 30, radius = 10, hover = "focus/0.14", onClick = m.open, help = m.app,
+            ui.icon{ app = m.bundle, w = 18, h = 18, placeholder = "arrow.up.forward.app" } },
+        ui.box{ grow = 1, h = 1 } }
+    if m.shuffle ~= nil then
+        controls[#controls + 1] = mediaButton("shuffle", m.shuffleCommand, 14, m.shuffle)
+    end
+    controls[#controls + 1] = mediaButton("backward.fill", m.previous, 14)
+    controls[#controls + 1] = ui.stack{ w = 44, h = 44, radius = 14, fill = "accent", hoverScale = 1.05,
+        onClick = m.toggle,
+        ui.symbol{ name = m.playSymbol, size = 18, weight = "bold", color = "accentForeground" } }
+    controls[#controls + 1] = mediaButton("forward.fill", m.next, 14)
+    if m.repeatMode ~= nil then
+        controls[#controls + 1] = mediaButton(m.repeatSymbol, m.repeatCommand, 14, m.repeating)
+    end
+    controls[#controls + 1] = ui.box{ grow = 1, h = 1 }
+    controls[#controls + 1] = ui.box{ w = 30, h = 30 }
+    local card = { w = MEDIA_INNER, pad = 12, gap = 12,
+        ui.row{ w = MEDIA_CARD, gap = 12,
+            mediaCover(m.artwork, m.bundle, 76, 12),
+            ui.column{ gap = 3, center = false,
+                ui.text{ text = m.title, size = 15, weight = "bold", color = "accent", maxWidth = MEDIA_CARD - 88 },
+                ui.text{ text = m.artist, size = 14, color = "foreground", maxWidth = MEDIA_CARD - 88 },
+                ui.text{ text = m.album, size = 12, color = "blue", maxWidth = MEDIA_CARD - 88 } } } }
+    if m.duration then
+        card[#card + 1] = ui.column{ gap = 3,
+            ui.slider{ value = m.fraction, w = MEDIA_CARD, h = 12, color = "accent", onChange = m.seek },
+            ui.row{ w = MEDIA_CARD,
+                ui.text{ text = m.elapsedText, style = "mono", size = 12, color = "secondaryForeground" },
+                ui.box{ grow = 1 },
+                ui.text{ text = m.durationText, style = "mono", size = 12, color = "secondaryForeground" } } }
+    end
+    card[#card + 1] = ui.row(controls)
+    return framedPanel(ctx, { gap = 8,
+        ui.row{ w = MEDIA_INNER, gap = 6,
+            ui.box{ w = 2, h = 1 },
+            ui.text{ text = omniwm.l10n("Now Playing"), size = 15, weight = "bold" },
+            ui.box{ grow = 1, h = 1 },
+            ui.text{ text = m.app, size = 12, weight = "semibold", color = "secondaryForeground", maxWidth = 120 },
+            ui.box{ w = 2, h = 1 } },
+        statsCard(card), mediaLyrics(m) }, MEDIA_WIDTH)
+end
+
 return require("./skin")({
     base = 40,
     hover = "focus/0.14",
+    primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
     width = 300,
     widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },
@@ -312,6 +423,8 @@ return require("./skin")({
         return ui.row(node)
     end,
     audioPanel = audioPanel,
+    mediaBar = mediaBar,
+    mediaPanel = mediaPanel,
     omniwmButton = function(ctx, glyph)
         local style = ctx.data.bar.style
         local scale = style.height / 40

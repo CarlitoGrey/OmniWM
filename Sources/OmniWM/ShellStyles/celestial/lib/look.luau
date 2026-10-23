@@ -3,6 +3,7 @@
 
 local shapes = require("./shapes")
 local icons = require("./icons")
+local mediatab = require("./mediatab")
 local performance = require("./performance")
 local status = require("./status")
 local surface = require("./surface")
@@ -63,6 +64,7 @@ return require("./skin")({
         return performance.size(ctx).w
     end,
     hover = "foreground/0.08",
+    primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
     size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
     omniwmButton = function(ctx, glyph, locked)
         local scale = ctx.data.bar.style.height / 60
@@ -88,6 +90,20 @@ return require("./skin")({
         }, { hover = status.hover })
     end,
     audioPanel = status.audio,
+    mediaBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local items = { surface.icon(if m.playing then "music_note" else "pause", { color = "secondaryAccent",
+            size = tokens.icon.medium * scale, filled = true, animate = "effects" }) }
+        if not style.vertical then
+            items[2] = ui.text{ text = m.title, font = "sans", size = tokens.label.large * scale, weight = "medium",
+                maxWidth = 160 }
+        end
+        return surface.pill(style, items, { hover = status.hover })
+    end,
+    mediaPanel = function(ctx, m)
+        return status.panel(mediatab.size.w + 2 * tokens.padding.large, { mediatab.tab(ctx, m) })
+    end,
     text = function(props)
         props.font = props.font or "sans"
         if props.color == nil and props.role == "secondary" then

@@ -778,8 +778,14 @@ final class ShellBundledWidgetTests: XCTestCase {
 
     func testCelestialDashboardTabsRenderWithFullAndMissingData() throws {
         let library = try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent("celestial/lib")
-        let modules = try FileManager.default.contentsOfDirectory(atPath: library.path).map {
-            try ("celestial/lib/\($0)", String(contentsOf: library.appendingPathComponent($0), encoding: .utf8))
+        let defaults = try XCTUnwrap(ShellDefaults.bundled).appendingPathComponent("lib")
+        var seen: Set<String> = []
+        let modules = try [library, defaults].flatMap { directory in
+            try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted().filter {
+                $0.hasSuffix(".luau") && seen.insert($0).inserted
+            }.map {
+                try ("celestial/lib/\($0)", String(contentsOf: directory.appendingPathComponent($0), encoding: .utf8))
+            }
         }
         let full = try fullData()
         for pane in ["dash", "mediatab", "performance", "weathertab"] {
