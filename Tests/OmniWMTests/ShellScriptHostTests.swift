@@ -330,74 +330,59 @@ final class ShellScriptHostTests: XCTestCase {
         XCTAssertNotEqual(assign.render().status, OMNI_OK)
     }
 
+    @MainActor
     func testBundledSystemStatsPopoutShowsTheNativeDashboard() throws {
-        let url = try XCTUnwrap(ShellDefaults.bundledFile("widgets/system-stats/init.luau"))
-        let script = try Script(String(contentsOf: url, encoding: .utf8))
+        let widget = try ShellRenderedWidget("system-stats")
         var interval = 0.0
-        XCTAssertEqual(omni_vm_global_number(script.vm, "interval", &interval), OMNI_OK)
+        XCTAssertEqual(omni_vm_global_number(widget.vm, "interval", &interval), OMNI_OK)
         XCTAssertEqual(interval, 1)
-        let system = ShellSystemData(
-            memoryUsed: 8 << 30,
-            memoryTotal: 16 << 30,
-            pressure: .warning,
-            diskUsed: 400_000_000_000,
-            diskTotal: 1_000_000_000_000,
-            uptime: 93784,
-            host: SystemStatsHostInfo(
-                chip: "Apple M9",
-                modelIdentifier: "Mac99,1",
-                osVersion: "Version 27.2",
-                hostname: "studio"
-            ),
-            displays: [ShellSystemDisplay(width: 5120, height: 2880, refresh: 120)]
-        )
-        var writer = ShellValueWriter()
-        system.write(into: &writer)
-        XCTAssertEqual(writer.bytes.withUnsafeBufferPointer {
-            omni_instance_set_value(script.instance, "system", $0.baseAddress, $0.count)
-        }, OMNI_OK)
-        var null = ShellValueWriter()
-        null.null()
-        XCTAssertEqual(null.bytes.withUnsafeBufferPointer {
-            omni_instance_set_value(script.instance, "gpu", $0.baseAddress, $0.count)
-        }, OMNI_OK)
-        XCTAssertEqual(omni_instance_set_number(script.instance, "cpu", 42), OMNI_OK)
+        widget.set("system") { writer in
+            ShellSystemData(
+                memoryUsed: 8 << 30,
+                memoryTotal: 16 << 30,
+                pressure: .warning,
+                diskUsed: 400_000_000_000,
+                diskTotal: 1_000_000_000_000,
+                uptime: 93784,
+                host: SystemStatsHostInfo(
+                    chip: "Apple M9",
+                    modelIdentifier: "Mac99,1",
+                    osVersion: "Version 27.2",
+                    hostname: "studio"
+                ),
+                displays: [ShellSystemDisplay(width: 5120, height: 2880, refresh: 120)]
+            ).write(into: &writer)
+        }
+        widget.set("gpu") { $0.null() }
+        widget.set("cpu") { $0.number(42) }
 
-        XCTAssertEqual(script.render(OMNI_VIEW_POPOUT).status, OMNI_OK, script.message)
-        let output = script.output(OMNI_VIEW_POPOUT)
-        let nodes = decode(output, capacity: 256)
-        let store = strings(output)
+        let nodes = widget.renderPopout()
         let root = try XCTUnwrap(nodes.first)
-        XCTAssertEqual(root.layout.width, 340)
-        XCTAssertEqual(root.layout.height, 300)
         XCTAssertEqual(root.paint.material, UInt8(OMNI_MATERIAL_GLASS))
-        XCTAssertEqual(root.paint.cornerRadius, 14)
         let l10n = { (key: String, arguments: [ShellLocalizer.Argument]) in ShellLocalizer.string(key, arguments) }
         let percent = { ShellFormatter.string(kind: OMNI_FORMAT_PERCENT, $0, digits: 0) }
-        let memory = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .memory) }
-        let file = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
-        let labels = nodes.filter { $0.kind == .label }
-        XCTAssertEqual(labels.map { store.string($0.content.text) }, [
+        let memory = { (bytes: Double) in ShellFormatter.string(kind: OMNI_FORMAT_MEMORY, bytes, digits: 0) }
+        let file = { (bytes: Double) in ShellFormatter.string(kind: OMNI_FORMAT_FILE, bytes, digits: 0) }
+        XCTAssertEqual(nodes.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }, [
             "studio",
             "Apple M9",
             l10n("%lldd %lldh %lldm", [.number(1), .number(2), .number(3)]),
             l10n("CPU", []), percent(0.42), l10n("Total processor", []),
             l10n("GPU", []), "—", l10n("Unavailable", []),
-            l10n("Memory", []), percent(0.5), "\(memory(8 << 30)) / \(memory(16 << 30)) · \(l10n("Warning", []))",
+            l10n("Memory", []), percent(0.5),
+            "\(memory(Double(8 << 30))) / \(memory(Double(16 << 30))) · \(l10n("Warning", []))",
             l10n("Disk", []), percent(0.4),
-            l10n("%@ free", [.text(file(600_000_000_000))]),
+            "\(file(400_000_000_000)) / \(file(1_000_000_000_000)) · "
+                + l10n("%@ free", [.text(file(600_000_000_000))]),
+            l10n("Network", []), l10n("Collecting data…", []),
+            l10n("Download", []), file(0) + "/s",
+            l10n("Upload", []), file(0) + "/s",
+            l10n("Total", []), "…",
             "Mac99,1",
-            "Version 27.2  " + l10n("%@ @ %lld Hz", [.text("5120×2880"), .number(120)])
+            "Version 27.2",
+            l10n("%@ @ %lld Hz", [.text("5120×2880"), .number(120)])
         ])
-        XCTAssertEqual(labels.last?.content.lines, 2)
-        let meters = nodes.filter { $0.kind == .shader }
-        XCTAssertEqual(meters.map { $0.content.params.x }, [0, 1, 2, 3])
-        for (meter, fraction) in zip(meters, [Float(0.42), 0, 0.5, 0.4]) {
-            XCTAssertEqual(meter.layout.width, fraction * 129, accuracy: 0.01)
-        }
-        let titles = Set(["CPU", "GPU", "Memory", "Disk"].map { l10n($0, []) })
-        let titleWidths = labels.filter { titles.contains(store.string($0.content.text)) }.map(\.content.maxWidth)
-        XCTAssertEqual(titleWidths, [61, 61, 61, 61])
+        XCTAssertEqual(nodes.filter { $0.kind == .progress }.map(\.content.value), [420, 0, 500, 400])
     }
 
     func testUnchangedRenderDoesNotPublish() throws {

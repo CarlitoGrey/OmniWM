@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local shapes = require("./shapes")
+local performance = require("./performance")
 local surface = require("./surface")
 local tokens = require("./tokens")
 
@@ -16,6 +17,7 @@ local SYMBOLS = {
     ["eye.slash"] = "visibility_off",
     ["eye.slash.fill"] = "visibility_off",
     ["rectangle.on.rectangle"] = "filter_none",
+    ["gauge.with.needle"] = "monitoring",
 }
 
 local function line(vertical, props)
@@ -55,6 +57,9 @@ end
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
+    systemStatsWidth = function(ctx)
+        return performance.size(ctx).w
+    end,
     hover = "foreground/0.08",
     size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
     omniwmButton = function(ctx, glyph, locked)
@@ -85,6 +90,42 @@ return require("./skin")({
         rows.radius, rows.material, rows.fill = tokens.rounding.extraLarge, "clear", "background"
         rows.shadow, rows.shadowRadius, rows.center = "shadow/0.35", 10, false
         return ui.column(rows)
+    end,
+    systemStatsButton = function(ctx, glyph)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        glyph.size = 24 * scale
+        glyph.color = style.textColor ~= nil and "foreground" or "secondaryAccent"
+        return { w = style.vertical and tokens.bar.inner * scale or nil,
+            h = not style.vertical and tokens.bar.inner * scale or nil, pad = tokens.padding.medium * scale,
+            radius = tokens.bar.inner / 2 * scale,
+            fill = style.backgrounds and "surface" or nil, hover = "foreground/0.08" }
+    end,
+    systemStatsSection = function(ctx, kind, m, width)
+        if kind == "metrics" then
+            return performance.tab(ctx)
+        elseif kind ~= "details" then
+            return false
+        end
+        if not m.host then
+            return ui.text{ text = omniwm.l10n("Loading…"), font = "sans", size = tokens.body.small }
+        end
+        local host = m.host
+        local inner = width - tokens.padding.medium * 2
+        return ui.column{ w = width, pad = tokens.padding.medium, gap = tokens.spacing.small,
+            radius = tokens.rounding.large, fill = "surface", center = false,
+            ui.row{ w = inner, gap = tokens.spacing.large,
+                ui.text{ text = host.name, font = "sans", size = tokens.title.medium, weight = "medium", maxWidth = inner / 2 },
+                ui.box{ grow = 1, h = 1 },
+                ui.text{ text = host.uptime, font = "sans", size = tokens.body.small, color = "secondaryForeground" } },
+            ui.text{ text = m.memory.title .. " · " .. m.memory.detail, font = "sans", size = tokens.body.small,
+                maxWidth = inner, lines = 2 },
+            ui.text{ text = m.disk.title .. " · " .. m.disk.detail, font = "sans", size = tokens.body.small,
+                maxWidth = inner, lines = 2 },
+            ui.text{ text = host.model .. " · " .. host.os, font = "sans", size = tokens.label.medium,
+                color = "secondaryForeground", maxWidth = inner },
+            ui.text{ text = table.concat(m.displays, "  ·  "), font = "sans", size = tokens.label.medium,
+                color = "secondaryForeground", maxWidth = inner, lines = 2 } }
     end,
     panel = function(_, props)
         props.w = props.w or 300

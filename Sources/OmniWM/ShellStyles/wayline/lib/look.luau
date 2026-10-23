@@ -30,18 +30,172 @@ local function labelColor(style, m, workspace)
     return style.accents and "accent" or (#workspace.windows > 0 and "secondaryForeground" or "mutedForeground")
 end
 
+local function statsArc(value)
+    local radius = 24.5
+    local top = "M27 2.5"
+    if value >= 0.999 then
+        return top .. " A24.5 24.5 0 1 1 27 51.5 A24.5 24.5 0 1 1 27 2.5"
+    end
+    if value <= 0.005 then
+        return nil
+    end
+    local angle = value * 2 * math.pi
+    return string.format("%s A24.5 24.5 0 %d 1 %.2f %.2f", top, angle > math.pi and 1 or 0,
+        27 + radius * math.sin(angle), 27 - radius * math.cos(angle))
+end
+
+local function statsGauge(metric, hue, width)
+    local dial = { w = 54, h = 54, help = metric.detail,
+        ui.path{ w = 54, h = 54, viewBox = { 0, 0, 54, 54 }, d = statsArc(1),
+            border = "foreground/0.08", borderWidth = 5 } }
+    local sweep = metric.value and statsArc(metric.value)
+    if sweep then
+        dial[#dial + 1] = ui.path{ w = 54, h = 54, viewBox = { 0, 0, 54, 54 }, d = sweep,
+            border = metric.warn and "red" or (metric.hot and "warning" or hue), borderWidth = 5 }
+    end
+    dial[#dial + 1] = ui.text{ text = metric.percent, style = "rounded", size = 14, weight = "bold",
+        color = "foreground" }
+    local props = { w = width, gap = 6, center = true, ui.stack(dial),
+        ui.text{ text = metric.title, size = 12, weight = "bold", color = "mutedForeground", maxWidth = width - 4 } }
+    if metric.temperatureText then
+        props[#props + 1] = ui.text{ text = metric.temperatureText, style = "mono", size = 10,
+            color = metric.hot and "warning" or "secondaryForeground" }
+    end
+    return ui.column(props)
+end
+
+local function statsTile(symbol, hue)
+    return ui.stack{ w = 24, h = 24, radius = 6, fill = hue .. "/0.16",
+        ui.symbol{ name = symbol, size = 11, weight = "semibold", color = hue } }
+end
+
+local function statsDetail(symbol, hue, title, value, width, lines)
+    local row = { w = width, gap = 10, statsTile(symbol, hue) }
+    if title then
+        row[#row + 1] = ui.text{ text = title, size = 13, weight = "semibold", color = "foreground" }
+        row[#row + 1] = ui.box{ grow = 1, h = 1 }
+        row[#row + 1] = ui.text{ text = value, size = 12, weight = "medium", color = "secondaryForeground",
+            maxWidth = width - 125, lines = lines or 1 }
+    else
+        row[#row + 1] = ui.text{ text = value, size = 12, weight = "medium", color = "secondaryForeground",
+            maxWidth = width - 34, lines = lines or 1 }
+    end
+    return ui.row(row)
+end
+
+local function statsCard(width, children)
+    children.w, children.pad, children.gap = width, 10, 10
+    children.radius, children.fill, children.center = 9, "elevatedSurface", false
+    return ui.column(children)
+end
+
 return require("./skin")({
     base = 40,
     hover = "foreground/0.07",
     hiddenBarHover = "accent/0.15",
     width = 320,
-    widths = { workspaces = 296 },
+    widths = { workspaces = 296, ["system-stats"] = 348 },
     size = { text = 14, icon = 24, slot = 28 },
     omniwmButton = function(ctx, glyph, locked)
         local size = 32 * ctx.data.bar.style.height / 40
         glyph.size = math.floor(size * 0.6)
         return { w = size, h = size, radius = math.floor(size * 0.24),
             fill = locked and "warning/0.25" or "accent/0.18", hoverOpacity = 0.85 }, size
+    end,
+    systemStatsButton = function(ctx, glyph)
+        local style = ctx.data.bar.style
+        local size = 32 * style.height / 40
+        glyph.size, glyph.weight = math.floor(size * 0.52), "semibold"
+        glyph.color = style.textColor ~= nil and "foreground" or "secondaryForeground"
+        return { w = size, h = size, radius = math.floor(size * 0.24),
+            fill = style.backgrounds and "elevatedSurface" or nil, hover = "foreground/0.08" }
+    end,
+    systemStatsSection = function(_, kind, m, width)
+        local inner = width - 20
+        if kind == "header" then
+            local host = m.host
+            local row = { w = width, h = 52, gap = 10,
+                ui.stack{ w = 30, h = 30, radius = 8, fill = "accent",
+                    ui.symbol{ name = "applelogo", size = 16, weight = "semibold", color = "accentForeground" } },
+                ui.column{ gap = 1, center = false, grow = 1,
+                    ui.text{ text = host and host.name or omniwm.l10n("System"), size = 14, weight = "bold",
+                        color = "foreground", maxWidth = 170 },
+                    ui.text{ text = host and host.chip or omniwm.l10n("Loading…"), size = 12, weight = "medium",
+                        color = "mutedForeground", maxWidth = 170 } } }
+            if host then
+                row[#row + 1] = ui.row{ h = 22, radius = 6, fill = "foreground/0.06", gap = 4,
+                    ui.box{ w = 4, h = 1 },
+                    ui.symbol{ name = "power", size = 9, weight = "bold", color = "green" },
+                    ui.text{ text = host.uptime, style = "mono", size = 12, weight = "semibold",
+                        color = "secondaryForeground" }, ui.box{ w = 5, h = 1 } }
+            end
+            return ui.row(row)
+        elseif kind == "metrics" then
+            local hues = { "blue", "purple", "green", "yellow" }
+            local row = { w = width, gap = 0, pad = 4, radius = 9, fill = "elevatedSurface", center = false }
+            for index, metric in ipairs(m.metrics) do
+                row[#row + 1] = statsGauge(metric, hues[index], (width - 8) / 4)
+            end
+            return ui.row(row)
+        elseif kind == "network" then
+            local graph = { w = inner, h = 44 }
+            if m.network.graph then
+                local down, up = m.network.graph(inner, 44)
+                for index, path in ipairs({ up, down }) do
+                    if path then
+                        graph[#graph + 1] = ui.path{ w = inner, h = 44, d = path,
+                            border = index == 1 and "purple" or "blue", borderWidth = 1.5 }
+                    end
+                end
+            else
+                graph[#graph + 1] = ui.text{ text = omniwm.l10n("Collecting data…"), size = 11,
+                    color = "mutedForeground" }
+            end
+            return statsCard(width, {
+                ui.row{ w = inner, gap = 10, statsTile("network", "blue"),
+                    ui.text{ text = omniwm.l10n("Network"), size = 13, weight = "semibold", color = "foreground" } },
+                ui.stack(graph),
+                statsDetail("arrow.down", "blue", omniwm.l10n("Download"), m.network.down, inner),
+                statsDetail("arrow.up", "purple", omniwm.l10n("Upload"), m.network.up, inner),
+                statsDetail("arrow.up.arrow.down", "accent", omniwm.l10n("Total"), m.network.total, inner) })
+        elseif kind == "battery" then
+            local battery = m.battery
+            return statsCard(width, {
+                statsDetail(battery.symbol, "green",
+                    omniwm.l10n("Battery"), battery.percent, inner),
+                ui.progress{ w = inner, h = 5, radius = 2.5, value = battery.level, fill = "foreground/0.08",
+                    color = battery.low and "warning" or "green" },
+                ui.text{ text = battery.status, size = 12, color = "secondaryForeground", maxWidth = inner } })
+        elseif kind == "details" then
+            local rows = {
+                statsDetail("cpu", m.cpu.hot and "warning" or "blue", m.cpu.title, m.cpu.detail, inner, 2),
+                statsDetail("cube", m.gpu.hot and "warning" or "purple", m.gpu.title, m.gpu.detail, inner, 2),
+                statsDetail("memorychip", m.memory.pressure == "critical" and "red" or "green",
+                    m.memory.title, m.memory.detail, inner, 2),
+                statsDetail("internaldrive", "yellow", m.disk.title, m.disk.detail, inner, 2) }
+            if m.host then
+                rows[#rows + 1] = statsDetail("display", "blue", nil, table.concat(m.displays, "\n"), inner,
+                    math.max(1, #m.displays))
+                rows[#rows + 1] = statsDetail("laptopcomputer", "accent", m.host.model, m.host.os, inner, 2)
+            end
+            for index = #rows, 2, -1 do
+                table.insert(rows, index, ui.box{ w = inner, h = 1, fill = "foreground/0.07" })
+            end
+            return statsCard(width, rows)
+        end
+        return nil
+    end,
+    systemStatsPanel = function(_, props)
+        local header = table.remove(props, 1)
+        local width = props.w
+        props.center = false
+        return ui.column{ w = width, gap = 0, material = "clear", radius = 12, fill = "surface",
+            border = "border", borderWidth = 1, center = false,
+            ui.stack{ w = width, h = 52,
+                ui.box{ w = width, h = 52, radius = 12, fill = "elevatedSurface" },
+                ui.box{ align = "bottom", w = width, h = 12, fill = "elevatedSurface" }, header },
+            ui.box{ w = width, h = 1, fill = "border" },
+            ui.column(props) }
     end,
     workspaceMetrics = function(_, style, m)
         return { item = 32 * m.scale, focusCue = supported(m) and not m.compact and style.backgrounds }

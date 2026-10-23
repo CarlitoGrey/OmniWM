@@ -2,6 +2,7 @@
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 local panel = require("./panel")
+local panelFrame = require("./panel-frame")
 
 local function line(vertical, props)
     return vertical and ui.column(props) or ui.row(props)
@@ -19,11 +20,169 @@ local function badge(text, size, fill, color, align, dx, dy)
         ui.box{ w = 2.5, h = 1 } }
 end
 
+local function statsPanel(ctx, props)
+    local style = ctx.data.bar.style
+    local attached = not style.vertical
+    local width = props.w
+    props.center = true
+    for _, index in { 1, #props } do
+        local section = props[index]
+        section.dy = (section.dy or 0) + (index == 1 and -4 or 4)
+        props[index] = ui.stack{ section }
+    end
+    local body = { w = width - (attached and panelFrame.shoulder * 2 or 8), gap = 0,
+        radius = panelFrame.corner, fill = "background", border = "border", borderWidth = 1, ui.column(props) }
+    local edge
+    if attached then
+        local flip = style.position == "bottom"
+        local band = ui.box{ w = body.w, h = panelFrame.shoulder }
+        if flip then
+            body[#body + 1] = band
+        else
+            table.insert(body, 1, band)
+        end
+        edge = panelFrame.edge(body.w, flip, true)
+        edge.align = flip and "bottom" or "top"
+    end
+    return ui.stack{ w = width, material = "clear", attach = attached or nil, ui.column(body), edge }
+end
+
+local function statsCircle(size, stroke)
+    local c = size / 2
+    local r = c - stroke / 2
+    return string.format("M%g %g A%g %g 0 1 1 %g %g A%g %g 0 1 1 %g %g", c, c - r, r, r, c, c + r, r, r, c, c - r)
+end
+
+local function statsArc(size, stroke, value)
+    if not value or value <= 0.001 then
+        return nil
+    end
+    if value >= 0.999 then
+        return statsCircle(size, stroke)
+    end
+    local c = size / 2
+    local r = c - stroke / 2
+    local angle = (value * 2 - 0.5) * math.pi
+    return string.format("M%g %g A%g %g 0 %d 1 %.2f %.2f", c, c - r, r, r, value > 0.5 and 1 or 0,
+        c + r * math.cos(angle), c + r * math.sin(angle))
+end
+
+local function statsCard(props)
+    props.radius, props.fill, props.border, props.borderWidth = 14, "surface", "border", 1
+    if props.center == nil then
+        props.center = false
+    end
+    return ui.column(props)
+end
+
+local function statsGauge(metric, width, tint)
+    local size, stroke = 64, 6
+    local path = statsArc(size, stroke, metric.value)
+    local color = if metric.warn or metric.hot then "warning" else tint
+    local contents = { w = width, pad = 12, gap = 8,
+        ui.stack{ w = size, h = size,
+            ui.path{ w = size, h = size, d = statsCircle(size, stroke), border = tint .. "/0.16", borderWidth = stroke },
+            ui.text{ text = metric.percent, size = 14, weight = "bold" },
+            if path then ui.path{ w = size, h = size, d = path, border = color, borderWidth = stroke } else nil },
+        ui.row{ gap = 5,
+            ui.symbol{ name = metric.symbol, size = 10, weight = "semibold", color = tint },
+            ui.text{ text = metric.title, size = 14, weight = "bold" } } }
+    if metric.temperatureText then
+        contents[#contents + 1] = ui.text{ text = metric.temperatureText, style = "mono", size = 12,
+            color = if metric.hot then "warning" else "secondaryForeground" }
+    end
+    contents[#contents + 1] = ui.text{ text = metric.detail, size = 12, color = "secondaryForeground",
+        maxWidth = width - 24, lines = 2 }
+    contents.center = true
+    return statsCard(contents)
+end
+
+local function statsBar(metric, width, tint)
+    return ui.column{ w = width, gap = 5, center = false,
+        ui.row{ w = width, gap = 8,
+            ui.stack{ w = 24, h = 24, radius = 12, fill = tint .. "/0.18",
+                ui.symbol{ name = metric.symbol, size = 11, weight = "semibold", color = tint } },
+            ui.column{ gap = 1, center = false, grow = 1,
+                ui.text{ text = metric.title, size = 14, weight = "bold" },
+                ui.text{ text = metric.detail, size = 12, color = "secondaryForeground", maxWidth = width - 90, lines = 2 } },
+            ui.text{ text = metric.percent, size = 14, weight = "bold" } },
+        ui.progress{ value = metric.value or 0, w = width, h = 6, radius = 3, fill = tint .. "/0.16",
+            color = if metric.warn then "warning" else tint, animate = "ease" } }
+end
+
+local function statsHeader(m, width)
+    local host = m.host
+    return ui.row{ w = width, gap = 10,
+        ui.stack{ w = 34, h = 34, radius = 17, fill = "accent",
+            ui.symbol{ name = "applelogo", size = 16, weight = "semibold", color = "accentForeground" } },
+        ui.column{ gap = 1, center = false, grow = 1,
+            ui.text{ text = host and host.name or omniwm.l10n("System"), size = 14, weight = "bold", maxWidth = width - 170 },
+            ui.text{ text = host and host.chip or omniwm.l10n("Loading…"), size = 12, color = "secondaryForeground",
+                maxWidth = width - 170 } },
+        ui.row{ h = 22, gap = 4, radius = 11, fill = "blue/0.2",
+            ui.box{ w = 4, h = 1 },
+            ui.symbol{ name = "clock.arrow.circlepath", size = 10, weight = "semibold", color = "blue" },
+            ui.text{ text = host and host.uptime or "—", style = "mono", size = 12, weight = "semibold", color = "blue" },
+            ui.box{ w = 5, h = 1 } } }
+end
+
+local function statsLine(symbol, label, value, width, tint)
+    return ui.row{ w = width, gap = 8,
+        ui.stack{ w = 24, h = 24, radius = 12, fill = tint .. "/0.18",
+            ui.symbol{ name = symbol, size = 11, weight = "semibold", color = tint } },
+        ui.text{ text = label, size = 12, color = "secondaryForeground", grow = 1 },
+        ui.text{ text = value, style = "mono", size = 12, weight = "semibold", maxWidth = width - 105 } }
+end
+
+local function statsNetwork(m, width)
+    local inner, height = width - 20, 48
+    local graph = { w = inner, h = height }
+    if m.network.graph then
+        local down, up = m.network.graph(inner, height)
+        graph[#graph + 1] = ui.path{ w = inner, h = height, d = down, border = "cyan", borderWidth = 2 }
+        graph[#graph + 1] = ui.path{ w = inner, h = height, d = up, border = "purple", borderWidth = 2 }
+    else
+        graph[#graph + 1] = ui.text{ text = omniwm.l10n("Collecting data…"), size = 12, color = "secondaryForeground" }
+    end
+    return statsCard{ w = width, pad = 10, gap = 8,
+        ui.row{ gap = 5,
+            ui.symbol{ name = "network", size = 11, weight = "semibold", color = "cyan" },
+            ui.text{ text = omniwm.l10n("Network"), size = 14, weight = "bold" } },
+        ui.stack(graph),
+        statsLine("arrow.down", omniwm.l10n("Download"), m.network.down, inner, "cyan"),
+        statsLine("arrow.up", omniwm.l10n("Upload"), m.network.up, inner, "purple"),
+        statsLine("arrow.up.arrow.down", omniwm.l10n("Total"), m.network.total, inner, "blue") }
+end
+
+local function statsBattery(m, width)
+    local battery = m.battery
+    local tint = if battery.low then "warning" else "green"
+    return statsCard{ w = width, pad = 10, gap = 6,
+        statsLine(battery.symbol, omniwm.l10n("Battery"), battery.percent, width - 20, tint),
+        ui.progress{ value = battery.level, w = width - 20, h = 6, radius = 3, fill = tint .. "/0.16", color = tint },
+        ui.text{ text = battery.status, size = 12, color = "secondaryForeground", maxWidth = width - 20 } }
+end
+
+local function statsDetails(m, width)
+    if not m.host then
+        return statsCard{ w = width, pad = 10,
+            ui.text{ text = omniwm.l10n("Loading…"), size = 12, color = "secondaryForeground" } }
+    end
+    return statsCard{ w = width, pad = 10, gap = 6,
+        ui.row{ gap = 8,
+            ui.symbol{ name = "laptopcomputer", w = 16, h = 14, size = 12, color = "secondaryForeground" },
+            ui.text{ text = m.host.model .. " · " .. m.host.os, size = 12, weight = "medium", maxWidth = width - 44, lines = 2 } },
+        ui.row{ gap = 8,
+            ui.symbol{ name = "display.2", w = 16, h = 14, size = 12, color = "secondaryForeground" },
+            ui.text{ text = table.concat(m.displays, "  ·  "), size = 12, color = "secondaryForeground",
+                maxWidth = width - 44, lines = 2 } } }
+end
+
 return require("./skin")({
     base = 40,
     hover = "focus/0.14",
     width = 300,
-    widths = { workspaces = 274 },
+    widths = { workspaces = 274, ["system-stats"] = 380 },
     size = { text = 14, icon = 24, slot = 27 },
     omniwmButton = function(ctx, glyph)
         local style = ctx.data.bar.style
@@ -33,6 +192,36 @@ return require("./skin")({
         return { w = size, h = size, radius = size / 2,
             fill = style.backgrounds and "accent/0.18" or nil, hoverScale = 1.06 }, size
     end,
+    systemStatsButton = function(ctx, glyph)
+        local style = ctx.data.bar.style
+        local size = 32 * style.height / 40
+        glyph.size, glyph.weight, glyph.color = math.max(11, size * 0.5), "semibold", "foreground"
+        return { w = size, h = size, radius = size / 2 - 1,
+            fill = style.backgrounds and "surface" or nil, border = style.backgrounds and "border/0.6" or nil,
+            borderWidth = 1, hover = "focus/0.14" }
+    end,
+    systemStatsSection = function(ctx, kind, m, width)
+        if not ctx.data.bar.style.vertical then
+            width -= 20
+        end
+        if kind == "header" then
+            return statsHeader(m, width)
+        elseif kind == "metrics" then
+            local half = (width - 10) / 2
+            return ui.column{ w = width, gap = 10, center = false,
+                ui.row{ w = width, gap = 10, statsGauge(m.cpu, half, "cyan"), statsGauge(m.gpu, half, "purple") },
+                statsCard{ w = width, pad = 10, gap = 12,
+                    statsBar(m.memory, width - 20, "green"), statsBar(m.disk, width - 20, "orange") } }
+        elseif kind == "network" then
+            return statsNetwork(m, width)
+        elseif kind == "battery" then
+            return statsBattery(m, width)
+        elseif kind == "details" then
+            return statsDetails(m, width)
+        end
+        return nil
+    end,
+    systemStatsPanel = statsPanel,
     hiddenMenuPanel = function(_, rows)
         rows.radius, rows.material, rows.fill = 18, "clear", "background"
         rows.border, rows.borderWidth, rows.center = "border", 1, false

@@ -121,6 +121,15 @@ final class ShellStyleLayoutTests: XCTestCase {
                         name: "\(name)-\(profile)-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")",
                         dark: dark, directory: directory, background: background
                     )
+                    if name == "system-stats", !vertical {
+                        systemStatsFixture(widget)
+                        widget.layoutPopout()
+                        try ShellBundledWidgetTests.writeSnapshot(
+                            widget.surface,
+                            name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+                            dark: dark, directory: directory, background: background
+                        )
+                    }
                     if name == "workspaces", ProcessInfo.processInfo.environment["OMNIWM_STEP_POPOUT"] == "1" {
                         let group = try XCTUnwrap(widget.tree()
                             .first { widget.text.string($0.content.target) == "window 1" })
@@ -133,6 +142,283 @@ final class ShellStyleLayoutTests: XCTestCase {
                         )
                     }
                 }
+            }
+        }
+    }
+
+    func testSharedSystemStatsKeepsApprovedDataAndPartialLoadingThroughEverySkin() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "system-stats", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/system-stats/init.luau")
+            )
+            widget.resources.palette.refresh(theme: config.theme, appearance: try XCTUnwrap(NSAppearance(named: .aqua)))
+            var bar = fixture(config, height: 32, vertical: false)
+            bar.style.statsButton = false
+            widget.render(bar)
+            XCTAssertFalse(widget.tree().contains { $0.content.action == OMNI_ACTION_POPOUT }, profile)
+            bar.style.statsButton = true
+            for vertical in [false, true] {
+                bar.style.vertical = vertical
+                widget.render(bar)
+                let button = try XCTUnwrap(
+                    widget.surface.layout.core.elements { $0.action == OMNI_ACTION_POPOUT }.first,
+                    profile
+                )
+                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                XCTAssertLessThanOrEqual(frame.height, 32, profile)
+                var popoutAction: UInt32 = 0
+                widget.surface.onAction = { popoutAction = $0.action }
+                let point = CGPoint(x: frame.midX, y: frame.midY)
+                widget.surface.press(at: point, event: ShellEvent(button: .left))
+                widget.surface.release(at: point, event: ShellEvent(button: .left))
+                XCTAssertEqual(popoutAction, OMNI_ACTION_POPOUT, profile)
+            }
+            bar.style.vertical = false
+            widget.render(bar)
+            systemStatsFixture(widget)
+            let tree = widget.renderPopout()
+            let labels = tree.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }
+            let percent = { ShellFormatter.string(kind: OMNI_FORMAT_PERCENT, $0, digits: 0) }
+            let memory = { ShellFormatter.string(kind: OMNI_FORMAT_MEMORY, $0, digits: 0) }
+            let file = { ShellFormatter.string(kind: OMNI_FORMAT_FILE, $0, digits: 0) }
+            for value in [
+                "studio", "Apple M4 Max", "Apple M4 Max GPU", "Mac16,9", "Version 27.2",
+                "61°C", "48°C", percent(0.37), percent(0.18), percent(0.76),
+                memory(Double(21 << 30)), memory(Double(36 << 30)),
+                file(612_000_000_000), file(994_000_000_000),
+                file(1_840_000) + "/s", file(312_000) + "/s", file(18_400_000_000), file(2_100_000_000),
+                ShellLocalizer.string("%lldh %lldm", [.number(4), .number(14)])
+            ] {
+                XCTAssertTrue(labels.contains { $0.contains(value) }, "\(profile): missing \(value): \(labels)")
+            }
+            let paths = Set(tree.filter { $0.kind == .path }.map { widget.text.string($0.content.text) })
+            widget.set("networkHistory") { $0.null() }
+            let withoutHistory = widget.renderPopout()
+            let remainingPaths = Set(withoutHistory.filter { $0.kind == .path }.map {
+                widget.text.string($0.content.text)
+            })
+            XCTAssertGreaterThanOrEqual(
+                paths.subtracting(remainingPaths).count,
+                2,
+                "\(profile): no graph paths removed"
+            )
+            XCTAssertTrue(remainingPaths.isSubset(of: paths), "\(profile): unrelated graph paint changed")
+            XCTAssertFalse(labels.contains(ShellLocalizer.string("Collecting data…", [])), profile)
+            XCTAssertTrue(
+                widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Collecting data…", [])),
+                profile
+            )
+            systemStatsFixture(widget)
+            widget.set("thermal") { ShellThermal(cpu: 90, gpu: 48, gpuName: "Apple M4 Max GPU").write(into: &$0) }
+            let cool = try XCTUnwrap(widget.renderPopout().first {
+                widget.text.string($0.content.text) == (profile == "celestial" ? "thermometer" : "90°C")
+            }, profile)
+            widget.set("thermal") { ShellThermal(cpu: 91, gpu: 48, gpuName: "Apple M4 Max GPU").write(into: &$0) }
+            let hot = try XCTUnwrap(widget.renderPopout().first {
+                widget.text.string($0.content.text) == (profile == "celestial" ? "thermometer_alert" : "91°C")
+            }, profile)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains("91°C"), profile)
+            XCTAssertNotEqual(cool.content.color, hot.content.color, profile)
+            widget.set("battery") { $0.null() }
+            widget.layoutPopout()
+            let noBattery = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertFalse(noBattery.contains(ShellLocalizer.string("Battery", [])), profile)
+            if profile == "celestial" {
+                XCTAssertEqual(widget.surface.naturalSize.width, 860, profile)
+            }
+            try exportSystemStatsState(widget, profile: profile, state: "no-battery-hot")
+            for key in ["system", "gpu", "memory", "disk", "thermal", "networkHistory"] {
+                widget.set(key) { $0.null() }
+            }
+            widget.layoutPopout()
+            let partial = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertTrue(partial.contains(percent(0.37)), profile)
+            XCTAssertTrue(partial.contains(profile == "celestial" ? percent(0) : "—"), profile)
+            XCTAssertTrue(partial.contains(ShellLocalizer.string("Loading…", [])), profile)
+            XCTAssertTrue(partial.contains(ShellLocalizer.string("Collecting data…", [])), profile)
+            try exportSystemStatsState(widget, profile: profile, state: "partial")
+        }
+    }
+
+    func testSharedCelestialStatsButtonKeepsTheSurfacePillGeometry() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let probe = shell.appendingPathComponent("celestial/widgets/stats-pill-reference/init.luau")
+        try FileManager.default.createDirectory(
+            at: probe.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try """
+        local surface = require("../lib/surface")
+        function render(ctx)
+            local style = ctx.data.bar.style
+            return surface.pill(style, { surface.icon("monitoring", { size = 24 * style.height / 60 }) })
+        end
+        """.write(to: probe, atomically: true, encoding: .utf8)
+        let reference = try makeWidget("stats-pill-reference", config: config, shell: shell, source: probe)
+        let widget = try makeWidget(
+            "system-stats", config: config, shell: shell,
+            source: shell.appendingPathComponent("default/widgets/system-stats/init.luau")
+        )
+        for height in [32.0, 60] {
+            for vertical in [false, true] {
+                let bar = fixture(config, height: height, vertical: vertical)
+                widget.render(bar)
+                reference.render(bar)
+                XCTAssertEqual(widget.surface.size.width, reference.surface.size.width, accuracy: 0.001)
+                XCTAssertEqual(widget.surface.size.height, reference.surface.size.height, accuracy: 0.001)
+            }
+        }
+    }
+
+    func testSharedStatsBatteryReflectsLevelAndChargingAndWaylineRingsAlign() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in ["default", "wayline", "nocturne"] {
+            _ = try ShellProfiles.select(profile, in: shell)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            XCTAssertEqual(config.profile, profile)
+            let widget = try makeWidget(
+                "system-stats", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/system-stats/init.luau")
+            )
+            widget.render(fixture(config, height: 32, vertical: false))
+            systemStatsFixture(widget)
+            var lowColor: Color?
+            for (level, charging, symbol) in [
+                (10.0, false, "battery.0percent"),
+                (76.0, false, "battery.75percent"),
+                (10.0, true, "battery.100percent.bolt")
+            ] {
+                widget.set("battery") { $0.number(level) }
+                widget.set("charging") { $0.bool(charging) }
+                let tree = widget.renderPopout()
+                XCTAssertTrue(
+                    tree.contains { $0.kind == .symbol && widget.text.string($0.content.text) == symbol },
+                    profile
+                )
+                let bar = try XCTUnwrap(tree.last { $0.kind == .progress }, profile)
+                XCTAssertEqual(bar.content.value, UInt32(level * 10), profile)
+                if level == 10, !charging {
+                    lowColor = bar.content.color
+                } else {
+                    XCTAssertNotEqual(lowColor, bar.content.color, profile)
+                }
+            }
+            if profile == "wayline" {
+                widget.layoutPopout()
+                let positions = try ["CPU", "GPU", "Memory", "Disk"].map { title in
+                    let labels = widget.surface.layout.core.elements {
+                        widget.text.string($0.text) == ShellLocalizer.string(title, [])
+                    }
+                    return try XCTUnwrap(labels.map { widget.surface.layout.core.absoluteFrame(of: $0).y }.min(), title)
+                }
+                for position in positions.dropFirst() {
+                    XCTAssertEqual(position, positions[0], accuracy: 0.001)
+                }
+            }
+        }
+    }
+
+    func testSharedNocturneStatsKeepsUniformFrameInsets() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("nocturne", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for position in ["top", "bottom", "left"] {
+            let widget = try makeWidget(
+                "system-stats", config: config, shell: shell,
+                source: shell.appendingPathComponent("default/widgets/system-stats/init.luau")
+            )
+            var bar = fixture(config, height: 32, vertical: position == "left")
+            bar.style.position = position
+            widget.render(bar)
+            systemStatsFixture(widget)
+            widget.layoutPopout()
+            let elements = widget.surface.layout.core.elements { _ in true }
+            let body = try XCTUnwrap(elements.first {
+                let paint = widget.surface.layout.core.paint(of: $0)
+                return paint.cornerRadius == 18 && paint.strokeWidth == 1
+            }, position)
+            var bounds = CGRect(widget.surface.layout.core.absoluteFrame(of: body))
+            if position == "top" {
+                bounds.origin.y += 14
+                bounds.size.height -= 14
+            } else if position == "bottom" {
+                bounds.size.height -= 14
+            }
+            let apple = try XCTUnwrap(elements
+                .first { widget.text.string(widget.surface.layout.core.content(of: $0).text) == "applelogo" })
+            let header = widget.surface.layout.core.parent(of: widget.surface.layout.core.parent(of: apple))
+            let headerFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: header))
+            XCTAssertEqual(headerFrame.minX - bounds.minX, 12, accuracy: 0.5, position)
+            XCTAssertEqual(headerFrame.minY - bounds.minY, 12, accuracy: 0.5, position)
+            var footer = try XCTUnwrap(elements.first {
+                widget.text.string(widget.surface.layout.core.content(of: $0).text).hasPrefix("Mac16,9")
+            })
+            while footer.slot >= 0, widget.surface.layout.core.paint(of: footer).cornerRadius != 14 {
+                footer = widget.surface.layout.core.parent(of: footer)
+            }
+            XCTAssertGreaterThanOrEqual(footer.slot, 0, position)
+            let footerFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: footer))
+            XCTAssertEqual(bounds.maxX - footerFrame.maxX, 12, accuracy: 0.5, position)
+            XCTAssertEqual(bounds.maxY - footerFrame.maxY, 12, accuracy: 0.5, position)
+        }
+    }
+
+    func testSharedSystemStatsKeepsItsFittedScrollingSurfaceThroughEverySkin() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for position in ["top", "bottom", "left"] {
+                let context = "\(profile) \(position)"
+                let widget = try makeWidget(
+                    "system-stats", config: config, shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/system-stats/init.luau")
+                )
+                widget.resources.palette.refresh(
+                    theme: config.theme,
+                    appearance: try XCTUnwrap(NSAppearance(named: .aqua))
+                )
+                var bar = fixture(config, height: 32, vertical: position == "left")
+                bar.style.position = position
+                widget.render(bar)
+                systemStatsFixture(widget)
+                widget.layoutPopout()
+                if profile == "nocturne", position != "top" {
+                    try exportSystemStatsState(widget, profile: profile, state: position)
+                }
+                let natural = widget.surface.naturalSize
+                let fitted = CGSize(width: natural.width, height: 180)
+                XCTAssertGreaterThan(natural.height, fitted.height, context)
+                widget.surface.setRootLimit(fitted)
+                XCTAssertEqual(widget.surface.size, fitted, context)
+                let scroll = try XCTUnwrap(widget.surface.layout.core.elements { $0.scrolls }.first, context)
+                let viewport = CGRect(widget.surface.layout.core.absoluteFrame(of: scroll))
+                XCTAssertTrue(CGRect(origin: .zero, size: fitted).contains(viewport), context)
+                XCTAssertTrue(widget.surface.scroll(
+                    at: CGPoint(x: viewport.midX, y: viewport.midY), event: ShellEvent(button: .none),
+                    content: CGPoint(x: 0, y: 10_000)
+                ), context)
+                ShellLayerScene.engineQueue.sync {}
+                let scrolled = try XCTUnwrap(widget.layers().first { $0.bounds.origin.y > 0 }, context)
+                let bottom = try XCTUnwrap(scrolled.sublayers?.map(\.frame.maxY).max(), context)
+                XCTAssertEqual(scrolled.bounds.height, viewport.height, accuracy: 0.5, context)
+                XCTAssertEqual(scrolled.bounds.origin.y, bottom + 16 - viewport.height, accuracy: 0.5, context)
             }
         }
     }
@@ -1153,6 +1439,55 @@ final class ShellStyleLayoutTests: XCTestCase {
             let name = "\(config.profile)-\(Int(height))-\(vertical ? "vertical" : "horizontal")-\(dark ? "dark" : "light")-\(Int(scale))x"
             try write(previews, name: name, scale: scale, dark: dark, solidBlack: bar.style.solidBlack)
         }
+    }
+
+    private func exportSystemStatsState(_ widget: ShellRenderedWidget, profile: String, state: String) throws {
+        guard let directory = ProcessInfo.processInfo.environment["OMNIWM_STEP_RENDERS"] else { return }
+        try ShellBundledWidgetTests.writeSnapshot(
+            widget.surface, name: "system-stats-\(profile)-\(state)", dark: false,
+            directory: URL(fileURLWithPath: directory).appendingPathComponent("states").path,
+            background: widget.resources.palette.color(.clear, default: .background)
+        )
+    }
+
+    private func systemStatsFixture(_ widget: ShellRenderedWidget) {
+        widget.set("system") { writer in
+            ShellSystemData(
+                memoryUsed: 21 << 30,
+                memoryTotal: 36 << 30,
+                pressure: .normal,
+                diskUsed: 612_000_000_000,
+                diskTotal: 994_000_000_000,
+                uptime: 273_840,
+                host: SystemStatsHostInfo(
+                    chip: "Apple M4 Max",
+                    modelIdentifier: "Mac16,9",
+                    osVersion: "Version 27.2",
+                    hostname: "studio"
+                ),
+                displays: [
+                    ShellSystemDisplay(width: 5120, height: 2880, refresh: 120),
+                    ShellSystemDisplay(width: 3024, height: 1964, refresh: 120)
+                ]
+            ).write(into: &writer)
+        }
+        widget.set("cpu") { $0.number(37) }
+        widget.set("gpu") { $0.number(18) }
+        widget.set("memory") { $0.number(58) }
+        widget.set("disk") { $0.number(62) }
+        widget.set("thermal") { ShellThermal(cpu: 61, gpu: 48, gpuName: "Apple M4 Max GPU").write(into: &$0) }
+        widget.set("network") {
+            ShellServiceValue.object(["down": .number(1_840_000), "up": .number(312_000)]).write(to: &$0)
+        }
+        var history = ShellNetworkHistory(received: 18_400_000_000, sent: 2_100_000_000)
+        for index in 0 ..< ShellNetworkHistory.length {
+            let phase = Double(index) / 4
+            history.append(ShellNetworkRate(down: 900_000 + sin(phase) * 700_000, up: 200_000 + cos(phase) * 120_000))
+        }
+        widget.set("networkHistory") { history.write(into: &$0) }
+        widget.set("battery") { $0.number(76) }
+        widget.set("charging") { $0.bool(false) }
+        widget.set("power") { ShellPower(source: "battery", remaining: 254).write(into: &$0) }
     }
 
     private func hiddenBarFixture(vertical: Bool, menu: Bool) -> ShellHiddenBarData {
