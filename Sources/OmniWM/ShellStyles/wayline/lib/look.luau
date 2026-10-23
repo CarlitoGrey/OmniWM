@@ -36,6 +36,12 @@ return require("./skin")({
     width = 320,
     widths = { workspaces = 296 },
     size = { text = 14, icon = 24, slot = 28 },
+    omniwmButton = function(ctx, glyph, locked)
+        local size = 32 * ctx.data.bar.style.height / 40
+        glyph.size = math.floor(size * 0.6)
+        return { w = size, h = size, radius = math.floor(size * 0.24),
+            fill = locked and "warning/0.25" or "accent/0.18", hoverOpacity = 0.85 }, size
+    end,
     workspaceMetrics = function(_, style, m)
         return { item = 32 * m.scale, focusCue = supported(m) and not m.compact and style.backgrounds }
     end,

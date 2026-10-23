@@ -57,6 +57,14 @@ return require("./skin")({
     width = 300 - 2 * tokens.padding.medium,
     hover = "foreground/0.08",
     size = { text = tokens.body.small, icon = 24, slot = 28, symbol = tokens.icon.small },
+    omniwmButton = function(ctx, glyph, locked)
+        local scale = ctx.data.bar.style.height / 60
+        glyph.size = tokens.body.large * 1.2 * scale
+        glyph.weight = "semibold"
+        local size = glyph.size + tokens.padding.small * scale
+        return { w = size, h = size, radius = size / 2,
+            hover = (locked and "warning" or "tertiaryAccent") .. "/0.12" }, size
+    end,
     text = function(props)
         props.font = props.font or "sans"
         if props.color == nil and props.role == "secondary" then

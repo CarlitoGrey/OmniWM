@@ -575,6 +575,135 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testSharedOmniWMButtonsKeepMenuSecureInputAndKeyboardModeContracts() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let states: [(locked: Bool, backgrounds: Bool, mode: KeyboardModeKind)] = [
+            (false, false, .normal), (true, false, .normal),
+            (false, true, .normal), (true, true, .normal),
+            (false, false, .prefix), (true, true, .paused), (false, true, .window)
+        ]
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let base = config.barOverride?.settings.height ?? 32
+            for vertical in [false, true] {
+                let widget = try makeWidget(
+                    "omniwm", config: config, shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/omniwm/init.luau")
+                )
+                for height in [base, base * 1.5] {
+                    for state in states {
+                        let context = "\(profile) vertical=\(vertical) height=\(height) locked=\(state.locked) backgrounds=\(state.backgrounds) mode=\(state.mode.rawValue)"
+                        var bar = fixture(config, height: height, vertical: vertical)
+                        bar.style.secureInput = state.locked
+                        bar.style.backgrounds = state.backgrounds
+                        bar.style.keyboardMode = state.mode.rawValue
+                        widget.render(bar)
+                        XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                        XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                        XCTAssertLessThanOrEqual(
+                            vertical ? widget.surface.size.width : widget.surface.size.height,
+                            height,
+                            context
+                        )
+                        let buttons = widget.surface.layout.core.elements {
+                            widget.text.string($0.action) == ShellRequest.statusMenuCommand
+                        }
+                        XCTAssertEqual(buttons.count, 1, context)
+                        let button = try XCTUnwrap(buttons.first, context)
+                        let content = widget.surface.layout.core.content(of: button)
+                        XCTAssertEqual(
+                            widget.text.string(content.secondaryAction),
+                            ShellRequest.statusMenuCommand,
+                            context
+                        )
+                        let help = ShellLocalizer.string(
+                            state
+                                .locked ? "Secure Input is on: Option shortcuts are paused" : "Window manager controls",
+                            []
+                        )
+                        XCTAssertEqual(widget.text.string(content.help), help, context)
+                        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                        let point = CGPoint(x: frame.midX, y: frame.midY)
+                        let firstClick = widget.clicks.count
+                        for mouseButton in [ShellEvent.Button.left, .right] {
+                            widget.surface.press(at: point, button: mouseButton)
+                            widget.surface.release(at: point, event: ShellEvent(button: mouseButton))
+                        }
+                        let clicks = widget.clicks.dropFirst(firstClick)
+                        XCTAssertEqual(
+                            clicks.map(\.action),
+                            [ShellRequest.statusMenuCommand, ShellRequest.statusMenuCommand],
+                            context
+                        )
+                        XCTAssertEqual(clicks.map(\.button), [.left, .right], context)
+                        let tree = widget.tree()
+                        let symbols = tree.filter { $0.kind == .symbol }.map { widget.text.string($0.content.text) }
+                        let labels = tree.filter { $0.kind == .label }.map { widget.text.string($0.content.text) }
+                        let logos = tree.filter {
+                            $0.kind == .symbol && ["omniwm", "omniwm.lock"]
+                                .contains(widget.text.string($0.content.text))
+                        }
+                        XCTAssertEqual(
+                            logos.map { widget.text.string($0.content.text) },
+                            [state.locked ? "omniwm.lock" : "omniwm"],
+                            context
+                        )
+                        XCTAssertEqual(logos.first?.content.color, Color(packed: 0xB665_45FF), context)
+                        if ["default", "lake", "system", "matrix", "sakura"].contains(profile) {
+                            XCTAssertEqual(frame.width, height - 4, accuracy: 0.001, context)
+                            XCTAssertEqual(frame.height, height - 4, accuracy: 0.001, context)
+                        } else if ["wayline", "nocturne"].contains(profile) {
+                            XCTAssertEqual(frame.width, 32 * height / 40, accuracy: 0.001, context)
+                            XCTAssertEqual(frame.height, 32 * height / 40, accuracy: 0.001, context)
+                        }
+                        if profile == "wayline" {
+                            XCTAssertTrue(widget.surface.layout.core.paint(of: button).fill.isVisible, context)
+                            XCTAssertEqual(content.hoverOpacity, 0.85, accuracy: 0.001, context)
+                        } else if profile == "nocturne" {
+                            XCTAssertEqual(
+                                widget.surface.layout.core.paint(of: button).fill.isVisible,
+                                state.backgrounds,
+                                context
+                            )
+                            XCTAssertEqual(content.hoverScale, 1.06, accuracy: 0.001, context)
+                        }
+                        let modeLabel: String
+                        let modeHelp: String
+                        switch state.mode {
+                        case .normal:
+                            XCTAssertFalse(symbols.contains("keyboard") || symbols.contains("pause.fill"), context)
+                            continue
+                        case .paused:
+                            modeLabel = "Paused"
+                            modeHelp = "OmniWM shortcuts are paused."
+                        case .prefix:
+                            modeLabel = "Prefix"
+                            modeHelp = "Prefix: the next key runs an OmniWM command. Escape cancels."
+                        case .window:
+                            modeLabel = "Window Mode"
+                            modeHelp = "Window mode: keys run OmniWM commands until you press Escape."
+                        }
+                        XCTAssertTrue(symbols.contains(state.mode == .paused ? "pause.fill" : "keyboard"), context)
+                        XCTAssertEqual(labels.contains(ShellLocalizer.string(modeLabel, [])), !vertical, context)
+                        let chip = try XCTUnwrap(widget.surface.layout.core.elements {
+                            widget.text.string($0.help) == ShellLocalizer.string(modeHelp, [])
+                        }.first, context)
+                        let chipFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: chip))
+                        XCTAssertEqual(
+                            vertical ? chipFrame.minY - frame.maxY : chipFrame.minX - frame.maxX,
+                            4,
+                            accuracy: 0.001,
+                            context
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     func testSystemCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }

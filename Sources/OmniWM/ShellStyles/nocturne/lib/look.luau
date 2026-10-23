@@ -25,6 +25,14 @@ return require("./skin")({
     width = 300,
     widths = { workspaces = 274 },
     size = { text = 14, icon = 24, slot = 27 },
+    omniwmButton = function(ctx, glyph)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local size = 32 * scale
+        glyph.size = 24 * scale
+        return { w = size, h = size, radius = size / 2,
+            fill = style.backgrounds and "accent/0.18" or nil, hoverScale = 1.06 }, size
+    end,
     panel = function(ctx, props)
         local width = props.w or 300
         props.w = width - 2
