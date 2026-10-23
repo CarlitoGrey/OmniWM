@@ -141,6 +141,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                         widget.set("bundle") { $0.string("com.apple.Safari") }
                         widget.set("title") { $0.string("A quiet afternoon") }
                     }
+                    statusFixture(widget, name: name)
                     var bar = name == "scratchpads"
                         ? scratchpadFixture(config, height: height, vertical: vertical)
                         : fixture(config, height: height, vertical: vertical)
@@ -378,6 +379,10 @@ final class ShellStyleLayoutTests: XCTestCase {
                             }
                         }
                     }
+                    try exportStatusVariants(
+                        widget, name: name, profile: profile, bar: bar, vertical: vertical, dark: dark,
+                        directory: directory, background: background
+                    )
                     if name == "system-stats", !vertical {
                         systemStatsFixture(widget)
                         widget.layoutPopout()
@@ -401,6 +406,545 @@ final class ShellStyleLayoutTests: XCTestCase {
                 }
             }
         }
+    }
+
+    func testSharedInputSourceModelKeepsSelectionAndCommands() throws {
+        let shell = try sharedLibraryShell("input-source")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("default/widgets/input-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local library = require("../lib/input-source")
+        function render(ctx)
+            local state, m = library.state(ctx), library.model(ctx)
+            if not m then return ui.text{ text = "nil" } end
+            local rows = { ui.text{ text = state.id .. ":" .. state.name .. ":" .. state.short } }
+            for _, entry in m.sources do
+                rows[#rows + 1] = ui.text{ text = entry.id .. ":" .. entry.name .. ":" .. entry.short .. ":" .. tostring(entry.selected) }
+                rows[#rows + 1] = ui.text{ text = entry.command }
+            end
+            rows[#rows + 1] = ui.text{ text = library.settings }
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("input-model-probe", config: config, shell: shell)
+        let entries = [
+            ShellInputSourceEntry(id: "abc", name: "ABC", short: "EN"),
+            ShellInputSourceEntry(id: "de", name: "German", short: "DE")
+        ]
+        for selected in entries {
+            widget.set("inputSource") { ShellInputSource(current: selected, sources: entries).write(into: &$0) }
+            widget.render(fixture(config, height: 32, vertical: false))
+            let strings = widget.strings()
+            XCTAssertEqual(strings.first, selected.id + ":" + selected.name + ":" + selected.short)
+            for entry in entries {
+                XCTAssertTrue(strings
+                    .contains(entry.id + ":" + entry.name + ":" + entry.short + ":" + String(entry.id == selected.id)))
+                XCTAssertTrue(strings.contains("input-source select " + entry.id))
+                XCTAssertNotNil(ShellAction("input-source select " + entry.id))
+            }
+            XCTAssertTrue(strings.contains("input-source settings"))
+            XCTAssertNotNil(ShellAction("input-source settings"))
+        }
+        widget.set("inputSource") { $0.null() }
+        widget.render(fixture(config, height: 32, vertical: false))
+        XCTAssertEqual(widget.strings(), ["nil"])
+    }
+
+    func testSharedWorldClockKeepsZonesRelativeDaysAndClamping() throws {
+        let shell = try sharedLibraryShell("world-clock")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("default/widgets/world-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local library = require("../lib/world-clock")
+        function render(ctx)
+            local state, m = library.state(ctx), library.model(ctx)
+            local rows = { ui.text{ text = "model=" .. tostring(m ~= nil) } }
+            if state then
+                rows[#rows + 1] = ui.text{ text = "shown=" .. tostring(state.shown) }
+                rows[#rows + 1] = ui.text{ text = "help=" .. state.help }
+                for _, clock in state.clocks do
+                    rows[#rows + 1] = ui.text{ text = "state=" .. clock.label .. ":" .. clock.short .. ":" .. clock.time .. ":" .. tostring(clock.daytime) }
+                end
+            end
+            for _, clock in m and m.clocks or {} do
+                rows[#rows + 1] = ui.text{ text = "model=" .. clock.label .. ":" .. clock.relative }
+            end
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("world-model-probe", config: config, shell: shell)
+        useZeroLocalOffset(widget)
+        let zones = [
+            ("UTC", "GMT"),
+            ("Honolulu", "Pacific/Honolulu"),
+            ("Kathmandu", "Asia/Kathmandu"),
+            ("Kiritimati", "Pacific/Kiritimati")
+        ]
+        let zoneValues = zones.map { ShellServiceValue.object(["label": .text($0.0), "zone": .text($0.1)]) }
+        for (seconds, honoluluDay, kiritimatiDay) in [
+            (1_735_689_600.0, "Yesterday", "Today"),
+            (1_735_732_800.0, "Today", "Tomorrow")
+        ] {
+            widget.set("seconds") { $0.number(seconds) }
+            for shown in [-4, 0, 1, 2, 64] {
+                widget.set("settings") { ShellServiceValue.object([
+                    "bar": .number(Double(shown)),
+                    "zones": .array(zoneValues)
+                ]).write(to: &$0) }
+                widget.render(fixture(config, height: 32, vertical: false))
+                let strings = widget.strings()
+                XCTAssertTrue(strings.contains("shown=\(min(max(shown, 1), 4))"))
+                for (label, zone) in zones {
+                    let time = try XCTUnwrap(ShellFormatter.date(seconds, template: "jmm", zone: zone))
+                    let offset = try XCTUnwrap(ShellFormatter.offset(seconds, zone: zone))
+                    let hour = Int((Int64(seconds) + Int64(offset)) % 86400) / 3600
+                    XCTAssertTrue(strings
+                        .contains("state=\(label):\(label.prefix(3).uppercased()):\(time):\(hour >= 6 && hour < 19)"))
+                }
+                XCTAssertTrue(strings.contains("model=UTC:" + ShellLocalizer.string("Today", [])))
+                XCTAssertTrue(strings.contains("model=Honolulu:" + ShellLocalizer.string(honoluluDay, []) + ", −10 h"))
+                XCTAssertTrue(strings.contains("model=Kathmandu:" + ShellLocalizer.string("Today", []) + ", +5:45 h"))
+                XCTAssertTrue(strings
+                    .contains("model=Kiritimati:" + ShellLocalizer.string(kiritimatiDay, []) + ", +14 h"))
+            }
+        }
+        for settings in [ShellServiceValue.object([:]), .object(["zones": .array([])])] {
+            widget.set("settings") { settings.write(to: &$0) }
+            widget.render(fixture(config, height: 32, vertical: false))
+            XCTAssertEqual(
+                widget.strings().filter { $0.hasPrefix("state=") }.map { $0.split(separator: ":")[0] },
+                ["state=London", "state=Tokyo"]
+            )
+        }
+        widget.set("settings") { ShellServiceValue.object(["zones": .array([.object([
+            "label": .text("Bad"),
+            "zone": .text("Not/AZone")
+        ])])]).write(to: &$0) }
+        widget.render(fixture(config, height: 32, vertical: false))
+        XCTAssertEqual(widget.strings().filter { $0.hasPrefix("state=") }, [])
+        widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+        useUnavailableLocalOffset(widget)
+        widget.render(fixture(config, height: 32, vertical: false))
+        XCTAssertTrue(widget.strings().contains("model=false"))
+        XCTAssertEqual(widget.strings().filter { $0.hasPrefix("state=") }.count, 2)
+    }
+
+    func testSharedSmallStatsModelKeepsRowsAvailabilityAndGraphHistory() throws {
+        let shell = try sharedLibraryShell("stats")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let folder = shell.appendingPathComponent("default/widgets/stats-model-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local library = require("../lib/stats")
+        function render(ctx)
+            local state, m = library.state(ctx), library.model(ctx)
+            local rows = { ui.text{ text = "variant=" .. state.variant } }
+            for _, entry in state.meters do
+                rows[#rows + 1] = ui.text{ text = entry.key .. "=" .. tostring(entry.value) .. ":" .. tostring(entry.available) .. ":" .. tostring(entry.hot) .. ":" .. tostring(entry.history ~= nil) }
+            end
+            for _, entry in m.rows do
+                rows[#rows + 1] = ui.text{ text = "row=" .. entry.key .. ":" .. entry.text .. ":" .. tostring(entry.history ~= nil) }
+                rows[#rows + 1] = ui.text{ text = "row-hot=" .. entry.key .. ":" .. tostring(entry.hot) }
+            end
+            local values = ctx.state.history and ctx.state.history.cpu or {}
+            rows[#rows + 1] = ui.text{ text = "history=" .. tostring(#values) .. ":" .. tostring(values[1]) .. ":" .. tostring(values[#values]) }
+            return ui.column(rows)
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("stats-model-probe", config: config, shell: shell)
+        widget.set("memory") { $0.number(64) }
+        let bar = fixture(config, height: 32, vertical: false)
+        for value in [nil, 0, 89, 90, 100] as [Double?] {
+            widget.set("cpu") { if let value { $0.number(value) } else { $0.null() } }
+            widget.render(bar)
+            let strings = widget.strings()
+            XCTAssertTrue(strings.contains("cpu=\(Int(value ?? 0)):\(value != nil):\((value ?? 0) >= 90):false"))
+            XCTAssertTrue(strings.contains("row=cpu:" + (value.map { percent($0 / 100) } ?? "—") + ":false"))
+            XCTAssertTrue(strings.contains("row-hot=cpu:\((value ?? 0) >= 90)"))
+            XCTAssertTrue(strings.contains("history=0:nil:nil"))
+        }
+        for variant in ["gauge", "graph"] {
+            widget.set("settings") { ShellServiceValue.object(["variant": .text(variant)]).write(to: &$0) }
+            widget.set("gpu") { $0.number(0) }
+            widget.set("disk") { $0.number(34) }
+            networkFixture(widget)
+            for value in 1 ... 35 {
+                widget.set("cpu") { $0.number(Double(value)) }
+                widget.render(bar)
+            }
+            let strings = widget.strings()
+            XCTAssertEqual(
+                strings.filter { $0.hasPrefix("row=") }.map { $0.split(separator: ":")[0] },
+                ["row=cpu", "row=memory", "row=gpu", "row=disk", "row=down", "row=up"]
+            )
+            XCTAssertTrue(strings.contains("cpu=35:true:false:\(variant == "graph")"))
+            XCTAssertTrue(strings.contains(variant == "graph" ? "history=30:6:35" : "history=0:nil:nil"))
+        }
+        for key in ["gpu", "disk", "network"] { widget.set(key) { $0.null() } }
+        widget.set("settings") { ShellServiceValue.object(["variant": .text("meters")]).write(to: &$0) }
+        widget.render(bar)
+        XCTAssertEqual(widget.strings().filter { $0.hasPrefix("row=") }.count, 2)
+        XCTAssertTrue(widget.strings().contains("history=30:6:35"))
+        for (key, value) in [("cpu", 0.0), ("memory", 90), ("gpu", 100), ("disk", 89)] {
+            widget.set(key) { $0.number(value) }
+        }
+        widget.render(bar)
+        for row in ["cpu:false", "memory:true", "gpu:true", "disk:false"] {
+            XCTAssertTrue(widget.strings().contains("row-hot=" + row))
+        }
+    }
+
+    func testSharedStatusWidgetsKeepScaledHooksStatesHelpAndFreshActions() throws {
+        let shell = try sharedLibraryShell("stats")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            _ = try ShellProfiles.select(profile, in: shell)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for name in ["input-source", "launcher", "privacy", "world-clock", "stats"] {
+                let widget = try makeWidget(
+                    name,
+                    config: config,
+                    shell: shell,
+                    source: shell.appendingPathComponent("default/widgets/\(name)/init.luau")
+                )
+                let variants = name == "stats" ? ["meters", "graph", "gauge"] : name == "launcher" ? [
+                    "default",
+                    "commands",
+                    "windows",
+                    "menu",
+                    "clipboard",
+                    "applications",
+                    "files"
+                ] : name == "privacy" ? ["dots", "icons"] : name == "world-clock" ? ["one", "two"] : ["default"]
+                for height in Set([config.barOverride?.settings.height ?? 32, 32]).sorted() {
+                    for vertical in [false, true] {
+                        var firstTree: [String]?
+                        var firstSize: CGSize?
+                        for variant in variants {
+                            let context = "\(profile)/\(name)/\(variant)/\(height)/\(vertical)"
+                            statusFixture(widget, name: name)
+                            let settings: ShellServiceValue = switch name {
+                            case "stats": .object(["variant": .text(variant)])
+                            case "launcher" where variant != "default": .object([
+                                    "mode": .text(variant),
+                                    "symbol": .text("macwindow")
+                                ])
+                            case "privacy": .object(["icons": .bool(variant == "icons")])
+                            case "world-clock": .object(["bar": .number(variant == "two" ? 2 : 1)])
+                            default: .object([:])
+                            }
+                            widget.set("settings") { settings.write(to: &$0) }
+                            let bar = fixture(config, height: height, vertical: vertical)
+                            if variant == "graph" {
+                                feedStatsHistory(widget, bar: bar)
+                            } else if name == "stats" {
+                                widget.set("cpu") { $0.number(93) }
+                            }
+                            widget.render(bar)
+                            let tree = widget.tree().map { node in
+                                "\(node.kind) \(node.subtreeEnd) \(node.layout) \(node.paint)"
+                                    + " text=\(widget.text.string(node.content.text)) style=\(node.content.style)"
+                                    + " color=\(node.content.color) value=\(node.content.value)"
+                            }
+                            if let firstTree {
+                                if vertical, name == "world-clock" || (name == "stats" && variant == "graph"
+                                    && !["wayline", "nocturne", "celestial"].contains(profile))
+                                {
+                                    XCTAssertEqual(tree, firstTree, context)
+                                } else {
+                                    XCTAssertNotEqual(tree, firstTree, context)
+                                }
+                                if profile == "celestial", name == "launcher", let firstSize {
+                                    XCTAssertEqual(widget.surface.size, firstSize, context)
+                                }
+                            } else {
+                                firstTree = tree
+                                firstSize = widget.surface.size
+                            }
+                            XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                            XCTAssertGreaterThan(widget.surface.size.height, 0, context)
+                            XCTAssertLessThanOrEqual(
+                                vertical ? widget.surface.size.width : widget.surface.size.height,
+                                height,
+                                context
+                            )
+                            if name == "privacy" {
+                                XCTAssertTrue(widget.tree().allSatisfy { $0.content.action == 0 }, context)
+                            } else {
+                                let action = try XCTUnwrap(
+                                    widget.surface.layout.core.elements { $0.action != 0 }.first,
+                                    context
+                                )
+                                let content = widget.surface.layout.core.content(of: action)
+                                let expected: UInt32 = name == "launcher" ? content.action : OMNI_ACTION_POPOUT
+                                let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: action))
+                                if (profile == "nocturne" && ["input-source", "launcher"].contains(name))
+                                    || (profile == "celestial" && name == "launcher" && variant != "default")
+                                {
+                                    let text = name == "input-source" ? "EN" : variant == "default" ?
+                                        "magnifyingglass" : "macwindow"
+                                    let glyph = try XCTUnwrap(widget.surface.layout.core.elements {
+                                        widget.text.string($0.text) == text
+                                    }.first, context)
+                                    let glyphFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: glyph))
+                                    XCTAssertEqual(glyphFrame.midX, frame.midX, accuracy: 0.01, context)
+                                    XCTAssertEqual(glyphFrame.midY, frame.midY, accuracy: 0.01, context)
+                                }
+                                let point = CGPoint(x: frame.midX, y: frame.midY)
+                                let count = widget.actions.count
+                                widget.surface.press(at: point)
+                                widget.surface.release(at: point)
+                                XCTAssertEqual(widget.actions.count, count + 1, context)
+                                XCTAssertEqual(widget.actions.last, expected, context)
+                                if name == "launcher" {
+                                    let command = variant == "default" ? "open-command-palette" :
+                                        "open-command-palette " + variant
+                                    XCTAssertEqual(widget.text.string(content.action), command, context)
+                                    XCTAssertNotNil(ShellAction(command), context)
+                                    if variant != "default" {
+                                        XCTAssertTrue(widget.tree().contains {
+                                            $0.kind == .symbol && widget.text.string($0.content.text) == "macwindow"
+                                        }, context)
+                                    }
+                                }
+                            }
+                            if name == "world-clock" {
+                                if vertical {
+                                    let help = "London " + (ShellFormatter.date(
+                                        1_791_924_120,
+                                        template: "jmm",
+                                        zone: "Europe/London"
+                                    ) ?? "")
+                                    XCTAssertTrue(
+                                        widget.surface.layout.core.elements { widget.text.string($0.help) == help }
+                                            .count > 0,
+                                        context
+                                    )
+                                } else {
+                                    XCTAssertTrue(widget.surface.layout.core.elements { $0.help != 0 }.isEmpty, context)
+                                }
+                            }
+                            var stats = omni_render_stats()
+                            var error = [CChar](repeating: 0, count: 256)
+                            XCTAssertEqual(
+                                omni_instance_render(
+                                    widget.instance,
+                                    OMNI_VIEW_BAR,
+                                    100_000_000,
+                                    &stats,
+                                    &error,
+                                    error.count
+                                ),
+                                OMNI_OK
+                            )
+                            let allowed: Set<ShellDataKey> = switch name {
+                            case "input-source": [.inputSource]
+                            case "privacy": [.privacy]
+                            case "world-clock": [.seconds]
+                            case "stats": [.cpu, .memory]
+                            default: []
+                            }
+                            for key in [
+                                ShellDataKey.cpu,
+                                .memory,
+                                .gpu,
+                                .disk,
+                                .network,
+                                .inputSource,
+                                .privacy,
+                                .seconds
+                            ] {
+                                XCTAssertEqual(stats.deps & key.bit != 0, allowed.contains(key), context + key.rawValue)
+                            }
+                            if name == "world-clock", !vertical {
+                                XCTAssertTrue(widget.strings().contains("LON"), context)
+                                XCTAssertEqual(widget.strings().contains("TOK"), variant == "two", context)
+                            }
+                            let expectedHelp: String? = switch name {
+                            case "input-source": "ABC"
+                            case "launcher": ShellLocalizer.string("Toggle Command Palette", [])
+                            case "privacy": ShellLocalizer.string("Microphone in use", []) + ", " + ShellLocalizer
+                                .string(
+                                    "Camera in use",
+                                    []
+                                )
+                            case "stats" where profile == "celestial": ShellLocalizer.string("Performance", [])
+                            default: nil
+                            }
+                            if let expectedHelp {
+                                XCTAssertTrue(
+                                    widget.surface.layout.core.elements { widget.text.string($0.help) == expectedHelp }
+                                        .count > 0,
+                                    context
+                                )
+                            }
+                        }
+                    }
+                }
+                if name == "privacy" {
+                    for (microphone, camera, help) in [
+                        (true, false, "Microphone in use"),
+                        (false, true, "Camera in use")
+                    ] {
+                        for height in Set([config.barOverride?.settings.height ?? 32, 32]).sorted() {
+                            for vertical in [false, true] {
+                                for icons in [false, true] {
+                                    let context = "\(profile)/privacy/\(height)/\(vertical)/\(icons)/\(help)"
+                                    widget.set("settings") {
+                                        ShellServiceValue.object(["icons": .bool(icons)]).write(to: &$0)
+                                    }
+                                    widget.set("privacy") {
+                                        ShellPrivacy(microphone: microphone, camera: camera).write(into: &$0)
+                                    }
+                                    widget.render(fixture(config, height: height, vertical: vertical))
+                                    XCTAssertGreaterThan(widget.surface.size.width, 0, context)
+                                    XCTAssertTrue(widget.surface.layout.core.elements {
+                                        widget.text.string($0.help) == ShellLocalizer.string(help, [])
+                                    }.count > 0, context)
+                                    if ["nocturne", "celestial"].contains(profile) {
+                                        let expected = height * (profile == "celestial" ? 40.0 / 60 : 32.0 / 40)
+                                        XCTAssertEqual(widget.surface.size.width, expected, accuracy: 0.01, context)
+                                        XCTAssertEqual(widget.surface.size.height, expected, accuracy: 0.01, context)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                if name == "input-source", profile == "celestial" {
+                    var bar = fixture(config, height: 32, vertical: false)
+                    bar.style.textColor = "#123456"
+                    widget.render(bar)
+                    let label = try XCTUnwrap(widget.tree().first { $0.kind == .label })
+                    XCTAssertEqual(label.content.color.role & 0xFF, UInt16(ShellRole.foreground.rawValue + 1))
+                }
+                if name == "stats", profile == "celestial" {
+                    widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+                    widget.set("cpu") { $0.null() }
+                    widget.render(fixture(config, height: 60, vertical: false))
+                    XCTAssertTrue(widget.strings().contains("--"))
+                    widget.set("cpu") { $0.number(0) }
+                    widget.render(fixture(config, height: 60, vertical: false))
+                    XCTAssertTrue(widget.strings().contains(percent(0)))
+                    XCTAssertFalse(widget.strings().contains("--"))
+                }
+                if ["input-source", "privacy"].contains(name) {
+                    widget.set(name == "privacy" ? "privacy" : "inputSource") { $0.null() }
+                    widget.render(fixture(config, height: 32, vertical: false))
+                    XCTAssertEqual(widget.surface.size, .zero, profile + name)
+                }
+            }
+        }
+    }
+
+    func testSharedStatusPanelsKeepSelectionNilFeedbackAndSettingsActions() throws {
+        let shell = try sharedLibraryShell("input-source")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            _ = try ShellProfiles.select(profile, in: shell)
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            let widget = try makeWidget(
+                "input-source",
+                config: config,
+                shell: shell,
+                source: shell.appendingPathComponent("default/widgets/input-source/init.luau")
+            )
+            statusFixture(widget, name: "input-source")
+            widget.render(fixture(config, height: 32, vertical: false))
+            widget.layoutPopout()
+            for text in ["ABC", "Pinyin – Simplified", "German"] { XCTAssertTrue(
+                widget.strings(OMNI_VIEW_POPOUT).contains(text),
+                profile + text
+            ) }
+            try clickCommand("input-source select com.apple.keylayout.German", widget: widget, context: profile)
+            try clickCommand("input-source settings", widget: widget, context: profile)
+            widget.set("inputSource") { $0.null() }
+            widget.layoutPopout()
+            XCTAssertGreaterThan(widget.surface.size.width, 0, profile)
+            XCTAssertGreaterThan(widget.surface.size.height, 0, profile)
+            XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])), profile)
+            let clock = try makeWidget(
+                "world-clock",
+                config: config,
+                shell: shell,
+                source: shell.appendingPathComponent("default/widgets/world-clock/init.luau")
+            )
+            statusFixture(clock, name: "world-clock")
+            clock.render(fixture(config, height: 32, vertical: false))
+            clock.layoutPopout()
+            XCTAssertTrue(clock.strings(OMNI_VIEW_POPOUT).contains("London"), profile)
+            XCTAssertTrue(clock.strings(OMNI_VIEW_POPOUT).contains("Tokyo"), profile)
+            useUnavailableLocalOffset(clock)
+            clock.layoutPopout()
+            XCTAssertGreaterThan(clock.surface.size.width, 0, profile)
+            XCTAssertGreaterThan(clock.surface.size.height, 0, profile)
+            XCTAssertTrue(clock.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])), profile)
+            let small = try makeWidget(
+                "stats",
+                config: config,
+                shell: shell,
+                source: shell.appendingPathComponent("default/widgets/stats/init.luau")
+            )
+            statusFixture(small, name: "stats")
+            small.render(fixture(config, height: 32, vertical: false))
+            small.layoutPopout()
+            for label in ["CPU", "Memory"] {
+                XCTAssertTrue(
+                    small.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string(label, [])),
+                    profile + label
+                )
+            }
+            if ["default", "lake", "system", "matrix", "sakura"].contains(profile) {
+                small.set("settings") { ShellServiceValue.object(["variant": .text("graph")]).write(to: &$0) }
+                feedStatsHistory(small, bar: fixture(config, height: 32, vertical: false))
+                small.layoutPopout()
+                let columns = try [0.93, 0.64, 0.12, 0.34].map { value in
+                    let entry = try XCTUnwrap(small.surface.layout.core.elements {
+                        small.text.string($0.text) == percent(value)
+                    }.first, profile)
+                    return CGRect(small.surface.layout.core.absoluteFrame(of: entry)).minX
+                }
+                for column in columns.dropFirst() {
+                    XCTAssertEqual(column, columns[0], accuracy: 0.01, profile)
+                }
+            }
+        }
+    }
+
+    func testCelestialKeyboardPaneKeepsSettingsWhenInputDataDisappears() throws {
+        let shell = try sharedLibraryShell("input-source")
+        defer { try? FileManager.default.removeItem(at: shell) }
+        _ = try ShellProfiles.select("celestial", in: shell)
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("status", config: config, shell: shell)
+        statusFixture(widget, name: "input-source")
+        widget.set("settings") { ShellServiceValue.object([
+            "keyboard": .bool(true),
+            "network": .bool(false),
+            "bluetooth": .bool(false),
+            "battery": .bool(false)
+        ]).write(to: &$0) }
+        widget.render(fixture(config, height: 60, vertical: false))
+        let entry = try XCTUnwrap(widget.surface.layout.core.elements { widget.text.string($0.help) == "ABC" }.first)
+        let content = widget.surface.layout.core.content(of: entry)
+        let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: entry))
+        let point = CGPoint(x: frame.midX, y: frame.midY)
+        let count = widget.actions.count
+        widget.surface.press(at: point)
+        widget.surface.release(at: point)
+        XCTAssertEqual(widget.actions.count, count + 1)
+        XCTAssertEqual(widget.invoke(content.action), [])
+        widget.layoutPopout()
+        try clickCommand("input-source select com.apple.keylayout.German", widget: widget, context: "keyboard full")
+        widget.set("inputSource") { $0.null() }
+        widget.layoutPopout()
+        XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])))
+        try clickCommand("input-source settings", widget: widget, context: "keyboard nil")
     }
 
     func testSharedWiFiModelKeepsSignalStatesDetailsAndActions() throws {
@@ -1462,7 +2006,12 @@ final class ShellStyleLayoutTests: XCTestCase {
                 "battery",
                 "battery-details",
                 "wifi",
-                "bluetooth"
+                "bluetooth",
+                "input-source",
+                "launcher",
+                "privacy",
+                "world-clock",
+                "stats"
             ] {
                 let widget = try makeWidget(name, config: config, shell: shell)
                 widget.set("app") { $0.string("Safari") }
@@ -1475,6 +2024,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                 batteryFixture(widget)
                 wifiFixture(widget)
                 bluetoothFixture(widget)
+                statusFixture(widget, name: name)
                 for state in ["volume", "calendar"].contains(name) ? ["full", "empty"] : ["full"] {
                     if state == "empty" {
                         if name == "volume" { widget.set("volume") { $0.null() } }
@@ -4059,6 +4609,52 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    private func useZeroLocalOffset(_ widget: ShellRenderedWidget) {
+        omni_vm_set_formatter(
+            widget.vm,
+            { context, kind, value, digits, pattern, patternLength, zone, zoneLength, out, capacity in
+                if UInt32(kind) == OMNI_FORMAT_OFFSET, zone == nil, let out {
+                    return ShellLocalizer.copy("0", into: out, capacity: capacity)
+                }
+                return ShellFormatter.callback(
+                    context,
+                    kind,
+                    value,
+                    digits,
+                    pattern,
+                    patternLength,
+                    zone,
+                    zoneLength,
+                    out,
+                    capacity
+                )
+            },
+            nil
+        )
+    }
+
+    private func useUnavailableLocalOffset(_ widget: ShellRenderedWidget) {
+        omni_vm_set_formatter(
+            widget.vm,
+            { context, kind, value, digits, pattern, patternLength, zone, zoneLength, out, capacity in
+                if UInt32(kind) == OMNI_FORMAT_OFFSET, zone == nil { return 0 }
+                return ShellFormatter.callback(
+                    context,
+                    kind,
+                    value,
+                    digits,
+                    pattern,
+                    patternLength,
+                    zone,
+                    zoneLength,
+                    out,
+                    capacity
+                )
+            },
+            nil
+        )
+    }
+
     private func sharedAudioShell() throws -> URL {
         try sharedLibraryShell("audio")
     }
@@ -4278,6 +4874,93 @@ final class ShellStyleLayoutTests: XCTestCase {
         case "off": return ShellLocalizer.string("Bluetooth: Off", [])
         case "denied": return ShellLocalizer.string("Bluetooth", [])
         default: return ShellLocalizer.string("Bluetooth: %lld connected", [.number(state == "empty" ? 0 : 2)])
+        }
+    }
+
+    private func statusFixture(_ widget: ShellRenderedWidget, name: String) {
+        switch name {
+        case "input-source":
+            let entries = [
+                ShellInputSourceEntry(id: "com.apple.keylayout.ABC", name: "ABC", short: "EN"),
+                ShellInputSourceEntry(id: "com.apple.inputmethod.SCIM.ITABC", name: "Pinyin – Simplified", short: "ZH"),
+                ShellInputSourceEntry(id: "com.apple.keylayout.German", name: "German", short: "DE")
+            ]
+            widget.set("inputSource") { ShellInputSource(current: entries[0], sources: entries).write(into: &$0) }
+        case "privacy":
+            widget.set("privacy") { ShellPrivacy(microphone: true, camera: true).write(into: &$0) }
+        case "world-clock":
+            widget.set("seconds") { $0.number(1_791_924_120) }
+        case "stats":
+            for (key, value) in [("cpu", 38.0), ("memory", 64.0), ("gpu", 12.0), ("disk", 34.0)] {
+                widget.set(key) { $0.number(value) }
+            }
+            networkFixture(widget)
+        default:
+            break
+        }
+    }
+
+    private func feedStatsHistory(_ widget: ShellRenderedWidget, bar: ShellBarData) {
+        for cpu in [12.0, 38, 22, 64, 47, 93] {
+            widget.set("cpu") { $0.number(cpu) }
+            widget.render(bar)
+        }
+    }
+
+    private func exportStatusVariants(
+        _ widget: ShellRenderedWidget,
+        name: String,
+        profile: String,
+        bar: ShellBarData,
+        vertical: Bool,
+        dark: Bool,
+        directory: String,
+        background: CGColor?
+    ) throws {
+        let suffix = "\(profile)-\(vertical ? "vertical" : "horizontal")"
+        let variants: [(String, ShellServiceValue)] = switch name {
+        case "stats": [("graph", .object(["variant": .text("graph")])), ("gauge", .object(["variant": .text("gauge")]))]
+        case "privacy": [("icons", .object(["icons": .bool(true)]))]
+        case "world-clock": [("two", .object(["bar": .number(2)]))]
+        case "launcher": [("mode", .object(["mode": .text("windows"), "symbol": .text("macwindow")]))]
+        default: []
+        }
+        for (variant, settings) in variants {
+            statusFixture(widget, name: name)
+            widget.set("settings") { settings.write(to: &$0) }
+            if variant == "graph" { feedStatsHistory(widget, bar: bar) }
+            widget.render(bar)
+            try ShellBundledWidgetTests.writeSnapshot(
+                widget.surface, name: "\(name)-\(suffix)-\(variant)\(dark ? "-dark" : "")",
+                dark: dark, directory: directory, background: background
+            )
+            if variant == "graph", !vertical {
+                widget.layoutPopout()
+                try ShellBundledWidgetTests.writeSnapshot(
+                    widget.surface, name: "\(name)-\(profile)-popout-graph\(dark ? "-dark" : "")",
+                    dark: dark, directory: directory, background: background
+                )
+            }
+        }
+        if !variants.isEmpty {
+            widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+            statusFixture(widget, name: name)
+            widget.render(bar)
+        }
+        guard ["input-source", "world-clock", "stats"].contains(name), !vertical else { return }
+        widget.layoutPopout()
+        try ShellBundledWidgetTests.writeSnapshot(
+            widget.surface, name: "\(name)-\(profile)-popout-\(dark ? "dark" : "light")",
+            dark: dark, directory: directory, background: background
+        )
+        if name == "input-source", !dark {
+            widget.set("inputSource") { $0.null() }
+            widget.layoutPopout()
+            try ShellBundledWidgetTests.writeSnapshot(
+                widget.surface, name: "\(name)-\(profile)-popout-unavailable",
+                dark: false, directory: directory, background: background
+            )
+            statusFixture(widget, name: name)
         }
     }
 

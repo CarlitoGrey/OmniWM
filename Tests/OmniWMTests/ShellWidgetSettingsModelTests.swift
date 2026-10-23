@@ -173,6 +173,6 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
                 checked += 1
             }
         }
-        XCTAssertGreaterThan(checked, 30)
+        XCTAssertEqual(checked, 19)
     }
 }

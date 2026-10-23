@@ -188,22 +188,22 @@ local function audioPanel(ctx: Context, m)
     return panel(width, rows)
 end
 
-local function keyboardPanel(ctx: Context)
+local function keyboardPanel(ctx: Context, m)
+    local inputSource = require("./input-source")
+    m = m or inputSource.model(ctx)
     local width = tokens.bar.popout.keyboard
     local inner = width - 2 * tokens.padding.large
-    local source = ctx.data.inputSource
-    local rows = { heading("keyboard", omniwm.l10n("Input Sources"), source and source.name or nil, inner) }
-    for _, entry in source and source.sources or {} do
-        local selected = source and entry.id == source.id
+    local rows = { heading("keyboard", omniwm.l10n("Input Sources"), m and m.name or omniwm.l10n("Unavailable"), inner) }
+    for _, entry in m and m.sources or {} do
         rows[#rows + 1] = ui.row{ key = entry.id, w = inner, gap = tokens.spacing.medium, pad = tokens.padding.small,
-            radius = tokens.rounding.large, fill = selected and "secondaryContainer" or nil, hover = HOVER,
-            onClick = "input-source select " .. entry.id,
+            radius = tokens.rounding.large, fill = entry.selected and "secondaryContainer" or nil, hover = HOVER,
+            onClick = entry.command,
             ui.text{ text = entry.short, font = "sans", size = tokens.label.medium, weight = "medium",
-                color = selected and "secondaryContainerForeground" or "accent" },
+                color = entry.selected and "secondaryContainerForeground" or "accent" },
             ui.text{ text = entry.name, font = "sans", size = tokens.body.small, maxWidth = inner - 70,
-                color = selected and "secondaryContainerForeground" or "foreground" } }
+                color = entry.selected and "secondaryContainerForeground" or "foreground" } }
     end
-    rows[#rows + 1] = action(omniwm.l10n("Keyboard Settings…"), "input-source settings", inner)
+    rows[#rows + 1] = action(omniwm.l10n("Keyboard Settings…"), inputSource.settings, inner)
     return panel(width, rows)
 end
 

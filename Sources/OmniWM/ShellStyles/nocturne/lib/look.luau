@@ -233,6 +233,121 @@ local function framedPanel(ctx, props, width)
     return panel(ctx.data.bar.style, width, ui.column(props))
 end
 
+local COMPACT_STATS_TINTS = { cpu = "accent", memory = "blue", gpu = "purple", disk = "orange", down = "green", up = "teal" }
+
+local function capsule(ctx, props)
+    local style = ctx.data.bar.style
+    local size = 32 * style.height / 40
+    props.radius = size / 2 - 1
+    props.fill = style.backgrounds and "surface" or nil
+    props.border, props.borderWidth = style.backgrounds and "border/0.6" or nil, 1
+    if style.vertical then
+        props.w = size
+    else
+        props.h = size
+    end
+    if props.w == props.h then
+        return ui.stack(props)
+    end
+    return line(style.vertical, props)
+end
+
+local function squareChip(ctx, child)
+    local size = 32 * ctx.data.bar.style.height / 40
+    return capsule(ctx, { w = size, h = size, hover = "focus/0.14", child })
+end
+
+local function compactStatsMeter(ctx, entry, variant)
+    local vertical = ctx.data.bar.style.vertical
+    local scale = ctx.data.bar.style.height / 40
+    local tint = entry.hot and "warning" or COMPACT_STATS_TINTS[entry.key]
+    local library = require("./stats")
+    if variant == "gauge" then
+        return library.gauge(entry.value, 26 * scale, tint,
+            ui.text{ text = tostring(math.round(entry.value)), style = "mono", size = 9 * scale, weight = "semibold" })
+    end
+    local props = { gap = (vertical and 2 or 5) * scale, library.gauge(entry.value, 18 * scale, tint) }
+    if variant == "graph" then
+        props[#props + 1] = library.sparkline(entry.history, (vertical and 24 or 34) * scale, 14 * scale, tint)
+    end
+    props[#props + 1] = ui.text{ text = if vertical then tostring(entry.value) else ctx.format.percent(entry.value / 100),
+        style = vertical and "mono" or nil, size = 14 * scale, weight = "semibold",
+        reserve = if vertical then nil else ctx.format.percent(1) }
+    return line(vertical, props)
+end
+
+local function compactStatsPanel(ctx, m)
+    local width, inner = 340, 314
+    local rows = { w = inner, pad = 10, gap = 8 }
+    for _, entry in m.rows do
+        local tint = COMPACT_STATS_TINTS[entry.key]
+        local color = entry.hot and "warning" or tint
+        local row = { w = inner - 20, gap = 9,
+            ui.stack{ w = 24, h = 24, radius = 12, fill = tint .. "/0.18",
+                ui.symbol{ name = entry.symbol, size = 11, weight = "semibold", color = tint } },
+            ui.text{ text = entry.label, size = 14, weight = "medium", w = 72, maxWidth = 72 },
+            ui.box{ grow = 1, h = 1 } }
+        if entry.history then
+            row[#row + 1] = require("./stats").sparkline(entry.history, 44, 18, color)
+        elseif entry.value then
+            row[#row + 1] = ui.progress{ value = math.clamp(entry.value / 100, 0, 1), w = 44, h = 5, radius = 2.5,
+                fill = "foreground/0.12", color = color, animate = "ease" }
+        end
+        row[#row + 1] = ui.row{ w = 74, ui.box{ grow = 1, h = 1 },
+            ui.text{ text = entry.text, style = "mono", size = 12, weight = "semibold", maxWidth = 74 } }
+        rows[#rows + 1] = ui.row(row)
+    end
+    return framedPanel(ctx, { statsCard(rows) }, width)
+end
+
+local function utilityPanel(ctx, m, library, title, width)
+    width = width or 340
+    local inner = width - 26
+    local content = library.content(ctx, inner, m)
+    local header
+    if m then
+        header = table.remove(content, 1)
+        header[1].size, header[1].weight = 15, "bold"
+        if m.power == nil or (m.power and (not m.devices or #m.devices > 0)) then
+            content[1] = statsCard(content[1])
+        end
+    else
+        header = ui.row{ w = inner, ui.text{ text = title, size = 15, weight = "bold" } }
+        content = statsCard(content)
+    end
+    header.gap = 0
+    table.insert(header, 1, ui.box{ w = 2, h = 1 })
+    return framedPanel(ctx, { header, content }, width)
+end
+
+local function worldClockBar(ctx, m)
+    local style = ctx.data.bar.style
+    local scale = style.height / 40
+    local props = { gap = (style.vertical and 2 or 7) * scale, hover = "focus/0.14" }
+    if style.vertical then
+        props[#props + 1] = ui.box{ w = 1, h = 4 * scale }
+        props[#props + 1] = ui.symbol{ name = "globe", size = 15 * scale, color = "secondaryForeground" }
+        props[#props + 1] = ui.text{ text = string.format("%02d", m.clocks[1].hour), style = "mono",
+            size = 14 * scale, weight = "semibold", color = "accent" }
+        props[#props + 1] = ui.box{ w = 1, h = 4 * scale }
+    else
+        props[#props + 1] = ui.box{ w = 2 * scale, h = 1 }
+        props[#props + 1] = ui.symbol{ name = "globe", size = 16 * scale, color = "secondaryForeground" }
+        for index = 1, m.shown do
+            local clock = m.clocks[index]
+            if index > 1 then
+                props[#props + 1] = ui.box{ w = 1, h = 14 * scale, fill = "border" }
+            end
+            props[#props + 1] = ui.text{ text = clock.short, size = 11 * scale, weight = "semibold", color = "secondaryForeground",
+                maxWidth = 45 * scale }
+            props[#props + 1] = ui.text{ text = clock.time, style = "mono", size = 14 * scale, weight = "semibold",
+                color = "accent", reserve = "00:00 PM" }
+        end
+        props[#props + 1] = ui.box{ w = 2 * scale, h = 1 }
+    end
+    return capsule(ctx, props)
+end
+
 local function audioPanel(ctx, m)
     local rows = { gap = 8 }
     rows[#rows + 1] = ui.row{ w = AUDIO_INNER, gap = 8,
@@ -443,7 +558,6 @@ local function batteryChip(ctx, state, details)
 end
 
 local RADIO_WIDTH = 320
-local RADIO_INNER = RADIO_WIDTH - 26
 
 local function radioChip(ctx, library, state)
     local style = ctx.data.bar.style
@@ -452,25 +566,6 @@ local function radioChip(ctx, library, state)
         fill = style.backgrounds and "surface" or nil,
         border = style.backgrounds and "border/0.6" or nil, borderWidth = 1, hover = "focus/0.14",
         library.glyph(state, 18 * style.height / 40) }
-end
-
-local function radioPanel(ctx, m, library, title)
-    local content = library.content(ctx, RADIO_INNER, m)
-    local header
-    if m then
-        header = table.remove(content, 1)
-        header.gap = 0
-        header[1].size, header[1].weight = 15, "bold"
-        table.insert(header, 1, ui.box{ w = 2, h = 1 })
-        if m.power and (not m.devices or #m.devices > 0) then
-            content[1] = statsCard(content[1])
-        end
-    else
-        header = ui.row{ w = RADIO_INNER, gap = 0,
-            ui.box{ w = 2, h = 1 }, ui.text{ text = title, size = 15, weight = "bold" } }
-        content = statsCard(content)
-    end
-    return framedPanel(ctx, { gap = 10, header, content }, RADIO_WIDTH)
 end
 
 local CALENDAR_WIDTH = 320
@@ -793,6 +888,48 @@ return require("./skin")({
     calendarPanel = calendarPanel,
     weatherBar = weatherBar,
     weatherPanel = weatherPanel,
+    statsBar = function(ctx, m)
+        local scale = ctx.data.bar.style.height / 40
+        local vertical = ctx.data.bar.style.vertical
+        local props = { gap = (vertical and 6 or 9) * scale, hover = "focus/0.14",
+            spacer(vertical, (vertical and 3 or 1) * scale) }
+        for _, entry in m.meters do
+            props[#props + 1] = compactStatsMeter(ctx, entry, m.variant)
+        end
+        props[#props + 1] = spacer(vertical, (vertical and 3 or 0) * scale)
+        return capsule(ctx, props)
+    end,
+    statsPanel = compactStatsPanel,
+    inputSourceBar = function(ctx, m)
+        local scale = ctx.data.bar.style.height / 40
+        return squareChip(ctx,
+            ui.text{ text = m.short, size = 13 * scale, weight = "semibold", maxWidth = 32 * scale - 6 })
+    end,
+    inputSourcePanel = function(ctx, m)
+        return utilityPanel(ctx, m, require("./input-source"), omniwm.l10n("Input Sources"))
+    end,
+    launcherBar = function(ctx, m)
+        local scale = ctx.data.bar.style.height / 40
+        return squareChip(ctx, ui.symbol{ name = m.symbol, size = 18 * scale, weight = "semibold" })
+    end,
+    privacyBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 40
+        local props = { gap = 6 * scale, pad = 6 * scale }
+        if #m.indicators == 1 then
+            props.w, props.h = 32 * scale, 32 * scale
+        end
+        for _, indicator in m.indicators do
+            props[#props + 1] = if m.icons
+                then ui.symbol{ name = indicator.symbol, size = 16 * scale, weight = "semibold", color = indicator.color }
+                else ui.box{ w = 7 * scale, h = 7 * scale, radius = 3.5 * scale, fill = indicator.color }
+        end
+        return capsule(ctx, props)
+    end,
+    worldClockBar = worldClockBar,
+    worldClockPanel = function(ctx, m)
+        return utilityPanel(ctx, m, require("./world-clock"), omniwm.l10n("World Clock"))
+    end,
     wifiBar = function(ctx, state)
         return radioChip(ctx, require("./wifi"), state)
     end,
@@ -800,10 +937,10 @@ return require("./skin")({
         return radioChip(ctx, require("./bluetooth"), state)
     end,
     wifiPanel = function(ctx, m)
-        return radioPanel(ctx, m, require("./wifi"), omniwm.l10n("Wi-Fi"))
+        return utilityPanel(ctx, m, require("./wifi"), omniwm.l10n("Wi-Fi"), RADIO_WIDTH)
     end,
     bluetoothPanel = function(ctx, m)
-        return radioPanel(ctx, m, require("./bluetooth"), omniwm.l10n("Bluetooth"))
+        return utilityPanel(ctx, m, require("./bluetooth"), omniwm.l10n("Bluetooth"), RADIO_WIDTH)
     end,
     batteryBar = function(ctx, state)
         return batteryChip(ctx, state, false)

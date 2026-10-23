@@ -11,9 +11,10 @@ final class ShellWidgetOptionDeclarationTests: XCTestCase {
 
     private func layers() throws -> [URL] {
         let styles = try XCTUnwrap(ShellDefaults.bundledStyles)
-        return try [XCTUnwrap(ShellDefaults.bundled)] + FileManager.default
+        let layers = try [XCTUnwrap(ShellDefaults.bundled)] + FileManager.default
             .contentsOfDirectory(at: styles, includingPropertiesForKeys: nil)
             .filter(\.hasDirectoryPath)
+        return layers.filter { FileManager.default.fileExists(atPath: $0.appendingPathComponent("widgets").path) }
     }
 
     private func declaredOptions(_ widget: String, in layer: URL) throws -> [String: ShellComponentOption] {

@@ -101,13 +101,49 @@ local function batteryChip(ctx, m, mode)
     return surface.pill(style, items, { help = omniwm.l10n("Battery"), hover = mode and status.hover or nil })
 end
 
-local function iconPill(ctx, name)
+local function iconPill(ctx, name, symbol)
     local style = ctx.data.bar.style
     local scale = style.height / 60
+    local size = tokens.icon.medium * scale
+    local glyph
+    if symbol then
+        glyph = ui.stack{
+            surface.icon("", { reserve = "search", size = size, filled = true }),
+            ui.symbol{ name = name, w = size, h = size, size = size, color = "secondaryAccent" },
+        }
+    else
+        glyph = surface.icon(name, { size = size, color = "secondaryAccent", filled = true, animate = "effects" })
+    end
     return surface.pill(style, {
-        surface.icon(name, { size = tokens.icon.medium * scale, color = "secondaryAccent",
-            filled = true, animate = "effects" }),
+        glyph,
     }, { hover = status.hover })
+end
+
+local function statsMeter(ctx, entry, variant)
+    local style = ctx.data.bar.style
+    local scale = style.height / 60
+    local tint = entry.key == "cpu" and "accent" or "tertiaryAccent"
+    local text = entry.available and ctx.format.percent(entry.value / 100) or "--"
+    local compact = entry.available and tostring(math.round(entry.value)) or "--"
+    if variant == "gauge" then
+        return require("./stats").gauge(entry.value, tokens.bar.inner * scale, tint,
+            ui.text{ text = compact, font = "sans", size = tokens.label.small * scale, weight = "medium",
+                color = style.textColor ~= nil and "foreground" or tint })
+    end
+    local parts = {
+        surface.icon(entry.key == "cpu" and "memory" or "memory_alt",
+            { size = tokens.icon.small * scale, color = tint }),
+        ui.text{ text = style.vertical and compact or text,
+            font = "sans", size = (style.vertical and tokens.label.small or tokens.label.large) * scale,
+            weight = "medium", color = style.textColor ~= nil and "foreground" or tint,
+            reserve = not style.vertical and ctx.format.percent(1) or nil },
+    }
+    if variant == "graph" then
+        table.insert(parts, 2, require("./stats").sparkline(entry.history, (style.vertical and 24 or 34) * scale,
+            16 * scale, tint))
+    end
+    parts.gap = tokens.spacing.extraSmall * scale
+    return line(style.vertical, parts)
 end
 
 return require("./skin")({
@@ -134,6 +170,69 @@ return require("./skin")({
         return iconPill(ctx, status.bluetoothStateIcon(m))
     end,
     bluetoothPanel = status.bluetooth,
+    statsBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local items = {}
+        for _, entry in m.meters do
+            items[#items + 1] = statsMeter(ctx, entry, m.variant)
+        end
+        return surface.pill(style, items, { gap = tokens.spacing.medium * style.height / 60, hover = status.hover,
+            help = omniwm.l10n("Performance") })
+    end,
+    statsPanel = function(ctx)
+        return status.pane(performance, ctx)
+    end,
+    inputSourceBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        return surface.pill(style, {
+            ui.text{ text = m.short, font = "sans", size = tokens.label.large * scale,
+                weight = "medium", color = style.textColor ~= nil and "foreground" or "secondaryAccent",
+                maxWidth = style.vertical and 28 * scale or nil },
+        }, { hover = status.hover })
+    end,
+    inputSourcePanel = status.keyboard,
+    launcherBar = function(ctx, m)
+        return iconPill(ctx, m.symbol == "magnifyingglass" and "search" or m.symbol, m.symbol ~= "magnifyingglass")
+    end,
+    privacyBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local items = {}
+        for _, indicator in m.indicators do
+            items[#items + 1] = m.icons
+                and surface.icon(indicator.key == "microphone" and "mic" or "videocam",
+                    { size = tokens.icon.small * scale, color = indicator.color, filled = true })
+                or ui.box{ w = 6 * scale, h = 6 * scale, radius = 3 * scale, fill = indicator.color }
+        end
+        if #items == 1 then
+            local size = tokens.bar.inner * scale
+            return ui.stack{ w = size, h = size, radius = size / 2,
+                fill = style.backgrounds and "surface" or nil, items[1] }
+        end
+        return surface.pill(style, items)
+    end,
+    worldClockBar = function(ctx, m)
+        local style = ctx.data.bar.style
+        local scale = style.height / 60
+        local items = { surface.icon("public", { size = tokens.icon.medium * scale, color = "secondaryAccent" }) }
+        if style.vertical then
+            items[#items + 1] = ui.text{ text = string.format("%02d", m.clocks[1].hour), font = "sans",
+                size = tokens.label.small * scale, weight = "medium", color = "secondaryAccent" }
+        else
+            for index = 1, m.shown do
+                local clock = m.clocks[index]
+                if index > 1 then
+                    items[#items + 1] = ui.box{ w = 1, h = tokens.label.medium * scale, fill = "foreground/0.12" }
+                end
+                items[#items + 1] = ui.text{ text = clock.short, font = "sans", size = tokens.label.medium * scale,
+                    weight = "medium", color = "secondaryForeground" }
+                items[#items + 1] = ui.text{ text = clock.time, font = "sans", size = tokens.label.large * scale,
+                    weight = "medium", color = "secondaryAccent", reserve = "00:00 PM" }
+            end
+        end
+        return surface.pill(style, items, { hover = status.hover })
+    end,
     activeWindowBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 60

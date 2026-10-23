@@ -529,6 +529,7 @@ final class ShellBundledWidgetTests: XCTestCase {
             }
         for style in ["celestial", "nocturne", "system", "wayline"] {
             let widgets = styles.appendingPathComponent(style, isDirectory: true).appendingPathComponent("widgets")
+            guard FileManager.default.fileExists(atPath: widgets.path) else { continue }
             for name in try FileManager.default.contentsOfDirectory(atPath: widgets.path) {
                 let source = try String(
                     contentsOf: widgets.appendingPathComponent("\(name)/init.luau"),
