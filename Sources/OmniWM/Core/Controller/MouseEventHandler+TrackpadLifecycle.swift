@@ -258,14 +258,14 @@ extension MouseEventHandler {
             : state.gestureLastAverageY - state.gestureStartY)
             * GestureEventSnapshot.normalizedPositionToGestureUnits
         guard let displacement = TrackpadGestureIntent.releaseFlickDisplacement(
-            cumulativeAxisUnits: cumulative,
-            velocity: state.workspaceSwipeTracker.velocity()
-        ),
-            let isNext = TrackpadGestureIntent.isNextWorkspace(
-                axis: axis,
-                displacement: displacement,
-                naturalDirection: controller?.settings.gestures.invertDirection ?? true
-            )
+                  cumulativeAxisUnits: cumulative,
+                  velocity: state.workspaceSwipeTracker.velocity()
+              ),
+              let isNext = TrackpadGestureIntent.isNextWorkspace(
+                  axis: axis,
+                  displacement: displacement,
+                  naturalDirection: controller?.settings.gestures.invertDirection ?? true
+              )
         else { return }
         state.workspaceSwipeFired = true
         controller?.workspaceNavigationHandler.switchWorkspaceBySwipe(isNext: isNext, monitorId: monitorId)

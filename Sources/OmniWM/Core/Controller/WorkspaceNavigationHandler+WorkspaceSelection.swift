@@ -43,10 +43,10 @@ extension WorkspaceNavigationHandler {
         }
 
         guard let targetWorkspaceId = controller.workspaceManager.workspaceId(
-            for: rawWorkspaceID,
-            createIfMissing: false
-        ),
-            controller.workspaceManager.monitorForWorkspace(targetWorkspaceId) != nil
+                  for: rawWorkspaceID,
+                  createIfMissing: false
+              ),
+              controller.workspaceManager.monitorForWorkspace(targetWorkspaceId) != nil
         else {
             return false
         }

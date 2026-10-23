@@ -131,15 +131,15 @@ extension MouseEventHandler {
         let workingFrame = controller.niriInteractionGeometry(for: monitor).workingFrame
         guard workingFrame.contains(point) else { return nil }
         guard let hit = engine.hitTestMoveTarget(
-            point: point,
-            excludingWindowId: NodeId(),
-            allowsInsertion: true,
-            in: workspaceId
-        ),
-            let window = engine.findNode(by: hit.nodeId, in: workspaceId) as? NiriWindow,
-            let frame = window.renderedFrame ?? window.frame,
-            let column = engine.findColumn(containing: window, in: workspaceId),
-            let columnIndex = engine.columnIndex(of: column, in: workspaceId)
+                  point: point,
+                  excludingWindowId: NodeId(),
+                  allowsInsertion: true,
+                  in: workspaceId
+              ),
+              let window = engine.findNode(by: hit.nodeId, in: workspaceId) as? NiriWindow,
+              let frame = window.renderedFrame ?? window.frame,
+              let column = engine.findColumn(containing: window, in: workspaceId),
+              let columnIndex = engine.columnIndex(of: column, in: workspaceId)
         else {
             return (.workspace, workingFrame)
         }

@@ -9,9 +9,10 @@ extension ShellHTTPRequest {
         guard let fields = try ShellServiceValue.decode(bytes, byteLimit: (4 << 20) + (128 << 10)).fields,
               let url = fields["url"]?.string,
               fields.keys
-              .allSatisfy({
-                  ["url", "method", "headers", "body", "bodyResource", "response", "maxBytes", "timeout"].contains($0)
-              })
+                  .allSatisfy({
+                      ["url", "method", "headers", "body", "bodyResource", "response", "maxBytes", "timeout"]
+                          .contains($0)
+                  })
         else { throw ShellHTTPFailure("invalid_request") }
         self.init(url: url)
         if let value = fields["method"] {

@@ -26,7 +26,7 @@ extension WorkspaceSwipePresentation {
             if !participantsAreCurrent(flight) { cancel(reason: "commit-superseded") }
         } else if !domains.isDisjoint(with: .layoutCommit),
                   workspaceId == nil || workspaceId == flight.preparation.source.id || workspaceId == flight.destination
-                  .id
+                      .id
         {
             cancel(reason: "world-invalidated")
         }
