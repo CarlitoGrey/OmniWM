@@ -6,6 +6,10 @@ import Foundation
 
 extension MouseEventHandler {
     func handleNativeTitleBarDragFrameChanged(for entry: WindowState) -> Bool {
+        guard entry.hiddenState == nil else {
+            discardNativeTitleBarDrag(for: entry.token)
+            return false
+        }
         if state.nativeTitleBarDrag == nil,
            state.awaitsNativeTitleBarDragTarget,
            state.moveTap == nil,

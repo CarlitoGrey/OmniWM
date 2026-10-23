@@ -826,6 +826,61 @@ final class CrossDisplayDragTests: XCTestCase {
         XCTAssertFalse(fixture.controller.eventIntake.hasPendingEvents)
     }
 
+    func testDeferredNativeMoveCannotAdoptAHiddenParkedWindow() throws {
+        for layout in [LayoutType.niri, .dwindle] {
+            for exactTarget in [false, true] {
+                let fixture = try makeNativeFixture([layout, .niri])
+                let context = "\(layout), exactTarget: \(exactTarget)"
+                let moved = addWindow(1, to: fixture.source, fixture)
+                let resident = addWindow(2, to: fixture.target, fixture)
+                let start = try beginNativeDrag(moved, fixture, exactTarget: exactTarget)
+                fixture.handler.dispatchMouseUp(at: try XCTUnwrap(fixture.frame(resident)).center)
+                XCTAssertNotNil(fixture.handler.state.nativeCrossDisplayMove)
+                XCTAssertTrue(fixture.handler.tracksNativeTitleBarDrag(windowId: moved.windowId))
+
+                let nextWorkspace = try XCTUnwrap(fixture.manager.createDynamicWorkspace(
+                    named: "3",
+                    on: fixture.monitors[0].id
+                ))
+                XCTAssertTrue(fixture.manager.setActiveWorkspace(nextWorkspace.id, on: fixture.monitors[0].id))
+                let hidden = HiddenState(
+                    proportionalPosition: .zero,
+                    referenceMonitorId: fixture.monitors[0].id,
+                    reason: .workspaceInactive
+                )
+                fixture.manager.setHiddenState(hidden, for: moved)
+                fixture.controller.axManager.markWindowInactive(moved.windowId)
+                let entry = try XCTUnwrap(fixture.manager.entry(for: moved))
+                let parked = start.offsetBy(dx: fixture.monitors[0].frame.maxX - 1 - start.minX, dy: 0)
+                let request = try XCTUnwrap(fixture.controller.axManager.prepareParkFrameApplications([
+                    .init(pid: moved.pid, window: entry.axRef, frame: parked)
+                ]).first)
+                XCTAssertTrue(fixture.controller.axManager.processParkFrameApplyResults([
+                    WindowAdmissionTestSupport.successfulFrameResult(request: request)
+                ]).isEmpty)
+                fixture.handler.nativeWindowFrameProvider = { _ in parked }
+                fixture.controller.axEventHandler.frameObservations.nativeDragQuery = { windowId in
+                    WindowServerInfo(
+                        id: windowId, pid: moved.pid, level: 0,
+                        frame: ScreenCoordinateSpace.toWindowServer(rect: parked)
+                    )
+                }
+                let before = fixture.manager.worldSeq
+
+                fixture.controller.axEventHandler.handleCGSEvent(.frameChanged(windowId: UInt32(moved.windowId)))
+
+                XCTAssertEqual(fixture.manager.workspace(for: moved), fixture.source, context)
+                XCTAssertEqual(fixture.manager.workspace(for: resident), fixture.target, context)
+                XCTAssertEqual(fixture.manager.hiddenState(for: moved), hidden)
+                XCTAssertEqual(fixture.manager.worldSeq, before, context)
+                XCTAssertEqual(fixture.controller.axManager.verifiedParkFrame(for: moved.windowId), parked)
+                XCTAssertNil(fixture.handler.state.nativeCrossDisplayMove)
+                XCTAssertNil(fixture.handler.state.nativeTitleBarDrag)
+                XCTAssertNil(fixture.handler.state.nativeTitleBarDragFallbackToken)
+            }
+        }
+    }
+
     func testNativeMoveCanEnterAnEmptyWorkspace() throws {
         for target in [LayoutType.niri, .dwindle] {
             let fixture = try makeNativeFixture([.niri, target])
