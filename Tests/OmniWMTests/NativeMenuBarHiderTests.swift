@@ -312,6 +312,21 @@ final class NativeMenuBarHiderTests: XCTestCase {
         XCTAssertEqual(probe.shown, [monitor, nil, monitor])
     }
 
+    func testGlyphsArePublishedWhileTheDrawerIsClosed() throws {
+        let settings = WindowAdmissionTestSupport.controller(prefix: "HiddenBarPublish").settings
+        let controller = try HiddenBarController(settings: settings, hider: fixture().hider())
+        var refreshes = 0
+        controller.shellDrawer = HiddenBarShellDrawer(
+            isActive: { true },
+            isOpen: { false },
+            show: { _, _, _ in },
+            refresh: { _ in refreshes += 1 },
+            close: { _ in }
+        )
+        controller.publishGlyphs()
+        XCTAssertEqual(refreshes, 1)
+    }
+
     func testDisabledControllerRecoversInterruptedSessionOnSetup() throws {
         let fixture = try fixture()
         XCTAssertTrue(fixture.hider().apply(configuredBundleIDs: ["a"], hiddenBundleIDs: ["a"]))
