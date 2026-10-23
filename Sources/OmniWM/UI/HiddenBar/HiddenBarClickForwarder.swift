@@ -40,9 +40,10 @@ final class HiddenBarClickForwarder {
             guard app.bundleIdentifier == key.bundleID,
                   app.processIdentifier == target.pid
             else { return nil }
-            return MenuBarItemActivationCandidate(
+            return Self.activationCandidate(
                 pid: app.processIdentifier,
-                useAXPress: covered || isElectronApp(app)
+                covered: covered,
+                electron: Self.isElectronApp(app)
             )
         }
         guard !candidates.isEmpty else { return }
@@ -65,7 +66,15 @@ final class HiddenBarClickForwarder {
         }
     }
 
-    static func isCoveredByOwnWindow(_ point: CGPoint) -> Bool {
+    nonisolated static func activationCandidate(
+        pid: pid_t,
+        covered: Bool,
+        electron: Bool
+    ) -> MenuBarItemActivationCandidate {
+        MenuBarItemActivationCandidate(pid: pid, useAXPress: covered || electron, allowsClick: !covered)
+    }
+
+    nonisolated static func isCoveredByOwnWindow(_ point: CGPoint) -> Bool {
         let own = ProcessInfo.processInfo.processIdentifier
         let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
             as? [[String: Any]] ?? []
@@ -78,7 +87,7 @@ final class HiddenBarClickForwarder {
         }
     }
 
-    private func isElectronApp(_ app: NSRunningApplication) -> Bool {
+    private static func isElectronApp(_ app: NSRunningApplication) -> Bool {
         guard let bundleURL = app.bundleURL else { return false }
         let framework = bundleURL.appendingPathComponent("Contents/Frameworks/Electron Framework.framework")
         return FileManager.default.fileExists(atPath: framework.path)

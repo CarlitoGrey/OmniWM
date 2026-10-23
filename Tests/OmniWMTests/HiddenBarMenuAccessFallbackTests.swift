@@ -66,6 +66,20 @@ final class HiddenBarMenuAccessFallbackTests: XCTestCase {
         }
     }
 
+    func testACoveredItemIsPressedAndNeverClicked() {
+        let covered = HiddenBarClickForwarder.activationCandidate(pid: 1, covered: true, electron: false)
+        XCTAssertTrue(covered.useAXPress)
+        guard case .unavailable = MenuBarItemLocator.fallback(for: covered, frame: .zero) else {
+            return XCTFail("a covered item must not be clicked when its press fails")
+        }
+        let uncovered = HiddenBarClickForwarder.activationCandidate(pid: 1, covered: false, electron: false)
+        XCTAssertFalse(uncovered.useAXPress)
+        guard case .clickFrame = MenuBarItemLocator.fallback(for: uncovered, frame: .zero) else {
+            return XCTFail("an uncovered item is still clicked")
+        }
+        XCTAssertTrue(HiddenBarClickForwarder.activationCandidate(pid: 1, covered: false, electron: true).useAXPress)
+    }
+
     private func settings() -> SettingsStore {
         SettingsStore(
             persistence: SettingsFilePersistence(directory: directory, startWatching: false, deferSaves: false),
