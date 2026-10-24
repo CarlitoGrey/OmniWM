@@ -7,7 +7,14 @@ import XCTest
 
 @MainActor
 final class PanelDismissalMonitorTests: XCTestCase {
+    override func tearDown() async throws {
+        PanelDismissalMonitor.screenFrames = { NSScreen.screens.map(\.frame) }
+    }
+
     func testScreenChangeDismissesByDefaultAndAllowsTheOwnerToKeepItsPanel() async {
+        let builtIn = [CGRect(x: 0, y: 0, width: 1800, height: 1169)]
+        let docked = builtIn + [CGRect(x: 1800, y: 0, width: 1920, height: 1080)]
+        PanelDismissalMonitor.screenFrames = { builtIn }
         let ordinary = PanelDismissalMonitor()
         let retained = PanelDismissalMonitor()
         let ordinaryDismissed = expectation(description: "ordinary panel dismissed")
@@ -31,6 +38,7 @@ final class PanelDismissalMonitorTests: XCTestCase {
             retained.stop()
         }
 
+        PanelDismissalMonitor.screenFrames = { docked }
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         await fulfillment(of: [ordinaryDismissed, retainedChecked], timeout: 5)
         XCTAssertEqual(retainedDismissals, 0)
@@ -41,8 +49,29 @@ final class PanelDismissalMonitorTests: XCTestCase {
             panels: [panel], isExemptWindow: { _ in false },
             onDismiss: { restartedDismissed.fulfill() }
         )
+        PanelDismissalMonitor.screenFrames = { builtIn }
         NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
         await fulfillment(of: [restartedDismissed], timeout: 5)
+    }
+
+    func testAWorkAreaChangeWithoutADisplayChangeKeepsThePanel() async {
+        let builtIn = CGRect(x: 0, y: 0, width: 1800, height: 1169)
+        let external = CGRect(x: 1800, y: 0, width: 1920, height: 1080)
+        PanelDismissalMonitor.screenFrames = { [builtIn, external] }
+        let monitor = PanelDismissalMonitor()
+        var dismissals = 0
+        monitor.start(panels: [makePanel()], isExemptWindow: { _ in false }, onDismiss: { dismissals += 1 })
+        defer { monitor.stop() }
+        let compared = expectation(description: "observer compared the display frames")
+        PanelDismissalMonitor.screenFrames = {
+            compared.fulfill()
+            return [external, builtIn]
+        }
+
+        NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        await fulfillment(of: [compared], timeout: 5)
+
+        XCTAssertEqual(dismissals, 0)
     }
 
     func testLocalEscapeDismissesAndIsConsumed() throws {

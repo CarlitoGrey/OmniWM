@@ -35,13 +35,15 @@ final class HiddenBarClickForwarder {
 
     private func run(_ target: ResolvedMenuBarItem) async {
         let key = target.key
+        let covered = Self.isCoveredByOwnWindow(CGPoint(x: target.bounds.midX, y: target.bounds.midY))
         let candidates: [MenuBarItemActivationCandidate] = NSWorkspace.shared.runningApplications.compactMap { app in
             guard app.bundleIdentifier == key.bundleID,
                   app.processIdentifier == target.pid
             else { return nil }
-            return MenuBarItemActivationCandidate(
+            return Self.activationCandidate(
                 pid: app.processIdentifier,
-                useAXPress: isElectronApp(app)
+                covered: covered,
+                electron: Self.isElectronApp(app)
             )
         }
         guard !candidates.isEmpty else { return }
@@ -64,7 +66,28 @@ final class HiddenBarClickForwarder {
         }
     }
 
-    private func isElectronApp(_ app: NSRunningApplication) -> Bool {
+    nonisolated static func activationCandidate(
+        pid: pid_t,
+        covered: Bool,
+        electron: Bool
+    ) -> MenuBarItemActivationCandidate {
+        MenuBarItemActivationCandidate(pid: pid, useAXPress: covered || electron, allowsClick: !covered)
+    }
+
+    nonisolated static func isCoveredByOwnWindow(_ point: CGPoint) -> Bool {
+        let own = ProcessInfo.processInfo.processIdentifier
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID)
+            as? [[String: Any]] ?? []
+        return windows.contains { window in
+            guard window[kCGWindowOwnerPID as String] as? pid_t == own,
+                  let info = window[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: info)
+            else { return false }
+            return bounds.contains(point)
+        }
+    }
+
+    private static func isElectronApp(_ app: NSRunningApplication) -> Bool {
         guard let bundleURL = app.bundleURL else { return false }
         let framework = bundleURL.appendingPathComponent("Contents/Frameworks/Electron Framework.framework")
         return FileManager.default.fileExists(atPath: framework.path)
