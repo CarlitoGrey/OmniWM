@@ -46,9 +46,9 @@ final class ShellSettingsPreviewTests: XCTestCase {
     func testIslandCompactAndExpandedSamplesRenderAtBothScalesAndAppearances() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        for profile in ["system", "lake"] {
+        for profile in ["default", "lake"] {
             let config = try config(profile, in: directory)
-            XCTAssertEqual(config.island?.root, profile == "system" ? "focus-ribbon" : "lake")
+            XCTAssertEqual(config.island?.root, profile == "default" ? "focus-ribbon" : "lake")
             if profile == "lake" {
                 let island = try XCTUnwrap(config.island)
                 XCTAssertEqual(island.components.count, 6)
@@ -93,7 +93,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
     func testBarOrientationAndBackingScaleAreExplicitPreviewInputs() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let config = try config("system", in: directory)
+        let config = try config("default", in: directory)
         for vertical in [false, true] {
             for scale: CGFloat in [1, 2] {
                 var style = ShellSettingsPreview.style(settings: WorkspaceBarSettings(), config: config)
@@ -106,7 +106,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
                 let image = try await ShellSettingsPreview.render(request)
                 XCTAssertEqual(vertical ? image.width : image.height, Int(style.height * scale))
                 XCTAssertGreaterThan(vertical ? image.height : image.width, 800 * Int(scale))
-                try inspect(image, name: "settings-system-\(vertical ? "vertical" : "horizontal")-\(Int(scale))x")
+                try inspect(image, name: "settings-default-\(vertical ? "vertical" : "horizontal")-\(Int(scale))x")
             }
         }
     }
@@ -114,7 +114,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
     func testOversizedIslandRetainsNativeGeometryAndSelectionWithinBitmapBounds() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        var config = try config("system", in: directory)
+        var config = try config("default", in: directory)
         config.island?.width = 8192
         config.island?.height = 8192
         let island = try XCTUnwrap(config.island)
@@ -150,13 +150,13 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertLessThanOrEqual(image.width * image.height, ShellSettingsPreviewResolution.maximumPixels)
         XCTAssertEqual(image.width, 2048)
         XCTAssertEqual(image.height, 2048)
-        try inspect(image, name: "settings-system-oversized-island")
+        try inspect(image, name: "settings-default-oversized-island")
     }
 
     func testSolidBlackBarRemainsOpaqueAtZeroBackgroundOpacity() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let config = try config("system", in: directory)
+        let config = try config("default", in: directory)
         var style = ShellSettingsPreview.style(settings: WorkspaceBarSettings(), config: config)
         style.solidBlack = true
         style.transparent = true
@@ -214,7 +214,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         _ = ShellDefaults.sync(into: directory)
-        try "profile = \"system\"\n".write(
+        try "profile = \"default\"\n".write(
             to: directory.appendingPathComponent("shell.toml"),
             atomically: true,
             encoding: .utf8

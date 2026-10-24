@@ -44,7 +44,7 @@ final class ShellSakuraTests: XCTestCase {
         XCTAssertEqual(config.barOverride?.settings.height, 40)
         XCTAssertEqual(config.barOverride?.settings.fullWidth, true)
         XCTAssertEqual(config.barOverride?.settings.reserveLayoutSpace, true)
-        XCTAssertNil(config.island)
+        XCTAssertEqual(config.island?.root, "focus-ribbon")
         XCTAssertEqual(config.barShader, ShellBarShader(
             source: "sakura-petals.metal", fps: 30, values: SIMD4(0.55, 1, 10, 0)
         ))

@@ -13,7 +13,7 @@ import XCTest
 @MainActor
 final class ShellStyleLayoutTests: XCTestCase {
     private let applications = ["com.apple.Safari", "com.apple.Terminal", "com.apple.finder", "com.apple.Notes"]
-    private let profiles = ["default", "wayline", "nocturne", "celestial", "lake", "system", "sakura"]
+    private let profiles = ["default", "wayline", "nocturne", "celestial", "lake", "sakura"]
 
     func testManagedProfileEjectCreatesPersistentUserOverrides() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -913,7 +913,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                     profile + label
                 )
             }
-            if ["default", "lake", "system", "matrix", "sakura"].contains(profile) {
+            if ["default", "lake", "matrix", "sakura"].contains(profile) {
                 small.set("settings") { ShellServiceValue.object(["variant": .text("graph")]).write(to: &$0) }
                 feedStatsHistory(small, bar: fixture(config, height: 32, vertical: false))
                 small.layoutPopout()
@@ -1787,51 +1787,36 @@ final class ShellStyleLayoutTests: XCTestCase {
         XCTAssertTrue(widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Unavailable", [])))
     }
 
-    func testSharedPanelsKeepDefaultCapsulesAndSystemGlassInEveryBackgroundSetting() throws {
+    func testSharedPanelsKeepDefaultCapsulesInEveryBackgroundSetting() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        for profile in ["default", "system"] {
-            _ = try ShellProfiles.select(profile, in: shell)
-            let config = ShellConfig.resolve(shellDirectory: shell)
-            XCTAssertEqual(config.profile, profile)
-            let folder = shell.appendingPathComponent("\(profile)/widgets/panel-probe")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            func drawing(_ module: String, _ bar: ShellBarData) throws -> [TreeNode] {
-                try """
-                local look = require("../lib/\(module)")
-                function render(ctx) return ui.box{ w = 1, h = 1 } end
-                function popout(ctx)
-                    local props = { w = 220, ui.text{ text = "Probe" } }
-                    return \(module == "look" ? "look.panel(ctx, props)" : "look.panel(props)")
-                end
-                """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
-                let widget = try makeWidget("panel-probe", config: config, shell: shell)
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        XCTAssertEqual(config.profile, "default")
+        let folder = shell.appendingPathComponent("default/widgets/panel-probe")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try """
+        local look = require("../lib/look")
+        function render(ctx) return ui.box{ w = 1, h = 1 } end
+        function popout(ctx)
+            return look.panel(ctx, { w = 220, ui.text{ text = "Probe" } })
+        end
+        """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
+        let widget = try makeWidget("panel-probe", config: config, shell: shell)
+        for transparent in [false, true] {
+            for backgrounds in [false, true] {
+                var bar = fixture(config, height: 32, vertical: false)
+                bar.style.transparent = transparent
+                bar.style.backgrounds = backgrounds
                 widget.render(bar)
-                return widget.renderPopout()
-            }
-            for transparent in [false, true] {
-                for backgrounds in [false, true] {
-                    var bar = fixture(config, height: 32, vertical: false)
-                    bar.style.transparent = transparent
-                    bar.style.backgrounds = backgrounds
-                    let tree = try drawing("look", bar)
-                    let root = try XCTUnwrap(tree.first)
-                    let capsule = profile == "default" && transparent && backgrounds
-                    XCTAssertEqual(root.paint.material, UInt8(capsule ? OMNI_MATERIAL_CLEAR : OMNI_MATERIAL_GLASS))
-                    XCTAssertEqual(root.paint.cornerRadius, capsule ? 14 : 20)
-                    if capsule {
-                        XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.background.rawValue + 1))
-                        XCTAssertEqual(root.paint.stroke.role & 0xFF, UInt16(ShellRole.border.rawValue + 1))
-                        XCTAssertEqual(root.paint.strokeWidth, 1)
-                    }
-                    if profile == "system" {
-                        let legacy = try drawing("style", bar)
-                        XCTAssertEqual(
-                            tree.map { "\($0.layout) \($0.paint)" },
-                            legacy.map { "\($0.layout) \($0.paint)" }
-                        )
-                    }
+                let root = try XCTUnwrap(widget.renderPopout().first)
+                let capsule = transparent && backgrounds
+                XCTAssertEqual(root.paint.material, UInt8(capsule ? OMNI_MATERIAL_CLEAR : OMNI_MATERIAL_GLASS))
+                XCTAssertEqual(root.paint.cornerRadius, capsule ? 14 : 20)
+                if capsule {
+                    XCTAssertEqual(root.paint.fill.role & 0xFF, UInt16(ShellRole.background.rawValue + 1))
+                    XCTAssertEqual(root.paint.stroke.role & 0xFF, UInt16(ShellRole.border.rawValue + 1))
+                    XCTAssertEqual(root.paint.strokeWidth, 1)
                 }
             }
         }
@@ -2084,37 +2069,6 @@ final class ShellStyleLayoutTests: XCTestCase {
                             }
                         }
                     }
-                }
-            }
-        }
-    }
-
-    func testSharedBarPreservesTheSystemDrawingForEveryBackgroundSetting() throws {
-        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: shell) }
-        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        XCTAssertTrue(try ShellProfiles.select("system", in: shell))
-        let config = ShellConfig.resolve(shellDirectory: shell)
-        let folder = shell.appendingPathComponent("system/widgets/bar-probe")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        func drawing(module: String, bar: ShellBarData) throws -> [String] {
-            try """
-            local look = require("../lib/\(module)")
-            function render(ctx)
-                return look.bar(ctx, { onClick = "shell menu", ui.text{ text = "Probe" } })
-            end
-            """.write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
-            let widget = try makeWidget("bar-probe", config: config, shell: shell)
-            widget.render(bar)
-            return widget.tree().map { "\($0.layout) \($0.paint) \($0.content.hover)" }
-        }
-        for vertical in [false, true] {
-            for transparent in [false, true] {
-                for backgrounds in [false, true] {
-                    var bar = fixture(config, height: 32, vertical: vertical)
-                    bar.style.transparent = transparent
-                    bar.style.backgrounds = backgrounds
-                    XCTAssertEqual(try drawing(module: "look", bar: bar), try drawing(module: "style", bar: bar))
                 }
             }
         }
@@ -3881,44 +3835,6 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
-    func testSkinDefaultsReproduceTheSystemStyleModule() throws {
-        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: shell) }
-        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        XCTAssertTrue(try ShellProfiles.select("system", in: shell))
-        let body = """
-        function render(ctx)
-            return ui.row{ gap = 4,
-                module.bar(ctx, { onClick = "probe", ui.text{ text = "Bar" } }),
-                module.button("xmark", "close"),
-                module.heading("Heading", 120) }
-        end
-        function popout(ctx)
-            return PANEL{ w = module.width + 28,
-                module.group{ ui.text{ text = "Group" } },
-                ui.text{ text = module.batterySymbol(50, false) } }
-        end
-        """
-        func tree(module: String, panel: String) throws -> [String] {
-            let folder = shell.appendingPathComponent("system/widgets/skin-\(module)", isDirectory: true)
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            try ("local module = require(\"../lib/\(module)\")\nlocal PANEL = \(panel)\n" + body)
-                .write(to: folder.appendingPathComponent("init.luau"), atomically: true, encoding: .utf8)
-            let config = ShellConfig.resolve(shellDirectory: shell)
-            let widget = try makeWidget("skin-\(module)", config: config, shell: shell)
-            widget.render(fixture(config, height: 32, vertical: false))
-            return (widget.tree() + widget.renderPopout()).map { node in
-                "\(node.kind) \(node.layout.width)x\(node.layout.height) radius=\(node.paint.cornerRadius)"
-                    + " fill=\(node.paint.fill) hover=\(node.content.hover) material=\(node.paint.material)"
-                    + " text=\(widget.text.string(node.content.text))"
-            }
-        }
-        let skinned = try tree(module: "look", panel: "function(props) return module.panel(nil, props) end")
-        XCTAssertGreaterThan(skinned.count, 8)
-        XCTAssertTrue(skinned.contains { $0.contains("text=Group") }, "\(skinned)")
-        XCTAssertEqual(skinned, try tree(module: "style", panel: "function(props) return module.panel(props) end"))
-    }
-
     func testEveryBundledProfileKeepsNativeWorkspaceContractsThroughItsEffectiveConfiguration() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -4423,7 +4339,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                             context
                         )
                         XCTAssertEqual(logos.first?.content.color, Color(packed: 0xB665_45FF), context)
-                        if ["default", "lake", "system", "matrix", "sakura"].contains(profile) {
+                        if ["default", "lake", "matrix", "sakura"].contains(profile) {
                             XCTAssertEqual(frame.width, height - 4, accuracy: 0.001, context)
                             XCTAssertEqual(frame.height, height - 4, accuracy: 0.001, context)
                         } else if ["wayline", "nocturne"].contains(profile) {
@@ -4671,12 +4587,12 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
-    func testSystemCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
+    func testDefaultCompactWorkspacesKeepButtonsAndTargetsAcrossOrientations() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        XCTAssertTrue(try ShellProfiles.select("system", in: shell))
         let config = ShellConfig.resolve(shellDirectory: shell)
+        XCTAssertEqual(config.profile, "default")
         XCTAssertNil(config.widgetSettings["workspaces"])
         for vertical in [false, true] {
             for labels in [false, true] {
@@ -4729,7 +4645,7 @@ final class ShellStyleLayoutTests: XCTestCase {
             for vertical in [false, true] {
                 for labels in [false, true] {
                     let widget = try makeWidget("workspaces", config: config, shell: shell)
-                    if ["system", "sakura"].contains(profile) {
+                    if profile == "sakura" {
                         widget.set("settings") {
                             $0.map(1)
                             $0.key("compact")
@@ -4760,12 +4676,12 @@ final class ShellStyleLayoutTests: XCTestCase {
                     }
                     widget.invoke(group.content.action)
                     widget.layoutPopout()
-                    if profile == "system" {
+                    if profile == "default" {
                         XCTAssertEqual(widget.surface.chrome, ShellPopoutChrome(glass: true, radius: 20))
                         if ProcessInfo.processInfo.environment["OMNIWM_SHELL_SNAPSHOTS"] != nil {
                             try write(
                                 [("workspaces", raster(widget.surface, scale: 2), widget.surface.size)],
-                                name: "system-workspaces-picker-\(vertical ? "vertical" : "horizontal")-labels-\(labels)",
+                                name: "default-workspaces-picker-\(vertical ? "vertical" : "horizontal")-labels-\(labels)",
                                 scale: 2, dark: false, solidBlack: false
                             )
                         }

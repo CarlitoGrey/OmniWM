@@ -814,7 +814,7 @@ final class ShellNotificationWidgetTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: shell) }
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         let profiles = ShellProfiles.names(in: shell)
-        XCTAssertEqual(profiles.count, 8)
+        XCTAssertEqual(profiles.count, 7)
         let counts = (0 ..< 256).map { item("item-\($0)") }
         for profile in profiles {
             var problems: [String] = []

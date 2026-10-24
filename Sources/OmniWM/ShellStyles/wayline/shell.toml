@@ -7,7 +7,9 @@ center = ["clock"]
 trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
 
 [workspaceBar]
+position = "overlappingMenuBar"
 height = 40
+fullWidth = false
 reserveLayoutSpace = true
 transparentBackground = false
 backgroundOpacity = 1

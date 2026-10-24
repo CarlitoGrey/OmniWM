@@ -71,7 +71,7 @@ struct DynamicIslandSettingsPage: View {
                         "No Island in This Style",
                         systemImage: "capsule",
                         description: Text(
-                            "Choose System for Focus Ribbon or Lake for an island with customizable widgets."
+                            "Choose Default for Focus Ribbon or Lake for an island with customizable widgets."
                         )
                     )
                     Button("Choose a Style…") { navigation.request(SettingsRoute(section: .styles)) }

@@ -260,7 +260,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
             try Data(contentsOf: XCTUnwrap(ShellConfig.bundledWidget("clock")))
         )
         XCTAssertTrue(FileManager.default.fileExists(atPath: shell.appendingPathComponent("widgets").path))
-        let expected = ["omniwm", "active-window", "notifications"]
+        let expected = ["apple-menu", "app-menu", "omniwm"]
         await until {
             let ids = manager.barsByMonitor[monitor.id]?.model.snapshot.shellWidgets.map(\.id) ?? []
             return Set(ids).isSuperset(of: expected)
@@ -316,7 +316,9 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 + (style.textColor == "#FF0000FF" and 100 or 0) + (style.vertical and 1000 or 0) }
         end
         """.utf8).write(to: widget)
-        controller.settings.workspaceBar.position = .bottom
+        XCTAssertTrue(try ShellProfiles.setValue(
+            "bottom", at: ShellProfiles.key("workspaceBar", of: "default") + ["position"], in: shell
+        ))
         XCTAssertTrue(try ShellProfiles.setValue(
             SettingsColor(red: 1, green: 0, blue: 0, alpha: 1),
             at: ShellProfiles.key("workspaceBar", of: "default") + ["textColor"],
@@ -891,8 +893,15 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         XCTAssertNil(host.resources.bitmap(second))
     }
 
-    func testSplitBarsGiveEachIslandItsOwnShellWidgets() async {
+    func testSplitBarsGiveEachIslandItsOwnShellWidgets() async throws {
         executionTimeAllowance = 60
+        let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
+        XCTAssertTrue(try ShellProfiles.setValue(
+            "overlappingMenuBar", at: ShellProfiles.key("workspaceBar", of: "default") + ["position"], in: shell
+        ))
+        XCTAssertTrue(try ShellProfiles.setValue(
+            false, at: ShellProfiles.key("workspaceBar", of: "default") + ["fullWidth"], in: shell
+        ))
         controller.settings.workspaceBar.notchMode = .splitActiveLeft
         let manager = makeManager()
         defer { manager.cleanup() }

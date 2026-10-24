@@ -46,7 +46,7 @@ final class WorkspaceBarManagerTests: XCTestCase {
         try Data("function render(ctx) return ui.box{ w = 10 * #ctx.data.bar.workspaces, h = 10 } end".utf8)
             .write(to: widget.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"count\"]\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"count\"]\n[profiles.default.workspaceBar]\nfullWidth = false\n"
                 .utf8
         )
         .write(to: widget.deletingLastPathComponent().deletingLastPathComponent()
@@ -275,7 +275,7 @@ final class WorkspaceBarManagerTests: XCTestCase {
         )
     }
 
-    func testRevealAndFullscreenVisibilityLeaveTheMenuBarHoldAlone() {
+    func testRevealAndFullscreenVisibilityLeaveTheMenuBarHoldAlone() throws {
         controller.settings.workspaceBar.fullWidth = true
         controller.settings.workspaceBar.revealModifier = .option
         controller.settings.workspaceBar.hideInNativeFullscreen = true
@@ -316,7 +316,12 @@ final class WorkspaceBarManagerTests: XCTestCase {
         XCTAssertEqual(menuBar.calls, [true, false])
         XCTAssertTrue(controller.toggleWorkspaceBarVisibility())
         apply()
-        controller.settings.workspaceBar.fullWidth = false
+        let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
+        XCTAssertTrue(try ShellProfiles.setValue(
+            false, at: ShellProfiles.key("workspaceBar", of: "default") + ["fullWidth"], in: shell
+        ))
+        try XCTUnwrap(manager.shellHost).reloadConfig()
+        XCTAssertFalse(controller.settings.workspaceBar.resolved(for: monitor).fullWidth)
         apply()
         XCTAssertEqual(menuBar.calls, [true, false, true, false])
     }

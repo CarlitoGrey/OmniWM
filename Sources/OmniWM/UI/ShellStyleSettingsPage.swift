@@ -125,7 +125,7 @@ struct ShellStyleSettingsPage: View {
                 ))
                 .disabled(configuration.config.island == nil && !settings.island.enabled)
                 SettingsCaption(
-                    localized: "The bar and island have independent switches. System includes Focus Ribbon; Lake includes configurable island widgets."
+                    localized: "The bar and island have independent switches. Lake includes configurable island widgets; the other styles include Focus Ribbon."
                 )
             }
         }
@@ -219,8 +219,7 @@ struct ShellStyleSettingsPage: View {
 
     static func description(_ profile: String) -> String {
         switch profile {
-        case "default": String(localized: "A compact bar with workspace and app controls.")
-        case "system": String(localized: "Familiar Mac controls with Focus Ribbon for window navigation.")
+        case "default": String(localized: "Familiar Mac controls with Focus Ribbon for window navigation.")
         case "lake": String(localized: "A minimal bar and a customizable island for media, calendar, and more.")
         case "celestial": String(localized: "A vertical bar with spacious app and workspace tiles.")
         case "nocturne": String(localized: "A rounded bar with rich status widgets and deep colors.")

@@ -51,13 +51,13 @@ final class ShellFocusRibbonTests: XCTestCase {
 
         init(notch: Bool = false) throws {
             self.notch = notch
-            let folder = try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent("system")
+            let folder = try XCTUnwrap(ShellDefaults.bundled)
             let source = try String(
                 contentsOf: folder.appendingPathComponent("widgets/focus-ribbon/init.luau"), encoding: .utf8
             )
             widget = try ShellRenderedWidget(
                 name: "focus-ribbon", source: source, directories: [folder],
-                chunk: "@system/widgets/focus-ribbon/init.luau"
+                chunk: "@default/widgets/focus-ribbon/init.luau"
             )
             widget.surface.onAction = { [weak self] click in
                 guard let self, click.event.kind == .hover else { return }
@@ -556,7 +556,7 @@ final class ShellFocusRibbonTests: XCTestCase {
         let folder = URL(fileURLWithPath: path)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let destination = try XCTUnwrap(CGImageDestinationCreateWithURL(
-            folder.appendingPathComponent("system-focus-ribbon-\(state).png") as CFURL,
+            folder.appendingPathComponent("default-focus-ribbon-\(state).png") as CFURL,
             UTType.png.identifier as CFString, 1, nil
         ))
         CGImageDestinationAddImage(destination, try XCTUnwrap(context.makeImage()), nil)

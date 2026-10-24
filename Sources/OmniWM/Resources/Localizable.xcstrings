@@ -166623,9 +166623,6 @@
     "%lld min" : {
 
     },
-    "A compact bar with workspace and app controls." : {
-
-    },
     "A custom style you added." : {
 
     },
@@ -166798,7 +166795,7 @@
     "Check app health and record a problem or performance capture." : {
 
     },
-    "Choose System for Focus Ribbon or Lake for an island with customizable widgets." : {
+    "Choose Default for Focus Ribbon or Lake for an island with customizable widgets." : {
 
     },
     "Choose a Style…" : {
@@ -167326,7 +167323,7 @@
     "Temperature" : {
 
     },
-    "The bar and island have independent switches. System includes Focus Ribbon; Lake includes configurable island widgets." : {
+    "The bar and island have independent switches. Lake includes configurable island widgets; the other styles include Focus Ribbon." : {
 
     },
     "The focused app and window title." : {

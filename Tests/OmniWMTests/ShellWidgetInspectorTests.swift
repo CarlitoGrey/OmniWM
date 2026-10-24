@@ -109,7 +109,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
                 .number(option.minimum)
             )
         }
-        try await reloaded.selectProfile("system")
+        try await reloaded.selectProfile("default")
         for option in options {
             XCTAssertNil(ShellWidgetSettingsModel.values(widget: option.widget, config: reloaded.config)[option.key])
         }
