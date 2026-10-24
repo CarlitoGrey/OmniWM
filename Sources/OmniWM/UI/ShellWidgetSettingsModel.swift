@@ -85,6 +85,7 @@ enum ShellWidgetSettingsModel {
         "both": "Both",
         "pointer": "Pointer",
         "scroll": "Scroll",
+        "overview": "Overview",
         "audio": "Audio",
         "media": "Media",
         "calendar": "Calendar",

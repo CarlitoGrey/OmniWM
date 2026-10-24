@@ -28,6 +28,21 @@ return require("./skin")({
     heading = legacy.heading,
     button = legacy.button,
     primaryButton = { w = 36, h = 36, radius = 2, fill = "accent", color = "accentForeground" },
+    controlCenterBar = function(ctx)
+        local scale = legacy.scale(ctx)
+        local item = { hover = legacy.hover,
+            ui.symbol{ name = "slider.horizontal.3", size = 14 * scale, color = "accent" } }
+        if not ctx.data.bar.style.vertical then
+            item[#item + 1] = text{ text = "SYS", size = 12 * scale, color = "accent" }
+        end
+        return legacy.bar(ctx, item)
+    end,
+    controlCenterPanel = function(_, props)
+        table.insert(props, 1, ui.row{ w = props.w - 28,
+            text{ text = "matrix://", size = 11, color = "secondaryForeground", grow = 1 },
+            legacy.button("xmark", ui.popout, { help = omniwm.l10n("Close") }) })
+        return legacy.panel(props)
+    end,
     activeWindowBar = function(ctx, m)
         local scale = legacy.scale(ctx)
         local item = { hover = legacy.hover }

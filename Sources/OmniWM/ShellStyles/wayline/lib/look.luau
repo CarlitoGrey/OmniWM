@@ -114,6 +114,13 @@ local function standaloneChip(size, vertical, color, glyph)
     return node
 end
 
+local function symbolChip(ctx, m)
+    local style = ctx.data.bar.style
+    local size = 32 * style.height / 40
+    return standaloneChip(size, style.vertical, "accent",
+        { name = m.symbol, size = size * 0.54, weight = "semibold", color = "accentForeground" })
+end
+
 local function frame(width, bandHeight, header, body, attach)
     return ui.column{ w = width, gap = 0, material = "clear", attach = attach, radius = 12, fill = "surface",
         border = "border", borderWidth = 1, center = false,
@@ -121,6 +128,26 @@ local function frame(width, bandHeight, header, body, attach)
             ui.box{ w = width, h = bandHeight, radius = 12, fill = "elevatedSurface" },
             ui.box{ align = "bottom", w = width, h = 12, fill = "elevatedSurface" }, header },
         ui.box{ w = width, h = 1, fill = "border" }, body }
+end
+
+local function titledPanel(_, props, gap)
+    local width = props.w or 320
+    local header = props[1]
+    header.h = 44
+    local body = { w = width, pad = 12, gap = gap, center = false }
+    for index = 2, #props do
+        body[#body + 1] = props[index]
+    end
+    return frame(width, 44, header, ui.column(body))
+end
+
+local function controlCenterCards(node)
+    if node.fill == "surface" then
+        node.fill, node.radius = "elevatedSurface", 9
+    end
+    for _, child in ipairs(node) do
+        controlCenterCards(child)
+    end
 end
 
 local function dividedCard(props, width, dividerWidth)
@@ -716,9 +743,15 @@ return require("./skin")({
     hover = HOVER,
     hiddenBarHover = "accent/0.15",
     width = 320,
-    widths = { workspaces = 296, ["system-stats"] = 348 },
+    widths = { workspaces = 296, ["system-stats"] = 348, ["control-center"] = 316 },
     size = { text = 14, icon = 24, slot = 28 },
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    controlCenterBar = symbolChip,
+    controlCenterPanel = function(ctx, props)
+        props.w -= 4
+        controlCenterCards(props)
+        return titledPanel(ctx, props, 10)
+    end,
     activeWindowBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -758,11 +791,7 @@ return require("./skin")({
     inputSourcePanel = function(ctx, m)
         return utilityPanel(ctx, m, require("./input-source"), omniwm.l10n("Input Sources"), "keyboard")
     end,
-    launcherBar = function(ctx, m)
-        local size = 32 * ctx.data.bar.style.height / 40
-        return standaloneChip(size, ctx.data.bar.style.vertical, "accent",
-            { name = m.symbol, size = size * 0.54, weight = "semibold", color = "accentForeground" })
-    end,
+    launcherBar = symbolChip,
     privacyBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -1270,14 +1299,5 @@ return require("./skin")({
         rows.border, rows.borderWidth, rows.center = "border", 1, false
         return ui.column(rows)
     end,
-    panel = function(_, props)
-        local width = props.w or 320
-        local header = props[1]
-        header.h = 44
-        local body = { w = width, pad = 12, center = false }
-        for index = 2, #props do
-            body[#body + 1] = props[index]
-        end
-        return frame(width, 44, header, ui.column(body))
-    end,
+    panel = titledPanel,
 })

@@ -25,6 +25,14 @@ local SYMBOLS = {
     ["gauge.with.needle"] = "monitoring",
 }
 
+local CONTROL_CENTER_SYMBOLS = {
+    ["square.grid.2x2"] = "dashboard",
+    ["speaker.wave.2.fill"] = "volume_up",
+    ["music.note"] = "music_note",
+    calendar = "calendar_month",
+    ["cloud.sun.fill"] = "partly_cloudy_day",
+}
+
 local function line(vertical, props)
     return vertical and ui.column(props) or ui.row(props)
 end
@@ -146,9 +154,22 @@ local function statsMeter(ctx, entry, variant)
     return line(style.vertical, parts)
 end
 
+local function panel(_, props)
+    props.w = props.w or 300
+    props.pad = props.pad or tokens.padding.medium
+    props.gap = props.gap or tokens.spacing.small
+    props.radius = props.radius or tokens.rounding.extraLarge
+    props.fill = props.fill or "background"
+    props.shadow = "shadow/0.35"
+    props.shadowRadius = 10
+    props.center = false
+    return ui.column{ material = "clear", pad = tokens.padding.small, ui.column(props) }
+end
+
 return require("./skin")({
     base = 60,
     width = 300 - 2 * tokens.padding.medium,
+    widths = { ["control-center"] = 320 },
     systemStatsWidth = function(ctx)
         return performance.size(ctx).w
     end,
@@ -194,6 +215,22 @@ return require("./skin")({
     inputSourcePanel = status.keyboard,
     launcherBar = function(ctx, m)
         return iconPill(ctx, m.symbol == "magnifyingglass" and "search" or m.symbol, m.symbol ~= "magnifyingglass")
+    end,
+    controlCenterBar = function(ctx)
+        return iconPill(ctx, "tune")
+    end,
+    controlCenterPanel = function(ctx, props)
+        local tabs = props[2]
+        props.w = tabs.w + 2 * tokens.padding.medium
+        for index = 1, #tabs do
+            local glyph = tabs[index][1]
+            local name = CONTROL_CENTER_SYMBOLS[glyph.name]
+            if name then
+                glyph.name = nil
+                tabs[index][1] = surface.icon(name, glyph)
+            end
+        end
+        return panel(ctx, props)
     end,
     privacyBar = function(ctx, m)
         local style = ctx.data.bar.style
@@ -430,17 +467,7 @@ return require("./skin")({
             ui.text{ text = table.concat(m.displays, "  ·  "), font = "sans", size = tokens.label.medium,
                 color = "secondaryForeground", maxWidth = inner, lines = 2 } }
     end,
-    panel = function(_, props)
-        props.w = props.w or 300
-        props.pad = props.pad or tokens.padding.medium
-        props.gap = props.gap or tokens.spacing.small
-        props.radius = props.radius or tokens.rounding.extraLarge
-        props.fill = props.fill or "background"
-        props.shadow = "shadow/0.35"
-        props.shadowRadius = 10
-        props.center = false
-        return ui.column{ material = "clear", pad = tokens.padding.small, ui.column(props) }
-    end,
+    panel = panel,
     workspaceMetrics = function(_, style, m)
         local scale = style.height / 60
         return { scale = scale, inner = tokens.bar.inner * scale, pad = tokens.padding.extraSmall * scale,

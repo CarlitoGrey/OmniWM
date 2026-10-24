@@ -233,7 +233,8 @@ final class ShellDefaultsTests: XCTestCase {
             "launcher",
             "privacy",
             "world-clock",
-            "stats"
+            "stats",
+            "control-center"
         ]
         let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
         XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())

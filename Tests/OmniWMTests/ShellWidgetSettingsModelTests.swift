@@ -31,6 +31,7 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
             ("both", "Both", "两者"),
             ("pointer", "Pointer", "指针"),
             ("scroll", "Scroll", "滚动"),
+            ("overview", "Overview", "概览"),
             ("audio", "Audio", "音频"),
             ("media", "Media", "媒体"),
             ("calendar", "Calendar", "日历"),
@@ -140,6 +141,12 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
         XCTAssertEqual(title.options["maxWidth"]?.defaultValue, .number(260))
         let celestialTitle = try ShellServiceValue.decode(XCTUnwrap(config.widgetSettings["active-window"])).fields
         XCTAssertEqual(celestialTitle?["maxWidth"]?.number, 320)
+        let controlCenter = try XCTUnwrap(ShellRootSettings.load("control-center", directories: [defaults]))
+        XCTAssertEqual(controlCenter.options["tab"]?.defaultValue, .string("overview"))
+        XCTAssertEqual(
+            controlCenter.options["tab"]?.choices,
+            ["overview", "audio", "media", "calendar", "weather", "system"]
+        )
         let launcher = try XCTUnwrap(ShellRootSettings.load("launcher", directories: [defaults]))
         XCTAssertNil(launcher.options["mode"]?.defaultValue)
         XCTAssertEqual(Set(launcher.options["mode"]?.choices ?? []), Set(CommandPaletteMode.allCases.map(\.rawValue)))
@@ -173,6 +180,6 @@ final class ShellWidgetSettingsModelTests: XCTestCase {
                 checked += 1
             }
         }
-        XCTAssertEqual(checked, 19)
+        XCTAssertEqual(checked, 16)
     }
 }

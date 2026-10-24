@@ -52,12 +52,11 @@ final class ShellSakuraTests: XCTestCase {
             config.widget("effects-lab"), shell.appendingPathComponent("default/widgets/effects-lab/init.luau")
         )
         let styled = shell.appendingPathComponent("sakura/widgets")
-        let names = try FileManager.default.contentsOfDirectory(atPath: styled.path)
-        XCTAssertEqual(names.count, 1)
-        XCTAssertFalse(names.contains("focus-ribbon"))
-        for name in names {
-            XCTAssertEqual(config.widget(name), styled.appendingPathComponent("\(name)/init.luau"))
-        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: styled.path))
+        XCTAssertEqual(
+            config.widget("control-center"),
+            shell.appendingPathComponent("default/widgets/control-center/init.luau")
+        )
     }
 
     func testPresetWidgetsFitBothOrientationsAndPopoutsContainTheirShader() async throws {

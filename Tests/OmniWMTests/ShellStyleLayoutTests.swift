@@ -77,14 +77,9 @@ final class ShellStyleLayoutTests: XCTestCase {
         let name = ProcessInfo.processInfo.environment["OMNIWM_STEP_WIDGET"] ?? "workspaces"
         let shared = ProcessInfo.processInfo.environment["OMNIWM_STEP_SHARED"] == "1"
         let tab = ProcessInfo.processInfo.environment["OMNIWM_STEP_TAB"] ?? "audio"
-        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: shell) }
         let environment = ProcessInfo.processInfo.environment
-        XCTAssertEqual(ShellDefaults.sync(
-            into: shell,
-            from: environment["OMNIWM_STEP_FROM"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundled,
-            styles: environment["OMNIWM_STEP_STYLES"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundledStyles
-        ), [])
+        let shell = stepShell(environment)
+        defer { try? FileManager.default.removeItem(at: shell) }
         if !shared, let baseline = ProcessInfo.processInfo.environment["OMNIWM_STEP_BASE_SOURCE"] {
             try Data(contentsOf: URL(fileURLWithPath: baseline))
                 .write(to: shell.appendingPathComponent("default/widgets/\(name)/init.luau"))
@@ -125,6 +120,15 @@ final class ShellStyleLayoutTests: XCTestCase {
                     }
                     if name == "weather" || (name == "control-center" && tab == "weather") {
                         weatherFixture(widget)
+                    }
+                    if name == "control-center", tab == "overview" {
+                        wifiFixture(widget)
+                        bluetoothFixture(widget)
+                        batteryFixture(widget)
+                        mediaFixture(widget)
+                    }
+                    if name == "control-center", tab == "system" {
+                        systemStatsFixture(widget)
                     }
                     if ["battery", "battery-details"].contains(name) {
                         batteryFixture(widget)
@@ -194,6 +198,16 @@ final class ShellStyleLayoutTests: XCTestCase {
                                 widget.surface, name: "\(name)-\(profile)-popout-denied",
                                 dark: false, directory: directory, background: background
                             )
+                            if name == "control-center", tab == "overview" {
+                                audioFixture(widget, access: .granted)
+                                batteryFixture(widget, level: 80, power: ShellPower(source: "ac"))
+                                widget.layoutPopout()
+                                try ShellBundledWidgetTests.writeSnapshot(
+                                    widget.surface, name: "\(name)-\(profile)-popout-ac",
+                                    dark: false, directory: directory, background: background
+                                )
+                                batteryFixture(widget)
+                            }
                             if name == "volume" {
                                 audioFixture(widget, access: .granted)
                                 for state in ["muted", "zero", "unavailable"] {
@@ -2876,6 +2890,330 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testSharedControlCenterDefaultsDemandAndNativeActionsAcrossProfiles() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        for profile in Set(ShellProfiles.names(in: shell) + ["default"]).sorted() {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell))
+            let config = ShellConfig.resolve(shellDirectory: shell)
+            for capsule in [false, true] {
+                for vertical in [false, true] {
+                    let widget = try makeWidget(
+                        "control-center", config: config, shell: shell,
+                        source: shell.appendingPathComponent("default/widgets/control-center/init.luau")
+                    )
+                    widget.set("settings") { ShellServiceValue.object([:]).write(to: &$0) }
+                    audioFixture(widget, access: .granted)
+                    wifiFixture(widget)
+                    bluetoothFixture(widget)
+                    mediaFixture(widget)
+                    var bar = fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: vertical)
+                    if capsule {
+                        bar.style.transparent = true
+                        bar.style.backgrounds = true
+                    }
+                    widget.render(bar)
+                    let context = "\(profile)/\(capsule)/\(vertical)"
+                    let button = try XCTUnwrap(widget.surface.layout.core.elements {
+                        $0.action == OMNI_ACTION_POPOUT
+                    }.first, context)
+                    let content = widget.surface.layout.core.content(of: button)
+                    XCTAssertEqual(
+                        widget.text.string(content.help),
+                        ShellLocalizer.string("Control Center", []),
+                        context
+                    )
+                    XCTAssertEqual(widget.strings().contains("SYS"), profile == "matrix" && !vertical, context)
+                    let barFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: button))
+                    let barCount = widget.actions.count
+                    let point = CGPoint(x: barFrame.midX, y: barFrame.midY)
+                    widget.surface.press(at: point)
+                    widget.surface.release(at: point)
+                    XCTAssertEqual(widget.actions.count, barCount + 1, context)
+                    XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                    for hasBattery in [true, false] {
+                        if hasBattery {
+                            batteryFixture(widget, level: 80, power: ShellPower(source: "ac"))
+                        } else {
+                            widget.set("battery") { $0.null() }
+                        }
+                        let context = "\(profile)/capsule=\(capsule)/vertical=\(vertical)/battery=\(hasBattery)"
+                        if hasBattery {
+                            for command in ["wifi settings", "bluetooth settings", "battery settings"] {
+                                widget.layoutPopout()
+                                try clickCommand(command, widget: widget, context: context)
+                            }
+                            widget.set("bluetooth") {
+                                ShellBluetooth(power: true, access: "denied").write(into: &$0)
+                            }
+                            widget.layoutPopout()
+                            try clickCommand("bluetooth authorize", widget: widget, context: context)
+                            bluetoothFixture(widget)
+                        }
+                        widget.layoutPopout()
+                        let nodes = widget.renderPopout()
+                        let strings = widget.strings(OMNI_VIEW_POPOUT)
+                        for key in ["Control Center", "Wi-Fi", "Bluetooth"] {
+                            XCTAssertTrue(strings.contains(ShellLocalizer.string(key, [])), context + key)
+                        }
+                        XCTAssertEqual(strings.contains(ShellLocalizer.string("Not charging", [])), hasBattery, context)
+                        XCTAssertEqual(nodes.filter { $0.kind == .slider }.count, 1, context)
+                        let deps = renderDependencies(widget, view: OMNI_VIEW_POPOUT)
+                        var expected: Set<ShellDataKey> = [
+                            .settings,
+                            .wifi,
+                            .bluetooth,
+                            .volume,
+                            .muted,
+                            .media,
+                            .battery
+                        ]
+                        if hasBattery { expected.formUnion([.charging, .power]) }
+                        XCTAssertEqual(deps & ~ShellDataKey.bar.bit, expected.reduce(0) { $0 | $1.bit }, context)
+                        if profile == "matrix" {
+                            XCTAssertTrue(strings.contains("matrix://"), context)
+                            let close = try XCTUnwrap(widget.surface.layout.core.elements {
+                                $0.action == OMNI_ACTION_POPOUT && widget.text.string($0.help) == ShellLocalizer.string(
+                                    "Close",
+                                    []
+                                )
+                            }.first, context)
+                            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: close))
+                            let count = widget.actions.count
+                            widget.surface.press(at: CGPoint(x: frame.midX, y: frame.midY))
+                            widget.surface.release(at: CGPoint(x: frame.midX, y: frame.midY))
+                            XCTAssertEqual(widget.actions.count, count + 1, context)
+                            XCTAssertEqual(widget.actions.last, OMNI_ACTION_POPOUT, context)
+                        }
+                        if capsule && ["default", "lake"].contains(profile) {
+                            let root = try XCTUnwrap(nodes.first, context)
+                            XCTAssertEqual(root.paint.cornerRadius, 14, context)
+                            XCTAssertEqual(root.paint.material, UInt8(OMNI_MATERIAL_CLEAR), context)
+                            XCTAssertFalse(root.content.attaches, context)
+                        }
+                    }
+                    widget.set("settings") { ShellServiceValue.object(["tab": .text("system")]).write(to: &$0) }
+                    systemStatsFixture(widget)
+                    widget.layoutPopout()
+                    let system = renderDependencies(widget, view: OMNI_VIEW_POPOUT)
+                    let expectedSystem: Set<ShellDataKey> = [.settings, .cpu, .gpu, .memory, .disk, .network, .system]
+                    XCTAssertEqual(system & ~ShellDataKey.bar.bit, expectedSystem.reduce(0) { $0 | $1.bit }, profile)
+                    XCTAssertEqual(widget.renderPopout().filter { $0.kind == .progress }.count, 4, profile)
+                    if ["wayline", "nocturne", "celestial"].contains(profile) {
+                        let first = try XCTUnwrap(widget.surface.layout.core.elements {
+                            widget.text.string($0.help) == ShellLocalizer.string("Control Center", [])
+                        }.first, profile)
+                        let last = try XCTUnwrap(widget.surface.layout.core.elements {
+                            widget.text.string($0.help) == ShellLocalizer.string("System", [])
+                        }.first, profile)
+                        let firstFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: first))
+                        let lastFrame = CGRect(widget.surface.layout.core.absoluteFrame(of: last))
+                        XCTAssertEqual(
+                            (firstFrame.minX + lastFrame.maxX) / 2,
+                            widget.surface.size.width / 2,
+                            accuracy: 0.01,
+                            profile
+                        )
+                    }
+                    let overview = try XCTUnwrap(widget.surface.layout.core.elements {
+                        widget.text.string($0.help) == ShellLocalizer.string("Control Center", []) && $0.action != 0
+                    }.first, profile)
+                    let action = widget.surface.layout.core.content(of: overview).action
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: overview))
+                    let count = widget.actions.count
+                    widget.surface.press(at: CGPoint(x: frame.midX, y: frame.midY))
+                    widget.surface.release(at: CGPoint(x: frame.midX, y: frame.midY))
+                    XCTAssertEqual(widget.actions.count, count + 1, profile)
+                    XCTAssertEqual(widget.actions.last, action, profile)
+                    XCTAssertEqual(widget.invoke(action, view: OMNI_VIEW_POPOUT), [], profile)
+                    widget.layoutPopout()
+                    XCTAssertTrue(
+                        widget.strings(OMNI_VIEW_POPOUT).contains(ShellLocalizer.string("Wi-Fi", [])),
+                        profile
+                    )
+                }
+            }
+        }
+    }
+
+    func testWaylineControlCenterCardsHaveContrastAndSpaceAcrossTabs() throws {
+        let shell = stepShell([:])
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("wayline", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget(
+            "control-center", config: config, shell: shell,
+            source: shell.appendingPathComponent("default/widgets/control-center/init.luau")
+        )
+        audioFixture(widget, access: .granted)
+        wifiFixture(widget)
+        bluetoothFixture(widget)
+        batteryFixture(widget)
+        mediaFixture(widget)
+        calendarFixture(widget)
+        weatherFixture(widget)
+        systemStatsFixture(widget)
+        for capsule in [false, true] {
+            var bar = fixture(config, height: 40, vertical: false)
+            if capsule {
+                bar.style.transparent = true
+                bar.style.backgrounds = true
+            }
+            widget.render(bar)
+            for (tab, count) in [
+                ("overview", 5),
+                ("audio", 3),
+                ("media", 2),
+                ("calendar", 2),
+                ("weather", 3),
+                ("system", 2)
+            ] {
+                let context = "\(tab)/capsule=\(capsule)"
+                widget.set("settings") { ShellServiceValue.object(["tab": .text(tab)]).write(to: &$0) }
+                widget.layoutPopout()
+                let cards = widget.surface.layout.core.elements { _ in true }.filter {
+                    let paint = widget.surface.layout.core.paint(of: $0)
+                    return paint.fill.role & 0xFF == UInt16(ShellRole.elevatedSurface.rawValue + 1)
+                        && paint.cornerRadius == 9
+                }
+                XCTAssertEqual(cards.count, count, context)
+                let tabs = widget.surface.layout.core.elements {
+                    $0.help != 0 && $0.action != 0
+                }.filter { widget.surface.layout.core.absoluteFrame(of: $0).height == 30 }
+                XCTAssertEqual(tabs.count, 6, context)
+                let tabBottom = try XCTUnwrap(tabs.map {
+                    CGRect(widget.surface.layout.core.absoluteFrame(of: $0)).maxY
+                }.max(), context)
+                for card in cards {
+                    XCTAssertGreaterThanOrEqual(
+                        CGRect(widget.surface.layout.core.absoluteFrame(of: card)).minY,
+                        tabBottom + 8,
+                        context
+                    )
+                }
+            }
+        }
+    }
+
+    func testCelestialControlCenterTabIconsDoNotChangeSharedAudioGlyphs() throws {
+        let shell = stepShell([:])
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget(
+            "control-center", config: config, shell: shell,
+            source: shell.appendingPathComponent("default/widgets/control-center/init.luau")
+        )
+        audioFixture(widget, access: .granted)
+        widget.render(fixture(config, height: 60, vertical: false))
+        widget.set("settings") { ShellServiceValue.object(["tab": .text("audio")]).write(to: &$0) }
+        for (volume, symbol) in [
+            (0.0, "speaker.slash.fill"),
+            (10.0, "speaker.wave.1.fill"),
+            (50.0, "speaker.wave.2.fill"),
+            (90.0, "speaker.wave.3.fill")
+        ] {
+            widget.set("volume") { $0.number(volume) }
+            let nodes = widget.renderPopout()
+            XCTAssertTrue(
+                nodes.contains { $0.kind == .symbol && widget.text.string($0.content.text) == symbol },
+                symbol
+            )
+            let speakers = nodes
+                .filter { $0.kind == .symbol && widget.text.string($0.content.text).hasPrefix("speaker.") }
+            XCTAssertEqual(speakers.count, 5, symbol)
+            for tabIcon in [
+                "dashboard",
+                "volume_up",
+                "music_note",
+                "calendar_month",
+                "partly_cloudy_day",
+                "monitoring"
+            ] {
+                XCTAssertEqual(nodes.filter { widget.text.string($0.content.text) == tabIcon }.count, 1, tabIcon)
+            }
+        }
+    }
+
+    func testCelestialDashboardMediaCardUsesTheModelWithoutLyricsAndHasInertIdleControls() throws {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let widget = try makeWidget("dashboard", config: config, shell: shell)
+        calendarFixture(widget)
+        weatherFixture(widget)
+        systemStatsFixture(widget)
+        widget.render(fixture(config, height: 60, vertical: false))
+        for state in ["playing", "paused", "idle"] {
+            mediaFixture(widget, playing: state == "playing")
+            if state == "idle" { widget.set("media") { $0.null() } }
+            widget.layoutPopout()
+            let deps = renderDependencies(widget, view: OMNI_VIEW_POPOUT)
+            XCTAssertNotEqual(deps & ShellDataKey.media.bit, 0, state)
+            XCTAssertEqual(deps & ShellDataKey.lyrics.bit, 0, state)
+            let strings = widget.strings(OMNI_VIEW_POPOUT)
+            XCTAssertTrue(strings.contains(state == "idle"
+                    ? ShellLocalizer.string("Nothing is playing", []) : "Northern Lights"), state)
+            if state == "idle" {
+                let actions = widget.renderPopout().map { widget.text.string($0.content.action) }
+                for command in ["media previous", "media toggle", "media next"] {
+                    XCTAssertFalse(actions.contains(command), command)
+                }
+                for symbol in ["skip_previous", "play_arrow", "skip_next"] {
+                    let glyph = try XCTUnwrap(widget.surface.layout.core.elements {
+                        widget.text.string($0.text) == symbol
+                    }.first, symbol)
+                    let button = widget.surface.layout.core.parent(of: glyph)
+                    XCTAssertEqual(widget.surface.layout.core.content(of: button).hover, .clear, symbol)
+                    let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: glyph))
+                    let count = widget.actions.count
+                    widget.surface.press(at: CGPoint(x: frame.midX, y: frame.midY))
+                    widget.surface.release(at: CGPoint(x: frame.midX, y: frame.midY))
+                    XCTAssertEqual(widget.actions.count, count, symbol)
+                }
+            } else {
+                for command in ["media previous", "media toggle", "media next"] {
+                    try clickCommand(command, widget: widget, context: state)
+                }
+            }
+        }
+    }
+
+    func testExportCelestialDashboardMediaCardRenders() throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard let directory = environment["OMNIWM_STEP_DASHBOARD_RENDERS"] else {
+            throw XCTSkip("Set OMNIWM_STEP_DASHBOARD_RENDERS to export Dashboard media states")
+        }
+        let shell = stepShell(environment)
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        for dark in [false, true] {
+            let resources = ShellResources(motion: MotionPolicy(animationsEnabled: false))
+            resources.palette.refresh(
+                theme: config.theme,
+                appearance: try XCTUnwrap(NSAppearance(named: dark ? .darkAqua : .aqua))
+            )
+            let widget = try makeWidget("dashboard", config: config, shell: shell, resources: resources)
+            weatherFixture(widget)
+            systemStatsFixture(widget)
+            calendarFixture(widget)
+            widget.render(fixture(config, height: 60, vertical: false))
+            for state in ["playing", "paused", "idle"] {
+                mediaFixture(widget, playing: state == "playing")
+                if state == "idle" { widget.set("media") { $0.null() } }
+                widget.layoutPopout()
+                try ShellBundledWidgetTests.writeSnapshot(
+                    widget.surface, name: "dashboard-celestial-popout-\(state)-\(dark ? "dark" : "light")",
+                    dark: dark, directory: directory, background: resources.palette.color(.clear, default: .background)
+                )
+            }
+        }
+    }
+
     func testSharedMediaPanelsDeliverControlsSeekAndLyricsThroughEverySkin() throws {
         let shell = try sharedLibraryShell("media")
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -2888,7 +3226,8 @@ final class ShellStyleLayoutTests: XCTestCase {
                 let context = "\(profile)/\(name)"
                 let widget = try makeWidget(
                     name, config: config, shell: shell,
-                    source: name == "media" ? shell.appendingPathComponent("default/widgets/media/init.luau") : nil
+                    source: name == "dashboard" ? nil : shell
+                        .appendingPathComponent("default/widgets/\(name)/init.luau")
                 )
                 mediaFixture(widget)
                 widget.render(fixture(config, height: config.barOverride?.settings.height ?? 32, vertical: false))
@@ -3015,7 +3354,7 @@ final class ShellStyleLayoutTests: XCTestCase {
                         context
                     )
                 }
-                if name == "control-center", ["system", "matrix", "sakura"].contains(profile) {
+                if name == "control-center" {
                     mediaFixture(widget)
                     widget.set("settings") { ShellServiceValue.object(["tab": .text("overview")]).write(to: &$0) }
                     let overview = widget.renderPopout()
@@ -5136,6 +5475,25 @@ final class ShellStyleLayoutTests: XCTestCase {
             id: id, title: title, enabled: enabled, mark: mark,
             shortcut: shortcut, submenu: submenu, separator: separator
         )
+    }
+
+    private func stepShell(_ environment: [String: String]) -> URL {
+        let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        XCTAssertEqual(ShellDefaults.sync(
+            into: shell,
+            from: environment["OMNIWM_STEP_FROM"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundled,
+            styles: environment["OMNIWM_STEP_STYLES"].map { URL(fileURLWithPath: $0) } ?? ShellDefaults.bundledStyles
+        ), [])
+        return shell
+    }
+
+    private func renderDependencies(_ widget: ShellRenderedWidget, view: omni_view) -> UInt64 {
+        var stats = omni_render_stats()
+        var error = [CChar](repeating: 0, count: 256)
+        XCTAssertEqual(
+            omni_instance_render(widget.instance, view, 100_000_000, &stats, &error, error.count), OMNI_OK
+        )
+        return stats.deps
     }
 
     private func makeWidget(

@@ -257,6 +257,11 @@ local function squareChip(ctx, child)
     return capsule(ctx, { w = size, h = size, hover = "focus/0.14", child })
 end
 
+local function symbolChip(ctx, m)
+    local scale = ctx.data.bar.style.height / 40
+    return squareChip(ctx, ui.symbol{ name = m.symbol, size = 18 * scale, weight = "semibold" })
+end
+
 local function compactStatsMeter(ctx, entry, variant)
     local vertical = ctx.data.bar.style.vertical
     local scale = ctx.data.bar.style.height / 40
@@ -867,6 +872,11 @@ return require("./skin")({
     base = 40,
     hover = "focus/0.14",
     primaryButton = { w = 40, h = 40, radius = 20, fill = "accent", color = "accentForeground" },
+    controlCenterBar = symbolChip,
+    controlCenterPanel = function(ctx, props)
+        props.w -= 2
+        return framedPanel(ctx, props)
+    end,
     activeWindowBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -908,10 +918,7 @@ return require("./skin")({
     inputSourcePanel = function(ctx, m)
         return utilityPanel(ctx, m, require("./input-source"), omniwm.l10n("Input Sources"))
     end,
-    launcherBar = function(ctx, m)
-        local scale = ctx.data.bar.style.height / 40
-        return squareChip(ctx, ui.symbol{ name = m.symbol, size = 18 * scale, weight = "semibold" })
-    end,
+    launcherBar = symbolChip,
     privacyBar = function(ctx, m)
         local style = ctx.data.bar.style
         local scale = style.height / 40
@@ -958,7 +965,7 @@ return require("./skin")({
             require("./battery").content(ctx, inner, m) }, width)
     end,
     width = 300,
-    widths = { workspaces = 274, ["system-stats"] = 380 },
+    widths = { workspaces = 274, ["system-stats"] = 380, ["control-center"] = 316 },
     size = { text = 14, icon = 24, slot = 27 },
     volumeBar = function(ctx, m)
         local style = ctx.data.bar.style

@@ -49,6 +49,11 @@ final class ShellMatrixTests: XCTestCase {
         XCTAssertEqual(
             config.widget("effects-lab"), shell.appendingPathComponent("default/widgets/effects-lab/init.luau")
         )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shell.appendingPathComponent("matrix/widgets").path))
+        XCTAssertEqual(
+            config.widget("control-center"),
+            shell.appendingPathComponent("default/widgets/control-center/init.luau")
+        )
         let gallery = try widget("effects-lab")
         gallery.render(bar())
         XCTAssertTrue(gallery.tree().first?.content.opensPopout == true)

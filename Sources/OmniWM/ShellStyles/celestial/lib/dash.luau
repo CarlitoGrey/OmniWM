@@ -190,19 +190,8 @@ local function resources(ctx: Context)
         ring(data.disk, "hard_disk", "secondaryAccent") } })
 end
 
-local function progress(ctx: Context, media: Media): number
-    if not media.duration or media.duration <= 0 then
-        return 0
-    end
-    local elapsed = media.elapsed or 0
-    if media.playing then
-        elapsed += math.max(0, ctx.data.seconds - media.sampledAt) * media.rate
-    end
-    return math.clamp(elapsed / media.duration, 0, 1)
-end
-
 local function media(ctx: Context)
-    local data = ctx.data.media
+    local m = require("./media").model(ctx, false, true)
     local height = TOP + GAP + BOTTOM
     local thickness = tokens.dashboard.mediaThickness
     local amplitude = thickness * 0.5
@@ -210,8 +199,8 @@ local function media(ctx: Context)
     local cover = MEDIA - 2 * (tokens.padding.medium + tokens.spacing.extraSmall + band)
     local ringSize = cover + tokens.spacing.extraSmall + band * 2
     local radius = (ringSize - band) / 2
-    local playing = data ~= nil and data.playing
-    local fraction = data and progress(ctx, data) or 0
+    local playing = m ~= nil and m.playing
+    local fraction = m and m.fraction or 0
     local sweep = tokens.dashboard.mediaSweep
     local start = -90 - sweep / 2
     local middle = ringSize / 2
@@ -234,26 +223,31 @@ local function media(ctx: Context)
         ui.path{ d = shapes.path("Cookie12Sided"), viewBox = shapes.viewBox, w = cover, h = cover, mask = true,
             loop = { rotate = { 360, 0, 23.5 }, paused = not playing } },
         ui.box{ w = cover, h = cover, fill = "highestSurface" } }
-    art[#art + 1] = data and data.artwork and ui.image{ image = data.artwork, w = cover, h = cover }
+    art[#art + 1] = m and m.artwork and ui.image{ image = m.artwork, w = cover, h = cover }
         or surface.icon("art_track", { size = cover * 0.35, color = "secondaryForeground" })
     local function line(text: string, size: number, color: string)
         return ui.text{ text = text, font = "sans", size = size, color = color, maxWidth = MEDIA - 32 }
     end
     local controls = ui.row{ w = MEDIA - 2 * tokens.padding.large, gap = tokens.spacing.extraSmall,
-        surface.button("skip_previous", "tonal", { onClick = "media previous" }),
+        surface.button("skip_previous", "tonal", { onClick = m and m.previous }),
         surface.button(playing and "pause" or "play_arrow", "filled", { grow = 1, w = 0, radius = tokens.rounding.medium,
-            onClick = "media toggle" }),
-        surface.button("skip_next", "tonal", { onClick = "media next" }) }
+            onClick = m and m.toggle }),
+        surface.button("skip_next", "tonal", { onClick = m and m.next }) }
+    if not m then
+        for index = 1, #controls do
+            controls[index].hover = nil
+        end
+    end
     local column = { gap = 0, w = MEDIA,
         ui.stack{ w = MEDIA, h = ringSize + tokens.padding.medium,
             ui.stack(arc),
             ui.stack{ align = "top", dy = tokens.padding.medium + tokens.spacing.extraSmall / 2 + band, ui.stack(art) } },
         ui.box{ w = 1, h = tokens.spacing.medium },
-        line(data and data.title ~= "" and data.title or omniwm.l10n("Nothing is playing"), tokens.title.small, "accent"),
+        line(m and m.title or omniwm.l10n("Nothing is playing"), tokens.title.small, "accent"),
         ui.box{ w = 1, h = tokens.spacing.small },
-        line(data and data.album or "", tokens.body.small, "mutedForeground"),
+        line(m and m.album or "", tokens.body.small, "mutedForeground"),
         ui.box{ w = 1, h = tokens.spacing.small },
-        line(data and data.artist or "", tokens.body.medium, "secondaryAccent"),
+        line(m and m.artist or "", tokens.body.medium, "secondaryAccent"),
         ui.box{ w = 1, h = tokens.spacing.medium },
         controls,
         ui.box{ w = 1, h = tokens.spacing.small },

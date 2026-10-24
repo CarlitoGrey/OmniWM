@@ -60,7 +60,7 @@ local function lyrics(ctx, position: number)
     return result
 end
 
-function media.model(ctx, compact: boolean?)
+function media.model(ctx, compact: boolean?, withoutLyrics: boolean?)
     local playing = ctx.data.media
     if not playing or playing.title == "" then
         return nil
@@ -95,7 +95,9 @@ function media.model(ctx, compact: boolean?)
                 end
             end
         end
-        m.lyrics = lyrics(ctx, m.position)
+        if not withoutLyrics then
+            m.lyrics = lyrics(ctx, m.position)
+        end
     end
     return m
 end
