@@ -73,6 +73,10 @@ final class MenuBarAutohideHold {
         }
     }
 
+    var hidesMenuBar: Bool {
+        request == true
+    }
+
     func update(hiding: Bool) {
         if menuAccess {
             deferredRequest = hiding

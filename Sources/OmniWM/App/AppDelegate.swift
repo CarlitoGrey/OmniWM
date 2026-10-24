@@ -147,10 +147,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             runtimeState: runtimeState
         )
         let menuBarHold = MenuBarAutohideHold(runtimeState: runtimeState)
-        let hiddenBarController = HiddenBarController(
+        let hiddenBarController = HiddenBarController.live(
             settings: settings,
-            hider: .live(in: storagePaths.stateDirectory),
-            setMenuAccess: { menuBarHold.setMenuAccess($0) }
+            menuBarHold: menuBarHold,
+            stateDirectory: storagePaths.stateDirectory
         )
         let controller = WMController(
             settings: settings,

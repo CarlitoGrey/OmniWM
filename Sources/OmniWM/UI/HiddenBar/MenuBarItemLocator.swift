@@ -48,6 +48,7 @@ struct MenuBarItemResolution: Sendable {
 struct MenuBarItemActivationCandidate: Sendable {
     let pid: pid_t
     let useAXPress: Bool
+    var allowsClick = true
 }
 
 enum MenuBarItemActivation: Sendable {
@@ -185,6 +186,10 @@ enum MenuBarItemLocator {
         }
     }
 
+    static func fallback(for candidate: MenuBarItemActivationCandidate, frame: CGRect) -> MenuBarItemActivation {
+        candidate.allowsClick ? .clickFrame(frame) : .unavailable
+    }
+
     static func activate(
         candidates: [MenuBarItemActivationCandidate],
         target: ResolvedMenuBarItem,
@@ -219,7 +224,7 @@ enum MenuBarItemLocator {
                             return .axPressed
                         }
                     }
-                    return .clickFrame(item.frame)
+                    return fallback(for: candidate, frame: item.frame)
                 }
                 previousFrames[candidate.pid] = item.frame
             }

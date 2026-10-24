@@ -538,6 +538,11 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         let session = controller.hiddenBarController.menuSession
         let key = MenuBarItemKey(bundleID: "com.example.menu", ordinal: 0)
         let host = try XCTUnwrap(manager.shellHost)
+        let alone = [display.frame]
+        let besideAnother = alone + [display.frame.offsetBy(dx: display.frame.width, dy: 0)]
+        let belowAnother = alone + [display.frame.offsetBy(dx: 0, dy: display.frame.height)]
+        PanelDismissalMonitor.screenFrames = { alone }
+        defer { PanelDismissalMonitor.screenFrames = { NSScreen.screens.map(\.frame) } }
 
         for removeBar in [false, true] {
             let placement = try XCTUnwrap(manager.hiddenBarPanelPlacement(on: display.id))
@@ -571,6 +576,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 panels: [instance.primary.panel], isExemptWindow: { _ in false },
                 onDismiss: { screenChangeHandled.fulfill() }
             )
+            PanelDismissalMonitor.screenFrames = { besideAnother }
             NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
             await fulfillment(of: [screenChangeHandled], timeout: 5)
             ordinaryPanel.stop()
@@ -596,6 +602,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 host.closeHiddenBarMenu()
                 XCTAssertTrue(host.popout === popout)
                 XCTAssertEqual(popout.drawerPlacement, latest)
+                PanelDismissalMonitor.screenFrames = { belowAnother }
                 NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
                 await until { host.popout == nil }
                 XCTAssertNil(host.popout)
