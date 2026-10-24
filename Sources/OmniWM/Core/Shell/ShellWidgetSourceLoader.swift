@@ -143,8 +143,10 @@ actor ShellWidgetSourceLoader {
     }
 
     private static func entries(in folder: URL, directories: Bool) -> [URL] {
-        FileManager.default.enumerator(
-            at: folder,
+        let resolved = folder.resolvingSymlinksInPath().standardizedFileURL
+        let prefixLength = resolved.path.count + 1
+        return FileManager.default.enumerator(
+            at: resolved,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )?
@@ -153,6 +155,11 @@ actor ShellWidgetSourceLoader {
                 directories
                     ? (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
                     : $0.pathExtension == "luau"
+            }
+            .map {
+                folder.appendingPathComponent(
+                    String($0.standardizedFileURL.path.dropFirst(prefixLength)), isDirectory: directories
+                )
             } ?? []
     }
 

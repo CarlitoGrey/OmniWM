@@ -81,6 +81,43 @@ final class ShellWidgetSourceLoaderTests: XCTestCase {
             .contains(shell.appendingPathComponent("default/lib/lake", isDirectory: true).standardizedFileURL))
     }
 
+    func testSymlinkedConfigurationKeepsVirtualPathsLibraryPrecedenceAndComponentModules() throws {
+        let shell = temporaryShell()
+        defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
+        try write("root", shell, "look/widgets/lake/init.luau")
+        try write("own", shell, "look/widgets/lake/nested/helper.luau")
+        try write("user", shell, "lib/lake/policy.luau")
+        try write("profile", shell, "look/lib/lake/policy.luau")
+        try write("default", shell, "default/lib/lake/policy.luau")
+        try write("fallback", shell, "default/lib/lake/view.luau")
+        try write("custom", shell, "widgets/custom/component.luau")
+        try write("helper", shell, "widgets/custom/nested/helper.luau")
+        try write("views = ['compact']", shell, "widgets/custom/component.toml")
+        let configuration = shell.deletingLastPathComponent()
+        let link = configuration.appendingPathComponent("config-link", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: configuration)
+        let linkedShell = link.appendingPathComponent("shell", isDirectory: true)
+        let captured = input(linkedShell, components: [.init(id: "custom", widget: "custom")])
+        let source = try ShellWidgetSourceLoader.build(captured)
+        XCTAssertEqual(source.chunk, "@look/widgets/lake/init.luau")
+        XCTAssertEqual(Dictionary(uniqueKeysWithValues: source.modules.map { ($0.path, $0.source) }), [
+            "look/widgets/lake/nested/helper.luau": "own",
+            "look/lib/lake/policy.luau": "user",
+            "look/lib/lake/view.luau": "fallback",
+            "look/widgets/custom/component.luau": "custom",
+            "look/widgets/custom/nested/helper.luau": "helper"
+        ])
+        XCTAssertEqual(
+            source.assetPackages["custom"], linkedShell.appendingPathComponent("widgets/custom", isDirectory: true)
+        )
+        let watched = Set(ShellWidgetSourceLoader.packageDirectories(
+            captured, components: source.componentDescriptors
+        ).map(\.standardizedFileURL))
+        for path in ["look/widgets/lake/nested", "lib/lake", "widgets/custom/nested"] {
+            XCTAssertTrue(watched.contains(linkedShell.appendingPathComponent(path, isDirectory: true)))
+        }
+    }
+
     func testExternalSourceRetainsChunkNameAndDoesNotMountShellModules() throws {
         let shell = temporaryShell()
         defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
