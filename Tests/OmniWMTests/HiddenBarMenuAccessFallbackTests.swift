@@ -66,6 +66,58 @@ final class HiddenBarMenuAccessFallbackTests: XCTestCase {
         }
     }
 
+    func testAResolveThatLosesItsRevealOrCannotGetAccessStops() async {
+        let key = MenuBarItemKey(bundleID: "app", ordinal: 0)
+        let item = ResolvedMenuBarItem(
+            key: key,
+            pid: 42,
+            bounds: CGRect(x: 1100, y: 0, width: 40, height: 24),
+            semanticIdentity: nil
+        )
+        var accesses: [Bool] = []
+        var resolves = 0
+        var lateBar: HiddenBarController?
+        lateBar = HiddenBarController(
+            settings: settings(),
+            setMenuAccess: { accesses.append($0)
+                return true
+            },
+            menuBarHiddenByBar: { true },
+            coversPoint: { _ in true },
+            resolveItems: { _, _ in
+                resolves += 1
+                lateBar?.concealAllRevealed()
+                return nil
+            }
+        )
+        lateBar?.startReconcealForTests(revealedBundleIDs: ["app"])
+        let late = await lateBar?.resolveRevealedItemsForTests("app", pid: 42, clicking: nil)
+        XCTAssertNil(late)
+        XCTAssertEqual(accesses, [])
+        XCTAssertEqual(resolves, 1)
+        lateBar?.cleanup()
+
+        resolves = 0
+        let deniedBar = HiddenBarController(
+            settings: settings(),
+            setMenuAccess: { accesses.append($0)
+                return false
+            },
+            menuBarHiddenByBar: { true },
+            coversPoint: { _ in false },
+            resolveItems: { _, _ in
+                resolves += 1
+                return [item]
+            }
+        )
+        deniedBar.startReconcealForTests(revealedBundleIDs: ["app"])
+        let denied = await deniedBar.resolveRevealedItemsForTests("app", pid: 42, clicking: key)
+        XCTAssertNil(denied)
+        XCTAssertEqual(accesses, [true])
+        XCTAssertEqual(resolves, 1)
+        deniedBar.cleanup()
+    }
+
     func testAMenuReadThatFailsUnderOurBarIsRetriedOnceWithMenuAccess() {
         let retry = HiddenBarController.retriesMenuWithAccess
         XCTAssertTrue(retry(true, false, true))

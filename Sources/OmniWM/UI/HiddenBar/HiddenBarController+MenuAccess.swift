@@ -23,10 +23,10 @@ extension HiddenBarController {
         clicking key: MenuBarItemKey? = nil
     ) async -> [ResolvedMenuBarItem]? {
         let items = await resolveItems(for: bundleID, owner: owner)
-        guard !holdsMenuAccess,
-              Self.needsMenuAccess(for: items, clicking: key, covers: coversPoint),
-              acquireMenuAccess()
-        else { return items }
+        guard !holdsMenuAccess, Self.needsMenuAccess(for: items, clicking: key, covers: coversPoint) else {
+            return items
+        }
+        guard !Task.isCancelled, temporarilyRevealed.contains(bundleID), acquireMenuAccess() else { return nil }
         return await resolveItems(for: bundleID, owner: owner)
     }
 
@@ -43,13 +43,12 @@ extension HiddenBarController {
 
     func retryingWithMenuAccess(
         _ key: MenuBarItemKey,
-        withMenuAccess: Bool,
         onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void
     ) -> (HiddenBarMenuSession.OpenResult) -> Void {
         { [weak self] result in
             guard let self, Self.retriesMenuWithAccess(
                 readFailed: menuSession.lastOpenFailedReading,
-                withMenuAccess: withMenuAccess,
+                readHeldAccess: menuReadHeldAccess,
                 menuBarHiddenByBar: menuBarHiddenByBar()
             ) else { return onOpen(result) }
             openMenu(key, withMenuAccess: true, onOpen: onOpen)
@@ -58,10 +57,10 @@ extension HiddenBarController {
 
     nonisolated static func retriesMenuWithAccess(
         readFailed: Bool,
-        withMenuAccess: Bool,
+        readHeldAccess: Bool,
         menuBarHiddenByBar: Bool
     ) -> Bool {
-        readFailed && !withMenuAccess && menuBarHiddenByBar
+        readFailed && !readHeldAccess && menuBarHiddenByBar
     }
 
     func takeMenuAccessForReveal(required: Bool = false) -> Bool {

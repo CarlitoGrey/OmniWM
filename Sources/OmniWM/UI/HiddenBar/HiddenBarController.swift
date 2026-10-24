@@ -26,6 +26,7 @@ final class HiddenBarController {
     let coversPoint: (CGPoint) -> Bool
     let resolveOverride: ((String, HiddenBarActivationOwner) async -> [ResolvedMenuBarItem]?)?
     var holdsMenuAccess = false
+    var menuReadHeldAccess = false
 
     private var activationTask: Task<Void, Never>?
     private var activationGeneration = 0
@@ -203,10 +204,9 @@ final class HiddenBarController {
         menuSession.acquire(
             target: .init(key: key, ownerPID: owner.pid, cachedItems: cachedItems),
             resolve: { [weak self] in
-                await self?.resolveRevealedItems(
-                    for: key.bundleID,
-                    owner: owner
-                )
+                let items = await self?.resolveRevealedItems(for: key.bundleID, owner: owner)
+                self?.menuReadHeldAccess = self?.holdsMenuAccess ?? false
+                return items
             },
             onResolve: { [weak self] items in
                 if cachedItems == nil {
@@ -214,7 +214,7 @@ final class HiddenBarController {
                 }
             },
             release: { [weak self] disposition in self?.releaseMenuReveal(key.bundleID, disposition: disposition) },
-            onOpen: retryingWithMenuAccess(key, withMenuAccess: withMenuAccess, onOpen: onOpen)
+            onOpen: retryingWithMenuAccess(key, onOpen: onOpen)
         )
     }
 
