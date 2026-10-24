@@ -1889,7 +1889,7 @@ final class ShellWidgetClickTests: XCTestCase {
         }
     }
 
-    func testBrokenManagedWidgetFallbackReportsFailureWithoutReloading() async throws {
+    func testBrokenUserLibraryFallsBackToBundledWidgetWithoutReloading() async throws {
         for userOverride in [false, true] {
             let context = "userOverride=\(userOverride)"
             let harness = try harness("function render(ctx) return ui.box{ w = 10, h = 10 } end")
@@ -1917,27 +1917,24 @@ final class ShellWidgetClickTests: XCTestCase {
             """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
             harness.host.rescan()
             var changes = harness.layoutChanges.makeAsyncIterator()
-            let expectedState = userOverride ? "failed" : "fallback"
-            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != expectedState {
+            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != "fallback" {
                 try await changes.change()
             }
             let state = try XCTUnwrap(harness.host.widgets["clock"], context)
             XCTAssertNotNil(state.fallback, context)
-            XCTAssertEqual(state.lastFailure != nil, userOverride, context)
-            XCTAssertEqual(state.package == nil, userOverride, context)
+            XCTAssertNil(state.lastFailure, context)
+            XCTAssertNotNil(state.package, context)
             XCTAssertNil(state.loadingPackage, context)
             XCTAssertFalse(harness.host.hasFallback(state), context)
-            let expected = userOverride
-                ? shell.appendingPathComponent("default/widgets/clock/init.luau")
-                : try XCTUnwrap(ShellConfig.bundledWidget("clock"), context)
-            XCTAssertEqual(state.sourceURL.resolvingSymlinksInPath(), expected.resolvingSymlinksInPath(), context)
+            let expected = try XCTUnwrap(ShellConfig.bundledWidget("clock"), context)
+            XCTAssertEqual(state.sourceURL, expected, context)
             let generation = state.generation
             let nextGeneration = harness.host.nextGeneration
             harness.host.rescan(reloadConfiguration: false)
             XCTAssertTrue(harness.host.widgets["clock"] === state, context)
             XCTAssertEqual(state.generation, generation, context)
             XCTAssertEqual(harness.host.nextGeneration, nextGeneration, context)
-            XCTAssertEqual(state.lastFailure != nil, userOverride, context)
+            XCTAssertNil(state.lastFailure, context)
             XCTAssertNil(state.loadingPackage, context)
         }
     }
