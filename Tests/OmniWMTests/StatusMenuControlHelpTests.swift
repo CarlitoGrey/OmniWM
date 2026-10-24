@@ -321,7 +321,9 @@ final class StatusMenuControlHelpTests: XCTestCase {
         try Data("profile = 'look'\n[profiles.look.hiddenBar]\nenabled = false\n".utf8)
             .write(to: directory.appendingPathComponent("shell.toml"))
         settings.hiddenBar.enabled = true
-        settings.hiddenBar.profileOverride = ShellConfig.resolve(shellDirectory: directory).hiddenBarOverride
+        let activeProfile = ShellConfig.resolve(shellDirectory: directory)
+        settings.workspaceBar.profileOverride = activeProfile.barOverride
+        settings.hiddenBar.profileOverride = activeProfile.hiddenBarOverride
         fixture.model.infoAlertPresenter = { _, message in XCTFail(message) }
         let tile = try XCTUnwrap(fixture.model.toggleTiles.first { $0.control == .hiddenBarEnabled })
         let configuration = fixture.controller.workspaceBarManager.shellConfiguration
