@@ -12,6 +12,23 @@ actor ShellWidgetSourceLoader {
         let profile: String
         var components: [ShellComponentInstance]?
 
+        init(
+            name: String, shellDirectory: URL, sourceURL: URL, directories: [URL], profile: String,
+            components: [ShellComponentInstance]? = nil
+        ) {
+            self.name = name
+            self.sourceURL = sourceURL
+            self.profile = profile
+            self.components = components
+            if let bundled = ShellDefaults.bundled, sourceURL == ShellConfig.bundledWidget(name) {
+                self.shellDirectory = bundled
+                self.directories = [bundled]
+            } else {
+                self.shellDirectory = shellDirectory
+                self.directories = directories
+            }
+        }
+
         var contained: Bool {
             sourceURL.standardizedFileURL.path.hasPrefix(shellDirectory.standardizedFileURL.path + "/")
         }
