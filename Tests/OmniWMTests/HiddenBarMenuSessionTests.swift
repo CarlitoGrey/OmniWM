@@ -52,7 +52,7 @@ private final class HiddenBarMenuFixture {
         ResolvedMenuBarItem(
             key: MenuBarItemKey(bundleID: bundleID, ordinal: ordinal), pid: pid, bounds: .zero,
             semanticIdentity: identifier.map {
-                MenuBarItemSemanticIdentity(identifier: $0, title: nil, accessibilityDescription: nil)
+                MenuBarItemSemanticIdentity(identifier: $0, title: nil, accessibilityDescription: nil, help: nil)
             }
         )
     }
@@ -172,6 +172,25 @@ final class HiddenBarMenuSessionTests: XCTestCase {
         let session = fixture.session()
 
         XCTAssertEqual(session.open(target: target, cachedItems: [target]), .menu)
+    }
+
+    func testTooltipsStillTellSeveralItemsApart() {
+        let fixture = HiddenBarMenuFixture()
+        fixture.attributes[ObjectIdentifier(fixture.status)]?["AXIdentifier"] = nil
+        fixture.attributes[ObjectIdentifier(fixture.status)]?["AXHelp"] = "second"
+        let first = fixture.node(["AXHelp": "first"])
+        fixture.setChildren([first, fixture.status], of: fixture.extras)
+        let items = ["first", "second"].enumerated().map { ordinal, help in
+            ResolvedMenuBarItem(
+                key: MenuBarItemKey(bundleID: "com.example.menu", ordinal: ordinal), pid: 1234, bounds: .zero,
+                semanticIdentity: MenuBarItemSemanticIdentity(
+                    identifier: nil, title: nil, accessibilityDescription: nil, help: help
+                )
+            )
+        }
+        let session = fixture.session()
+
+        XCTAssertEqual(session.open(target: items[1], cachedItems: items), .menu)
     }
 
     func testMultipleUnnamedItemsRejectAcquisition() {

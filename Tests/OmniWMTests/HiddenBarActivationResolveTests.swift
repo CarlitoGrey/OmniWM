@@ -18,7 +18,8 @@ final class HiddenBarActivationResolveTests: XCTestCase {
         MenuBarItemSemanticIdentity(
             identifier: value,
             title: nil,
-            accessibilityDescription: nil
+            accessibilityDescription: nil,
+            help: nil
         )
     }
 
