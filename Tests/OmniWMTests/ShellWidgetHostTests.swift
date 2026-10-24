@@ -1760,6 +1760,39 @@ final class ShellWidgetClickTests: XCTestCase {
         }
     }
 
+    func testBrokenMenuOverridesUseBundledLibrariesAndRecoverWhenFixed() async throws {
+        executionTimeAllowance = 60
+        for name in ["apple-menu", "app-menu", "omniwm"] {
+            let harness = try harness(
+                "function render(ctx) return ui.box{ w = 10, h = 10 } end",
+                files: [
+                    "shell.toml": "profiles.default.trailing = [\"test\", \"\(name)\"]\n",
+                    "widgets/\(name)/init.luau": "function render(ctx) return ui.box{ w = 33, h = 10 }",
+                    "lib/menu-button.luau": "error('broken user menu library')",
+                    "lib/keyboard-mode.luau": "error('broken user keyboard library')"
+                ]
+            )
+            defer { harness.close() }
+            let bundled = try XCTUnwrap(ShellConfig.bundledWidget(name))
+            await until("bundled fallback for \(name)") {
+                guard let state = harness.host.widgets[name], state.sourceURL == bundled else { return false }
+                return state.package != nil || state.lastFailure != nil
+            }
+            let fallback = try XCTUnwrap(harness.host.widgets[name])
+            XCTAssertNotNil(fallback.package, name)
+            XCTAssertNil(fallback.lastFailure, name)
+            XCTAssertNotNil(fallback.fallback, name)
+
+            let source = harness.root.appendingPathComponent("shell/widgets/\(name)/init.luau")
+            try Data("function render(ctx) return ui.box{ w = 33, h = 10 } end".utf8).write(to: source)
+            harness.host.rescan()
+            let slot = { harness.host.slots(for: Harness.monitor).first { $0.id == name } }
+            await until("repaired user widget for \(name)") {
+                slot()?.size.width == 33 && slot()?.failure == nil
+            }
+        }
+    }
+
     func testRemovingAnIslandDropsOnlyItsSurfaces() async throws {
         executionTimeAllowance = 60
         let harness = try harness(

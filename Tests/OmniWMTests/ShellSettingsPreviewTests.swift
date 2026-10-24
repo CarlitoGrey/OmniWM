@@ -232,6 +232,26 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("store").path))
     }
 
+    func testBundledMenuFallbacksRenderWithoutUsingUserLibraries() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let library = directory.appendingPathComponent("lib", isDirectory: true)
+        try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for name in ["menu-button", "keyboard-mode"] {
+            try "error('broken user library')".write(
+                to: library.appendingPathComponent("\(name).luau"), atomically: true, encoding: .utf8
+            )
+        }
+        var config = ShellConfig()
+        config.directories = [directory]
+        config.leading = ["apple-menu", "app-menu", "omniwm"]
+        let request = ShellSettingsPreview.Request(
+            config: config, surface: .bar, style: .init(), scale: 1, dark: false, fullWidth: false, revision: 0
+        )
+        let image = try await ShellSettingsPreview.render(request)
+        try inspect(image, name: "settings-bundled-menu-fallbacks")
+    }
+
     private func fixture() throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)

@@ -138,6 +138,20 @@ final class ShellWidgetSourceLoaderTests: XCTestCase {
         XCTAssertTrue(ShellWidgetSourceLoader.packageDirectories(captured).isEmpty)
     }
 
+    func testExternalSourceWithABundledNameDoesNotMountShellModules() throws {
+        let shell = temporaryShell()
+        defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
+        let external = shell.deletingLastPathComponent().appendingPathComponent("apple-menu/init.luau")
+        try write("external", external.deletingLastPathComponent(), external.lastPathComponent)
+        let captured = ShellWidgetSourceLoader.Input(
+            name: "apple-menu", shellDirectory: shell, sourceURL: external, directories: [shell], profile: "look"
+        )
+        let source = try ShellWidgetSourceLoader.build(captured)
+        XCTAssertEqual(source.chunk, "=apple-menu")
+        XCTAssertTrue(source.modules.isEmpty)
+        XCTAssertEqual(source.profile, "look")
+    }
+
     func testSourceByteLimitAppliesToMainAndEveryMountedModule() throws {
         let shell = temporaryShell()
         defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
