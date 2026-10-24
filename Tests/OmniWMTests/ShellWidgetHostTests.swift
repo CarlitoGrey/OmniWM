@@ -1917,13 +1917,14 @@ final class ShellWidgetClickTests: XCTestCase {
             """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
             harness.host.rescan()
             var changes = harness.layoutChanges.makeAsyncIterator()
-            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != "failed" {
+            let expectedState = userOverride ? "failed" : "fallback"
+            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != expectedState {
                 try await changes.change()
             }
             let state = try XCTUnwrap(harness.host.widgets["clock"], context)
             XCTAssertNotNil(state.fallback, context)
-            XCTAssertNotNil(state.lastFailure, context)
-            XCTAssertNil(state.package, context)
+            XCTAssertEqual(state.lastFailure != nil, userOverride, context)
+            XCTAssertEqual(state.package == nil, userOverride, context)
             XCTAssertNil(state.loadingPackage, context)
             XCTAssertFalse(harness.host.hasFallback(state), context)
             let expected = userOverride
@@ -1936,8 +1937,41 @@ final class ShellWidgetClickTests: XCTestCase {
             XCTAssertTrue(harness.host.widgets["clock"] === state, context)
             XCTAssertEqual(state.generation, generation, context)
             XCTAssertEqual(harness.host.nextGeneration, nextGeneration, context)
-            XCTAssertNotNil(state.lastFailure, context)
+            XCTAssertEqual(state.lastFailure != nil, userOverride, context)
             XCTAssertNil(state.loadingPackage, context)
+        }
+    }
+
+    func testBrokenMenuOverridesUseBundledLibrariesAndRecoverWhenFixed() async throws {
+        executionTimeAllowance = 60
+        for name in ["apple-menu", "app-menu", "omniwm"] {
+            let harness = try harness(
+                "function render(ctx) return ui.box{ w = 10, h = 10 } end",
+                files: [
+                    "shell.toml": "profiles.default.trailing = [\"test\", \"\(name)\"]\n",
+                    "widgets/\(name)/init.luau": "function render(ctx) return ui.box{ w = 33, h = 10 }",
+                    "lib/menu-button.luau": "error('broken user menu library')",
+                    "lib/keyboard-mode.luau": "error('broken user keyboard library')"
+                ]
+            )
+            defer { harness.close() }
+            let bundled = try XCTUnwrap(ShellConfig.bundledWidget(name))
+            await until("bundled fallback for \(name)") {
+                guard let state = harness.host.widgets[name], state.sourceURL == bundled else { return false }
+                return state.package != nil || state.lastFailure != nil
+            }
+            let fallback = try XCTUnwrap(harness.host.widgets[name])
+            XCTAssertNotNil(fallback.package, name)
+            XCTAssertNil(fallback.lastFailure, name)
+            XCTAssertNotNil(fallback.fallback, name)
+
+            let source = harness.root.appendingPathComponent("shell/widgets/\(name)/init.luau")
+            try Data("function render(ctx) return ui.box{ w = 33, h = 10 } end".utf8).write(to: source)
+            harness.host.rescan()
+            let slot = { harness.host.slots(for: Harness.monitor).first { $0.id == name } }
+            await until("repaired user widget for \(name)") {
+                slot()?.size.width == 33 && slot()?.failure == nil
+            }
         }
     }
 

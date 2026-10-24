@@ -11,6 +11,19 @@ import XCTest
 
 @MainActor
 final class ShellBundledWidgetTests: XCTestCase {
+    private nonisolated static let styleShell = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ShellBundledWidgetTests-\(UUID().uuidString)", isDirectory: true)
+
+    override class func setUp() {
+        super.setUp()
+        XCTAssertEqual(ShellDefaults.sync(into: styleShell), [])
+    }
+
+    override class func tearDown() {
+        XCTAssertNoThrow(try FileManager.default.removeItem(at: styleShell))
+        super.tearDown()
+    }
+
     private static let names = [
         "clock", "battery", "volume", "weather", "stats", "workspaces", "scratchpads", "omniwm", "system-stats",
         "hidden-bar", "media", "calendar", "launcher", "active-window", "input-source", "wifi", "bluetooth",
@@ -304,16 +317,15 @@ final class ShellBundledWidgetTests: XCTestCase {
         capture: ((omni_view, [UInt8], ShellTextStore) throws -> Void)? = nil,
         inspect: ((omni_view, [omni_wire_node], ShellTextStore) throws -> Void)? = nil
     ) throws {
-        let defaults = try XCTUnwrap(ShellDefaults.bundled)
-        let folder = style == "default" ? defaults
-            : try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent(style)
+        let shell = Self.styleShell
+        var problems: [String] = []
+        let config = try XCTUnwrap(ShellConfig.load(profile: style, shellDirectory: shell, problems: &problems))
+        XCTAssertEqual(problems, [])
         let path = "\(style)/widgets/\(widget)/init.luau"
-        let profileSource = folder.appendingPathComponent("widgets/\(widget)/init.luau")
+        let sourceURL = try XCTUnwrap(config.widget(widget) ?? ShellConfig.bundledWidget(widget))
         let source = try ShellWidgetSourceLoader.build(.init(
-            name: widget, shellDirectory: defaults.deletingLastPathComponent(),
-            sourceURL: FileManager.default.fileExists(atPath: profileSource.path)
-                ? profileSource : defaults.appendingPathComponent("widgets/\(widget)/init.luau"),
-            directories: [folder, defaults], profile: style
+            name: widget, shellDirectory: shell, sourceURL: sourceURL,
+            directories: config.directories, profile: config.profile
         ))
         try render(
             path, source: source.main, chunk: source.chunk,
