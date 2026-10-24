@@ -1,6 +1,11 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+require("../lib/audio")
+require("../lib/battery")
+require("../lib/bluetooth")
+require("../lib/input-source")
+require("../lib/wifi")
 local icons = require("../lib/icons")
 local status = require("../lib/status")
 local surface = require("../lib/surface")

@@ -3090,6 +3090,22 @@ final class ShellStyleLayoutTests: XCTestCase {
         }
     }
 
+    func testCelestialDashboardPreloadsAllModulesBeforeRendering() throws {
+        try assertCelestialPreloads("dashboard", allModules: true)
+    }
+
+    func testCelestialDashboardPreloadsSharedModelsBeforeRendering() throws {
+        try assertCelestialPreloads("dashboard", allModules: false)
+    }
+
+    func testCelestialStatusPreloadsAllModulesBeforeRendering() throws {
+        try assertCelestialPreloads("status", allModules: true)
+    }
+
+    func testCelestialStatusPreloadsSharedModelsBeforeRendering() throws {
+        try assertCelestialPreloads("status", allModules: false)
+    }
+
     func testCelestialDashboardMediaCardUsesTheModelWithoutLyricsAndHasInertIdleControls() throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -4958,6 +4974,173 @@ final class ShellStyleLayoutTests: XCTestCase {
         widget.surface.release(at: point)
         XCTAssertEqual(widget.clicks.count, before + 1, context + ": " + command)
         XCTAssertEqual(widget.clicks.last?.action, command, context)
+    }
+
+    private func assertCelestialPreloads(_ name: String, allModules: Bool) throws {
+        let shell = stepShell([:])
+        defer { try? FileManager.default.removeItem(at: shell) }
+        XCTAssertTrue(try ShellProfiles.select("celestial", in: shell))
+        let config = ShellConfig.resolve(shellDirectory: shell)
+        let source = try ShellWidgetSourceLoader.build(.init(
+            name: name, shellDirectory: shell, sourceURL: XCTUnwrap(config.widget(name)),
+            directories: config.directories, profile: config.profile
+        ))
+        let models = name == "dashboard" ? ["calendar", "media", "weather"]
+            : ["audio", "battery", "bluetooth", "input-source", "wifi"]
+        let modules = source.modules.filter { module in
+            allModules || models.contains { module.path.hasSuffix("/\($0).luau") }
+        }
+        if !allModules {
+            for model in models {
+                XCTAssertEqual(source.modules.filter { $0.path.hasSuffix("/\(model).luau") }.count, 1, model)
+            }
+        }
+        let parts = name == "dashboard" ? ["Dashboard", "Media", "Performance", "Weather"]
+            : ["network", "bluetooth", "battery", "keyboard", "audio"]
+        for part in parts {
+            let widget = try ShellRenderedWidget(
+                name: name, source: source.main, directories: config.directories,
+                modules: source.modules, chunk: source.chunk
+            )
+            for module in modules {
+                let sentinel = "error(\"unexpected render-time module compile: \(module.path)\")"
+                XCTAssertEqual(omni_vm_add_module(
+                    widget.vm, module.path, module.path.utf8.count, sentinel, sentinel.utf8.count
+                ), OMNI_OK, module.path)
+            }
+            calendarFixture(widget)
+            weatherFixture(widget)
+            mediaFixture(widget)
+            systemStatsFixture(widget)
+            audioFixture(widget, access: .granted)
+            wifiFixture(widget)
+            bluetoothFixture(widget)
+            statusFixture(widget, name: "input-source")
+            widget.set("settings") {
+                ShellServiceValue.object(Dictionary(uniqueKeysWithValues:
+                    ["audio", "keyboard", "network", "bluetooth", "battery"].map { ($0, .bool(true)) }
+                )).write(to: &$0)
+            }
+            widget.set("bar") { fixture(config, height: 60, vertical: false).write(to: &$0) }
+            let context = "\(name)/\(part)/\(allModules ? "all" : "models")"
+            try renderAndLayout(widget, view: OMNI_VIEW_BAR, context: context)
+            if name == "dashboard" {
+                try renderAndLayout(widget, view: OMNI_VIEW_POPOUT, context: context)
+            }
+            let labels = [
+                "network": "Wi-Fi",
+                "bluetooth": "Bluetooth",
+                "battery": "Battery",
+                "keyboard": "ABC",
+                "audio": "Volume"
+            ]
+            let view = name == "dashboard" ? OMNI_VIEW_POPOUT : OMNI_VIEW_BAR
+            let title = ShellLocalizer.string(labels[part] ?? part, [])
+            let entry = try XCTUnwrap(widget.surface.layout.core.elements {
+                widget.text.string(view == OMNI_VIEW_BAR ? $0.help : $0.text) == title
+            }.first, context)
+            let frame = CGRect(widget.surface.layout.core.absoluteFrame(of: entry))
+            let point = CGPoint(x: frame.midX, y: frame.midY)
+            let previous = widget.actions.count
+            widget.surface.press(at: point)
+            widget.surface.release(at: point)
+            XCTAssertEqual(widget.actions.count, previous + 1, context)
+            XCTAssertEqual(widget.invoke(try XCTUnwrap(widget.actions.last), view: view), [], context)
+            for missing in [false, true] {
+                if missing {
+                    for key in ShellDataKey.allCases where ![.bar, .settings, .clock].contains(key) {
+                        widget.set(key.rawValue) { $0.null() }
+                    }
+                }
+                let expected = celestialPreloadExpectations(name, part: part, missing: missing)
+                let deps = try renderAndLayout(widget, view: OMNI_VIEW_POPOUT, context: context)
+                XCTAssertEqual(deps, expected.keys.reduce(0) { $0 | $1.bit }, context + " missing=\(missing)")
+                let strings = widget.strings(OMNI_VIEW_POPOUT)
+                for text in expected.content {
+                    XCTAssertTrue(strings.contains(ShellLocalizer.string(text, [])), context + ": " + text)
+                }
+                let barDeps = try renderAndLayout(widget, view: OMNI_VIEW_BAR, context: context)
+                let barKeys: [ShellDataKey] = name == "dashboard" ? [] : missing
+                    ? [.bar, .settings, .volume, .inputSource, .wifi, .bluetooth, .battery]
+                    : [.bar, .settings, .volume, .muted, .inputSource, .wifi, .bluetooth, .battery, .charging]
+                XCTAssertEqual(barDeps, barKeys.reduce(0) { $0 | $1.bit }, context + " bar missing=\(missing)")
+                if name == "status" {
+                    XCTAssertTrue(widget.strings().contains(ShellLocalizer.string("Wi-Fi", [])), context)
+                    XCTAssertEqual(widget.strings().contains("EN"), !missing, context)
+                }
+            }
+        }
+    }
+
+    @discardableResult
+    private func renderAndLayout(
+        _ widget: ShellRenderedWidget,
+        view: omni_view,
+        context: String
+    ) throws -> UInt64 {
+        var stats = omni_render_stats()
+        var error = [CChar](repeating: 0, count: 512)
+        let status = omni_instance_render(widget.instance, view, 100_000_000, &stats, &error, error.count)
+        let message = String(decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }, as: UTF8.self)
+        let deps = try XCTUnwrap(status == OMNI_OK ? stats.deps : nil, context + ": " + message)
+        let output = widget.output(view)
+        widget.text.ingest(wire: output)
+        XCTAssertTrue(widget.surface.apply(output, text: widget.text), context)
+        return deps
+    }
+
+    private func celestialPreloadExpectations(
+        _ name: String,
+        part: String,
+        missing: Bool
+    ) -> (keys: [ShellDataKey], content: [String]) {
+        switch (name, part) {
+        case ("dashboard", "Dashboard"):
+            return (
+                [.weather, .user, .system, .clock, .calendar, .cpu, .memory, .disk, .media]
+                    + (missing ? [] : [.seconds, .tempo]),
+                missing ? ["Unavailable", "Nothing is playing"] : ["October 2026", "Northern Lights", "Partly cloudy"]
+            )
+        case ("dashboard", "Media"):
+            return (
+                [.media, .appearance] + (missing ? [] : [.seconds, .lyrics]),
+                missing ? ["Nothing is playing"] : ["Northern Lights", "Sample Artist", "Sample Album"]
+            )
+        case ("dashboard", "Performance"):
+            return (
+                [.battery, .system, .thermal, .cpu, .gpu, .networkHistory, .network]
+                    + (missing ? [.disk, .memory] : [.charging, .power]),
+                missing ? ["CPU", "GPU", "Storage", "Collecting data…"]
+                    : ["Apple M4 Max", "Apple M4 Max GPU", "Storage", "Battery"]
+            )
+        case ("dashboard", "Weather"):
+            return (
+                [.weather] + (missing ? [] : [.settings]),
+                missing ? ["Unavailable"] : ["Toronto", "7-day forecast", "Partly cloudy"]
+            )
+        case (_, "network"):
+            return (
+                [.wifi, .network],
+                missing ? ["Unavailable", "Wi-Fi Settings…"] : ["Harbour Home", "Download", "Upload"]
+            )
+        case (_, "bluetooth"):
+            return ([.bluetooth], missing ? ["Bluetooth", "Unavailable"] : ["AirPods Pro", "Magic Keyboard"])
+        case (_, "battery"):
+            return (
+                missing ? [.battery] : [.battery, .charging, .settings, .power],
+                missing ? ["Battery", "Unavailable"] : [percent(0.76), "On battery", "Battery Settings…"]
+            )
+        case (_, "keyboard"):
+            return (
+                [.inputSource],
+                missing ? ["Unavailable", "Keyboard Settings…"] : ["ABC", "German", "Keyboard Settings…"]
+            )
+        default:
+            return (
+                [.volume, .muted, .outputs, .audioApps],
+                missing ? ["Volume", "Unavailable"] : ["MacBook Pro Speakers", percent(0.62)]
+            )
+        }
     }
 
     private func assertCelestialWeatherLayout(
