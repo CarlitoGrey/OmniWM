@@ -67,6 +67,64 @@ final class HiddenBarMenuGuardTests: XCTestCase {
         )
     }
 
+    func testNativePanelDefersRehideUntilOnlyItsStatusItemRemains() {
+        let menuBar = CGRect(x: 0, y: 0, width: 2560, height: 24)
+        let item = HiddenBarMenuGuard.WindowInfo(
+            layer: Int(CGWindowLevelForKey(.statusWindow)), ownerPID: 500, title: nil,
+            bounds: CGRect(x: 2400, y: 0, width: 28, height: 24)
+        )
+        for title in [nil, "Native panel"] {
+            let panel = HiddenBarMenuGuard.WindowInfo(
+                layer: item.layer, ownerPID: item.ownerPID, title: title,
+                bounds: CGRect(x: 2150, y: 24, width: 280, height: 180)
+            )
+            XCTAssertTrue(HiddenBarMenuGuard.isMenuOpen(
+                windows: [item, panel], menuOwnerPIDs: [500], menuBarFrames: [menuBar]
+            ))
+        }
+        XCTAssertFalse(HiddenBarMenuGuard.isMenuOpen(
+            windows: [item], menuOwnerPIDs: [500], menuBarFrames: [menuBar]
+        ))
+    }
+
+    func testNativePanelGuardKeepsOwnerAndLayerChecks() {
+        let bounds = CGRect(x: 2150, y: 24, width: 280, height: 180)
+        let menuBar = CGRect(x: 0, y: 0, width: 2560, height: 24)
+        for window in [
+            HiddenBarMenuGuard.WindowInfo(
+                layer: Int(CGWindowLevelForKey(.statusWindow)), ownerPID: 42, title: nil, bounds: bounds
+            ),
+            HiddenBarMenuGuard.WindowInfo(layer: 0, ownerPID: 500, title: nil, bounds: bounds)
+        ] {
+            XCTAssertFalse(HiddenBarMenuGuard.isMenuOpen(
+                windows: [window], menuOwnerPIDs: [500], menuBarFrames: [menuBar]
+            ))
+        }
+    }
+
+    func testStatusItemsOnNotchedAndOffsetDisplaysDoNotDeferRehide() {
+        let menuBars = [
+            CGRect(x: 0, y: 0, width: 2560, height: 24),
+            CGRect(x: 2560, y: -1050, width: 1680, height: 38)
+        ]
+        let items = menuBars.map { bar in
+            HiddenBarMenuGuard.WindowInfo(
+                layer: Int(CGWindowLevelForKey(.statusWindow)), ownerPID: 500, title: nil,
+                bounds: CGRect(x: bar.maxX - 50, y: bar.minY, width: 28, height: bar.height)
+            )
+        }
+        XCTAssertFalse(HiddenBarMenuGuard.isMenuOpen(
+            windows: items, menuOwnerPIDs: [500], menuBarFrames: menuBars
+        ))
+        let panel = HiddenBarMenuGuard.WindowInfo(
+            layer: items[1].layer, ownerPID: 500, title: nil,
+            bounds: CGRect(x: 3900, y: -1012, width: 280, height: 180)
+        )
+        XCTAssertTrue(HiddenBarMenuGuard.isMenuOpen(
+            windows: items + [panel], menuOwnerPIDs: [500], menuBarFrames: menuBars
+        ))
+    }
+
     func testEmptyOwnerSetShortCircuits() {
         XCTAssertFalse(
             HiddenBarMenuGuard.isMenuOpen(

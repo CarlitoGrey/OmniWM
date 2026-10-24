@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
-import Foundation
+import AppKit
 
 private final class LockedRunLoopJobSet: @unchecked Sendable {
     private let lock = NSLock()
@@ -91,8 +91,17 @@ final class MenuBarItemService {
     func isMenuOpen(ownerPIDs: Set<pid_t>) async -> Bool? {
         guard !stopped else { return nil }
         let epoch = self.epoch
+        let menuBarFrames = NSScreen.screens.map { screen in
+            let height = max(
+                NSStatusBar.system.thickness,
+                max(screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY)
+            )
+            return ScreenCoordinateSpace.toWindowServer(rect: CGRect(
+                x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height
+            ))
+        }
         let menuOpen = await Task.detached(priority: .userInitiated) {
-            HiddenBarMenuGuard.isAnyMenuOpen(menuOwnerPIDs: ownerPIDs)
+            HiddenBarMenuGuard.isAnyMenuOpen(menuOwnerPIDs: ownerPIDs, menuBarFrames: menuBarFrames)
         }.value
         guard !Task.isCancelled, isCurrent(epoch) else { return nil }
         return menuOpen
