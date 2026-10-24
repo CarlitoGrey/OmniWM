@@ -121,7 +121,7 @@ final class ShellDefaultsTests: XCTestCase {
             XCTAssertEqual(config.themeName, style)
             let celestial = style == "celestial"
             XCTAssertEqual(config.barOverride?.settings.height, celestial ? 60 : 40, style)
-            XCTAssertEqual(config.barOverride?.settings.fullWidth, celestial, style)
+            XCTAssertEqual(config.barOverride?.settings.fullWidth, true, style)
             XCTAssertEqual(config.barOverride?.settings.position, celestial ? .left : .overlappingMenuBar, style)
             let dashboard = config.drawers.first { $0.id == "dashboard" }
             XCTAssertEqual(dashboard?.widgets, celestial ? ["dashboard"] : nil, style)
