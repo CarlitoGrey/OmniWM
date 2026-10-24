@@ -11,7 +11,10 @@
 #include <memory>
 #include <mutex>
 #include <new>
+#include <string>
+#include <string_view>
 #include <time.h>
+#include <unordered_map>
 
 namespace {
 
@@ -369,13 +372,98 @@ struct FreeDeleter {
     void operator()(char *pointer) const { std::free(pointer); }
 };
 
+const std::string *preludeBytecode() {
+    static std::once_flag once;
+    static const std::string *bytecode = nullptr;
+    try {
+        std::call_once(once, [] {
+            size_t size = 0;
+            std::unique_ptr<char, FreeDeleter> compiled(luau_compile(prelude, sizeof prelude - 1, nullptr, &size));
+            if (!compiled) {
+                throw std::bad_alloc();
+            }
+            bytecode = new std::string(compiled.get(), size);
+        });
+    } catch (const std::bad_alloc &) {
+        return nullptr;
+    }
+    return bytecode;
+}
+
 bool runPrelude(lua_State *L) {
-    size_t bytecodeSize = 0;
-    std::unique_ptr<char, FreeDeleter> bytecode(luau_compile(prelude, sizeof prelude - 1, nullptr, &bytecodeSize));
-    if (!bytecode || luau_load(L, "=prelude", bytecode.get(), bytecodeSize, 0) != 0) {
+    const std::string *bytecode = preludeBytecode();
+    if (bytecode == nullptr || luau_load(L, "=prelude", bytecode->data(), bytecode->size(), 0) != 0) {
         return false;
     }
     return lua_pcall(L, 0, 0, 0) == LUA_OK;
+}
+
+constexpr size_t bytecodePayloadLimit = 8 << 20;
+constexpr size_t bytecodeEntryLimit = 1024;
+
+struct BytecodeEntry {
+    BytecodeEntry(const char *source, size_t length) : source(source, length) {}
+
+    const std::string source;
+    std::once_flag once;
+    std::shared_ptr<const std::string> bytecode;
+};
+
+struct BytecodeCache {
+    std::mutex mutex;
+    std::unordered_map<std::string_view, std::shared_ptr<BytecodeEntry>> entries;
+    size_t payload = 0;
+
+    void clear() {
+        entries.clear();
+        payload = 0;
+    }
+
+    bool owns(const std::shared_ptr<BytecodeEntry> &entry) const {
+        auto found = entries.find(std::string_view(entry->source));
+        return found != entries.end() && found->second == entry;
+    }
+
+    void admit(const std::shared_ptr<BytecodeEntry> &entry, size_t size) {
+        entries.emplace(std::string_view(entry->source), entry);
+        payload += size;
+    }
+};
+
+BytecodeCache &bytecodeCache() {
+    static BytecodeCache &cache = *new BytecodeCache;
+    return cache;
+}
+
+std::shared_ptr<BytecodeEntry> bytecodeEntry(BytecodeCache &cache, const char *source, size_t length) {
+    std::lock_guard<std::mutex> lock(cache.mutex);
+    auto found = cache.entries.find(std::string_view(source, length));
+    if (found != cache.entries.end()) {
+        return found->second;
+    }
+    auto entry = std::make_shared<BytecodeEntry>(source, length);
+    if (length <= bytecodePayloadLimit) {
+        if (cache.payload + length > bytecodePayloadLimit || cache.entries.size() >= bytecodeEntryLimit) {
+            cache.clear();
+        }
+        cache.admit(entry, length);
+    }
+    return entry;
+}
+
+void accountBytecode(BytecodeCache &cache, const std::shared_ptr<BytecodeEntry> &entry, size_t size) {
+    std::lock_guard<std::mutex> lock(cache.mutex);
+    if (!cache.owns(entry)) {
+        return;
+    }
+    if (cache.payload + size <= bytecodePayloadLimit) {
+        cache.payload += size;
+        return;
+    }
+    cache.clear();
+    if (entry->source.size() + size <= bytecodePayloadLimit) {
+        cache.admit(entry, entry->source.size() + size);
+    }
 }
 
 }
@@ -393,6 +481,29 @@ lua_CompileOptions scriptCompileOptions() {
 
 uint64_t threadCPU() noexcept {
     return clock_gettime_nsec_np(CLOCK_THREAD_CPUTIME_ID);
+}
+
+std::shared_ptr<const std::string> compiledBytecode(omni_vm *vm, const char *source, size_t length) {
+    try {
+        BytecodeCache &cache = bytecodeCache();
+        std::shared_ptr<BytecodeEntry> entry = bytecodeEntry(cache, source, length);
+        std::call_once(entry->once, [&] {
+            size_t size = 0;
+            lua_CompileOptions options = scriptCompileOptions();
+            captureCount(vm, &omni_capture_stats::bytecode_compiles);
+            std::unique_ptr<char, FreeDeleter> compiled(
+                luau_compile(entry->source.data(), entry->source.size(), &options, &size));
+            if (!compiled) {
+                throw std::bad_alloc();
+            }
+            auto bytecode = std::make_shared<const std::string>(compiled.get(), size);
+            accountBytecode(cache, entry, size);
+            entry->bytecode = std::move(bytecode);
+        });
+        return entry->bytecode;
+    } catch (const std::bad_alloc &) {
+        return nullptr;
+    }
 }
 
 void copyMessage(const char *message, char *error, size_t capacity) {
@@ -644,9 +755,7 @@ omni_status omni_vm_load(omni_vm *vm, const char *chunk_name, const char *source
         return OMNI_ERR_REENTRANT;
     }
     try {
-        size_t bytecodeSize = 0;
-        lua_CompileOptions options = scriptCompileOptions();
-        std::unique_ptr<char, FreeDeleter> bytecode(luau_compile(source, source_length, &options, &bytecodeSize));
+        std::shared_ptr<const std::string> bytecode = compiledBytecode(vm, source, source_length);
         if (!bytecode) {
             copyMessage("compiler allocation failed", error, error_capacity);
             return OMNI_ERR_MEMORY;
@@ -657,10 +766,10 @@ omni_status omni_vm_load(omni_vm *vm, const char *chunk_name, const char *source
         if (vm->loads > 0) {
             lua_setsafeenv(L, LUA_GLOBALSINDEX, false);
         }
-        if (luau_load(L, chunk_name, bytecode.get(), bytecodeSize, 0) != 0) {
+        if (luau_load(L, chunk_name, bytecode->data(), bytecode->size(), 0) != 0) {
             copyValueMessage(L, -1, error, error_capacity);
             lua_settop(L, 0);
-            return bytecodeSize > 0 && bytecode.get()[0] == 0 ? OMNI_ERR_COMPILE : OMNI_ERR_MEMORY;
+            return !bytecode->empty() && (*bytecode)[0] == 0 ? OMNI_ERR_COMPILE : OMNI_ERR_MEMORY;
         }
         vm->loads++;
         omni_status status;
