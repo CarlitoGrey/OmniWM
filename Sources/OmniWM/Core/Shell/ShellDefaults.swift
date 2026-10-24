@@ -103,6 +103,7 @@ enum ShellDefaults {
     }
 
     private static func retire(_ target: URL) {
+        let target = target.resolvingSymlinksInPath().standardizedFileURL
         let manifestURL = target.appendingPathComponent(manifestName)
         guard let written = readManifest(at: manifestURL) else { return }
         do {

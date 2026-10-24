@@ -395,6 +395,36 @@ final class ShellDefaultsTests: XCTestCase {
         )
     }
 
+    func testRetiredManagedStyleIsRemovedThroughALongerSymlinkedShellPath() throws {
+        let styles = root.appendingPathComponent("styles", isDirectory: true)
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        try write("theme = \"native\"", to: "system/shell.toml", in: styles)
+        try write("s1", to: "system/lib/style.luau", in: styles)
+        try write("r1", to: "system/widgets/focus-ribbon/init.luau", in: styles)
+        XCTAssertEqual(sync(styles: styles), [])
+
+        let link = root.appendingPathComponent(String(repeating: "linked-shell-", count: 12))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: root)
+        let linkedShell = link.appendingPathComponent("shell", isDirectory: true)
+        let system = linkedShell.appendingPathComponent("system", isDirectory: true)
+        XCTAssertGreaterThan(
+            system.path.count,
+            system.resolvingSymlinksInPath().appendingPathComponent("widgets/focus-ribbon").path.count
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: system.appendingPathComponent(".manifest.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: system.appendingPathComponent("lib/style.luau").path))
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default", "system"])
+        try FileManager.default.removeItem(at: styles.appendingPathComponent("system"))
+
+        XCTAssertEqual(
+            ShellDefaults.sync(into: linkedShell, from: source, styles: styles, day: "2026-10-08"),
+            []
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: system.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shell.appendingPathComponent("system").path))
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default"])
+    }
+
     private func sync(styles: URL? = nil) -> [URL] {
         ShellDefaults.sync(
             into: root.appendingPathComponent("shell", isDirectory: true),
