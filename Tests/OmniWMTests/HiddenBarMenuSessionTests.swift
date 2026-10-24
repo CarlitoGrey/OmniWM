@@ -52,7 +52,7 @@ private final class HiddenBarMenuFixture {
         ResolvedMenuBarItem(
             key: MenuBarItemKey(bundleID: bundleID, ordinal: ordinal), pid: pid, bounds: .zero,
             semanticIdentity: identifier.map {
-                MenuBarItemSemanticIdentity(identifier: $0, title: nil, accessibilityDescription: nil, help: nil)
+                MenuBarItemSemanticIdentity(identifier: $0, title: nil, accessibilityDescription: nil)
             }
         )
     }
@@ -158,6 +158,16 @@ final class HiddenBarMenuSessionTests: XCTestCase {
     func testSoleUnnamedItemCanLoadItsMenu() {
         let fixture = HiddenBarMenuFixture()
         fixture.attributes[ObjectIdentifier(fixture.status)]?["AXIdentifier"] = nil
+        let target = fixture.target(identifier: nil)
+        let session = fixture.session()
+
+        XCTAssertEqual(session.open(target: target, cachedItems: [target]), .menu)
+    }
+
+    func testATooltipDoesNotIdentifyAnItem() {
+        let fixture = HiddenBarMenuFixture()
+        fixture.attributes[ObjectIdentifier(fixture.status)]?["AXIdentifier"] = nil
+        fixture.attributes[ObjectIdentifier(fixture.status)]?["AXHelp"] = "Vorssaint: awake indefinitely"
         let target = fixture.target(identifier: nil)
         let session = fixture.session()
 

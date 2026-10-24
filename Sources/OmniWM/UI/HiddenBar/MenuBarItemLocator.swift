@@ -13,7 +13,6 @@ struct MenuBarItemSemanticIdentity: Equatable, Hashable, Sendable {
     let identifier: String?
     let title: String?
     let accessibilityDescription: String?
-    let help: String?
 }
 
 struct ResolvedMenuBarItem: Sendable {
@@ -81,7 +80,7 @@ enum MenuBarItemLocator {
         guard let children = childrenValue as? [AXUIElement] else {
             throw MenuExtractionError.invalidResponse
         }
-        let names = ["AXIdentifier", "AXTitle", "AXDescription", "AXHelp"]
+        let names = ["AXIdentifier", "AXTitle", "AXDescription"]
         var freshItems: [ResolvedMenuBarItem] = []
         freshItems.reserveCapacity(children.count)
         for (index, child) in children.enumerated() {
@@ -291,18 +290,15 @@ enum MenuBarItemLocator {
             return MenuBarItemSemanticIdentity(
                 identifier: identifier,
                 title: nil,
-                accessibilityDescription: nil,
-                help: nil
+                accessibilityDescription: nil
             )
         }
         let identity = MenuBarItemSemanticIdentity(
             identifier: nil,
             title: read(kAXTitleAttribute),
-            accessibilityDescription: read(kAXDescriptionAttribute),
-            help: read(kAXHelpAttribute)
+            accessibilityDescription: read(kAXDescriptionAttribute)
         )
-        guard identity.identifier != nil || identity.title != nil
-            || identity.accessibilityDescription != nil || identity.help != nil
+        guard identity.identifier != nil || identity.title != nil || identity.accessibilityDescription != nil
         else { return nil }
         return identity
     }
