@@ -43,6 +43,28 @@ final class ShellSettingsPreviewTests: XCTestCase {
         }
     }
 
+    func testSymlinkedShellRendersAllInstalledStylePreviews() async throws {
+        let directory = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let link = directory.appendingPathExtension("symlink")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: directory.deletingLastPathComponent())
+        defer { try? FileManager.default.removeItem(at: link) }
+        let linkedDirectory = link.appendingPathComponent(directory.lastPathComponent, isDirectory: true)
+        let settings = WorkspaceBarSettings()
+        let profiles = ShellProfiles.names(in: directory)
+        XCTAssertEqual(ShellProfiles.names(in: linkedDirectory), profiles)
+        for profile in profiles {
+            let config = try config(profile, in: linkedDirectory)
+            let request = ShellSettingsPreview.Request(
+                config: config, surface: .bar, style: ShellSettingsPreview.style(settings: settings, config: config),
+                scale: 2, dark: false, fullWidth: config.barOverride?.settings.fullWidth ?? settings.fullWidth,
+                revision: 0
+            )
+            let image = try await ShellSettingsPreview.render(request)
+            try inspect(image, name: "settings-\(profile)-symlink-bar")
+        }
+    }
+
     func testIslandCompactAndExpandedSamplesRenderAtBothScalesAndAppearances() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
