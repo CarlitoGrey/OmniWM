@@ -20,7 +20,6 @@ struct WidgetsSettingsPage: View {
     @State private var query = ""
     @State private var surface = "all"
     @State private var entries: [ShellWidgetLibraryEntry] = []
-    @State private var selectedWidget: String?
     @State private var editError: String?
     @State private var widgetStates: [String: String] = [:]
     @State private var widgetErrors: [String: String] = [:]
@@ -104,7 +103,9 @@ struct WidgetsSettingsPage: View {
                                         }
                                     }
                                 }
-                                Button("Options…") { selectedWidget = entry.name }
+                                Button("Options…") {
+                                    navigation.request(SettingsRoute(section: .styles, itemID: entry.name))
+                                }
                             }
                             if entry.island {
                                 Button("Add to Island") {
@@ -142,20 +143,15 @@ struct WidgetsSettingsPage: View {
         .task {
             do { try await configuration.ensureLoaded() } catch { editError = error.localizedDescription }
             reload()
-            applyRoute()
         }
         .onChange(of: configuration.config) { _, _ in reload() }
         .onChange(of: configuration.barLayout) { _, _ in reload() }
         .onChange(of: configuration.catalog) { _, _ in reload() }
-        .onChange(of: navigation.route) { _, _ in applyRoute() }
         .onReceive(NotificationCenter.default.publisher(for: .shellWidgetsDidChange)) { _ in reloadStatus() }
         .onReceive(NotificationCenter.default
             .publisher(for: NSApplication.didChangeScreenParametersNotification))
         { _ in
             monitors = Monitor.current()
-        }
-        .sheet(isPresented: Binding(get: { selectedWidget != nil }, set: { if !$0 { selectedWidget = nil } })) {
-            if let widget = selectedWidget { ShellWidgetInspector(configuration: configuration, widget: widget) }
         }
         .shellSettingsError($editError)
     }
@@ -188,77 +184,6 @@ struct WidgetsSettingsPage: View {
         widgetErrors = Dictionary(uniqueKeysWithValues: (report?.widgets ?? []).compactMap { widget in
             widget.error.map { (widget.name, $0) }
         })
-    }
-
-    private func applyRoute() {
-        guard navigation.route.section == .widgets else { return }
-        if let id = navigation.route.itemID,
-           entries.contains(where: { $0.name == id && $0.bar }) { selectedWidget = id }
-    }
-
-    private func perform(_ operation: @escaping @MainActor () async throws -> Void) {
-        Task { do { try await operation() } catch { editError = error.localizedDescription } }
-    }
-}
-
-struct ShellWidgetInspector: View {
-    let configuration: ShellConfigurationCoordinator
-    let widget: String
-    @Environment(\.dismiss) private var dismiss
-    @State private var editError: String?
-
-    var body: some View {
-        VStack(spacing: 0) {
-            Form {
-                Section {
-                    Text(ShellBarLayout.title(of: widget)).font(.title2.bold())
-                    Text(ShellWidgetSettingsModel.description(widget)).foregroundStyle(.secondary)
-                    LabeledContent("Style", value: ShellWidgetSettingsModel.title(configuration.config.profile))
-                }
-                Section("Options") {
-                    let schema = configuration.widgetSchemas[widget]
-                    let values = ShellWidgetSettingsModel.values(widget: widget, config: configuration.config)
-                    ForEach(schema?.options.keys.sorted() ?? [], id: \.self) { key in
-                        if widget == "launcher", key == "mode" {
-                            Picker("Open", selection: Binding(
-                                get: { if case let .string(value)? = values[key] { value } else { "__default" } },
-                                set: { value in perform { try await configuration.setWidgetValue(
-                                    value == "__default" ? nil : .string(value),
-                                    widget: widget,
-                                    key: key
-                                ) } }
-                            )) {
-                                Text("Last Used Palette Mode").tag("__default")
-                                ForEach(CommandPaletteMode.allCases, id: \.self) {
-                                    Text(ShellWidgetSettingsModel.title($0.rawValue)).tag($0.rawValue)
-                                }
-                            }
-                        } else if let option = schema?.options[key] {
-                            ShellSettingsOptionRow(key: key, option: option, value: values[key]) { value in
-                                perform { try await configuration.setWidgetValue(value, widget: widget, key: key) }
-                            }
-                        }
-                    }
-                    if schema?.options.isEmpty != false {
-                        Text("This widget has no additional visual options.").foregroundStyle(.secondary)
-                    } else {
-                        Button("Reset Options to Style Defaults") {
-                            perform { try await configuration.reset(table: "widgets." + widget) }
-                        }
-                    }
-                }
-                if widget == "world-clock" { ShellWorldClockSettingsSection(configuration: configuration) }
-                if widget == "weather" || widget == "control-center" || widget == "calendar" {
-                    ShellWeatherSettingsSection(configuration: configuration)
-                }
-            }
-            .formStyle(.grouped)
-            HStack { Spacer()
-                Button("Done") { dismiss() }.keyboardShortcut(.cancelAction)
-            }.padding(16)
-        }
-        .frame(minWidth: 500, idealWidth: 600, minHeight: 420)
-        .shellSettingsError($editError)
     }
 
     private func perform(_ operation: @escaping @MainActor () async throws -> Void) {

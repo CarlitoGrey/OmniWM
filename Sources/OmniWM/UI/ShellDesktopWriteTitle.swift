@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
+
+import SwiftUI
+
+enum ShellDesktopWriteTitle {
+    @MainActor
+    static func title(_ target: ShellSettingsWriteQueue.Target, editor: ShellDesktopEditor) -> String {
+        let key = target.path.last ?? ""
+        var parts = [ShellStyleText.title(target.profile)]
+        if let monitor = editor.monitors.first(where: { $0.id == target.monitor }) {
+            parts.append(monitor.name)
+        }
+        if target.path.first == "widgets", target.path.count > 2 {
+            let widget = target.path[1]
+            parts.append(ShellBarLayout.title(of: widget))
+            if let option = editor.schema(for: widget)?.options[key] {
+                parts.append(String(localized: LocalizedStringResource(
+                    String.LocalizationValue(option.title), table: ShellLocalizer.table,
+                    bundle: .atURL(Bundle.module.bundleURL)
+                )))
+            } else {
+                parts.append(ShellWidgetSettingsModel.title(key))
+            }
+        } else {
+            parts.append(setting(key))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private static func setting(_ key: String) -> String {
+        switch key {
+        case "height": String(localized: "Bar Thickness")
+        case "backgroundOpacity": String(localized: "Background Opacity")
+        case "inactiveIconOpacity": String(localized: "Inactive Icon Opacity")
+        case "notchActiveZoneWidth": String(localized: "Active Zone Width")
+        case "notificationBadgeRefreshIntervalSeconds": String(localized: "Refresh Interval")
+        case "autoHideRevealDelayMilliseconds": String(localized: "Auto-Hide Reveal Delay")
+        case "autoHideHideDelayMilliseconds": String(localized: "Auto-Hide Hide Delay")
+        case "revealHoldMilliseconds": String(localized: "Reveal Hold Delay")
+        case "values": String(localized: "Background Effect")
+        case "fps": String(localized: "Frame Rate")
+        default: ShellWidgetSettingsModel.title(key)
+        }
+    }
+}

@@ -11,7 +11,7 @@ import XCTest
 
 @MainActor
 final class SettingsUIRenderTests: XCTestCase {
-    private struct WindowClass {
+    struct WindowClass {
         let size: CGSize
         let dark: Bool
         var suffix: String {
@@ -19,13 +19,13 @@ final class SettingsUIRenderTests: XCTestCase {
         }
     }
 
-    private let windowClasses = [
+    let windowClasses = [
         WindowClass(size: CGSize(width: 760, height: 560), dark: true),
         WindowClass(size: CGSize(width: 1040, height: 760), dark: false)
     ]
 
     @MainActor
-    private final class Fixture {
+    final class Fixture {
         let directory: URL
         let settings: SettingsStore
         let controller: WMController
@@ -183,9 +183,10 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
-    private func render<Content: View>(
+    func render<Content: View>(
         _ content: Content, fixture: Fixture, windowClass: WindowClass, section: SettingsSection? = nil,
-        name: String, requiredText: [String]
+        name: String, requiredText: [String], forbiddenText: [String] = [], scrollEditorForm: Bool = false,
+        beforeCapture: (@MainActor (CGFloat) async throws -> Void)? = nil
     ) async throws {
         let appearance = try XCTUnwrap(NSAppearance(named: windowClass.dark ? .darkAqua : .aqua))
         let originalAppearance = NSApp.appearance
@@ -220,6 +221,7 @@ final class SettingsUIRenderTests: XCTestCase {
         try await preparePreviews(
             fixture: fixture, section: section, dark: windowClass.dark, scale: window.backingScaleFactor
         )
+        try await beforeCapture?(window.backingScaleFactor)
         if section == .styles {
             let configuration = fixture.controller.workspaceBarManager.shellConfiguration
             let revision = configuration.revision
@@ -239,6 +241,10 @@ final class SettingsUIRenderTests: XCTestCase {
         await display(window, appearance: appearance)
         let viewport = hosting.convert(window.contentLayoutRect, from: nil)
         XCTAssertEqual(viewport.size, windowClass.size, name)
+        if scrollEditorForm {
+            try positionEditorForm(in: hosting)
+            await display(window, appearance: appearance)
+        }
         let bitmap = try await capture(window)
         XCTAssertEqual(bitmap.pixelsWide, Int(windowClass.size.width * window.backingScaleFactor), name)
         XCTAssertEqual(bitmap.pixelsHigh, Int(windowClass.size.height * window.backingScaleFactor), name)
@@ -255,6 +261,12 @@ final class SettingsUIRenderTests: XCTestCase {
             XCTAssertTrue(
                 renderedText.contains(normalizedText(text)),
                 "\(name): missing \(text); rendered \(texts)"
+            )
+        }
+        for text in forbiddenText {
+            XCTAssertFalse(
+                renderedText.contains(normalizedText(text)),
+                "\(name): unexpected \(text); rendered \(texts)"
             )
         }
         var colors: Set<Int> = []
@@ -278,10 +290,30 @@ final class SettingsUIRenderTests: XCTestCase {
         withExtendedLifetime(window) {}
     }
 
+    private func positionEditorForm(in hosting: NSView) throws {
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            let current = (view as? NSScrollView).map { [$0] } ?? []
+            return current + view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        let scroll = try XCTUnwrap(scrollViews(in: hosting).first { view in
+            let frame = view.convert(view.bounds, to: hosting)
+            return frame.minX >= 220 && frame.width > 300
+                && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height
+        }, "The editor must expose a vertical Form scroll view")
+        let document = try XCTUnwrap(scroll.documentView)
+        let clip = scroll.contentView
+        let limit = max(0, document.bounds.height - clip.bounds.height)
+        let offset = min(hosting.bounds.width < 1000 ? 300 : 180, limit)
+        let original = clip.bounds.origin
+        clip.scroll(to: CGPoint(x: original.x, y: document.isFlipped ? offset : limit - offset))
+        scroll.reflectScrolledClipView(clip)
+        XCTAssertNotEqual(clip.bounds.origin, original)
+    }
+
     private func preparePreviews(
         fixture: Fixture, section: SettingsSection?, dark: Bool, scale: CGFloat
     ) async throws {
-        guard let section, [.styles, .bar, .island].contains(section) else { return }
+        guard let section, [.styles, .island].contains(section) else { return }
         let configuration = fixture.controller.workspaceBarManager.shellConfiguration
         let profiles = section == .styles ? configuration.profiles : [configuration.config.profile]
         for profile in profiles {
@@ -291,22 +323,21 @@ final class SettingsUIRenderTests: XCTestCase {
                     config: config, surface: .bar,
                     style: ShellSettingsPreview.style(settings: fixture.settings.workspaceBar, config: config),
                     scale: scale, dark: dark,
-                    fullWidth: config.barOverride?.settings.fullWidth
-                        ?? (section == .styles ? fixture.settings.workspaceBar.fullWidth : false),
-                    revision: configuration.revision
+                    fullWidth: config.barOverride?.settings.fullWidth ?? fixture.settings.workspaceBar.fullWidth,
+                    sourceGeneration: configuration.sourceGeneration
                 ))
             }
-            if config.profile == configuration.config.profile, config.island != nil, section != .bar {
+            if section == .island, config.profile == configuration.config.profile, config.island != nil {
                 _ = try await ShellSettingsPreview.cachedImage(for: .init(
                     config: config, surface: .island(expanded: false), style: ShellBarStyle(),
                     scale: scale, dark: dark, fullWidth: config.barOverride?.settings.fullWidth ?? false,
-                    revision: configuration.revision
+                    sourceGeneration: configuration.sourceGeneration
                 ))
             }
         }
     }
 
-    private func requireNativeRendering() throws {
+    func requireNativeRendering() throws {
         guard ProcessInfo.processInfo.environment["OMNIWM_RUN_SETTINGS_UI_RENDER_TESTS"] == "1" else {
             throw XCTSkip("Native settings rendering requires OMNIWM_RUN_SETTINGS_UI_RENDER_TESTS=1")
         }
@@ -355,7 +386,6 @@ final class SettingsUIRenderTests: XCTestCase {
 
     private func paneLabels(_ section: SettingsSection) -> [String] {
         switch section {
-        case .bar: [String(localized: "Layout"), String(localized: "Behavior"), String(localized: "Apps")]
         case .island: [String(localized: "Interaction"), String(localized: "Placement")]
         default: []
         }
@@ -365,8 +395,7 @@ final class SettingsUIRenderTests: XCTestCase {
         switch section {
         case .general: String(localized: "App Language")
         case .appearance: String(localized: "App Appearance")
-        case .styles: String(localized: "Default")
-        case .bar: String(localized: "Enable Workspace Bar")
+        case .styles: String(localized: "Bar Widgets")
         case .island: String(localized: "Enable Dynamic Island")
         case .widgets: String(localized: "Widget Library")
         case .menuBar: String(localized: "Show Workspace")

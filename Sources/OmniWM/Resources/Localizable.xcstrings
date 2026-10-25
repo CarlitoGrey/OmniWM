@@ -1146,6 +1146,7 @@
       }
     },
     "Where the Center widgets go on a display with a notch: centered under it (Off), with the whole bar below the menu bar, beside the notch, or split around it, with the first half on its left. Notch modes are ignored at Bottom, Left, and Right." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2513,6 +2514,7 @@
       }
     },
     "No widgets" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5272,7 +5274,6 @@
       }
     },
     "Customize terminal tab and pane shortcuts in ~/.config/ghostty/config.ghostty. Reload with Cmd + Shift + , or relaunch OmniWM." : {},
-    "Move below the menu bar, place it to the right of the notch (centered on displays without a notch), split around it, or fill the area to its left, covering application menus. Without a notch, Fill Left covers the left half of the menu bar. Notch modes are ignored at Bottom, Left, and Right." : {},
     "Right of Notch" : {
       "localizations" : {
         "ar" : {
@@ -102993,113 +102994,12 @@
       }
     },
     "Position Offset" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置オフセット"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positionsverschiebung"
-          }
-        },
-        "nb" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Posisjonsforskyvning"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positionsförskjutning"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desplazamiento de posición"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置偏移量"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "स्थिति ऑफसेट"
-          }
-        },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "إزاحة الموضع"
-          }
-        },
-        "sr-Latn" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pomak pozicije"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Μετατόπιση θέσης"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "היסט מיקום"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Смещение позиции"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Przesunięcie położenia"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Позиційний зсув"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Décalage de position"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positieverschuiving"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spostamento posizione"
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sijainnin siirtymä"
           }
         },
         "da" : {
@@ -103108,10 +103008,112 @@
             "value" : "Positionsforskydning"
           }
         },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positionsverschiebung"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μετατόπιση θέσης"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desplazamiento de posición"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sijainnin siirtymä"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Décalage de position"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "היסט מיקום"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "स्थिति ऑफसेट"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostamento posizione"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置オフセット"
+          }
+        },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "위치 오프셋"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posisjonsforskyvning"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positieverschuiving"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesunięcie położenia"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смещение позиции"
+          }
+        },
+        "sr-Latn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pomak pozicije"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positionsförskjutning"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позиційний зсув"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置偏移量"
           }
         }
       }
@@ -166613,7 +166615,6 @@
     },
     "%lld pt" : {},
     "Reset to Style Defaults" : {},
-    "Settings are saved for the “%@” shell profile." : {},
     "Unable to Save Shell Settings" : {},
     "Apple Menu" : {},
     "App Menu" : {},
@@ -166648,12 +166649,6 @@
 
     },
     "Actions" : {
-
-    },
-    "Active Style" : {
-
-    },
-    "Add Bar Widget" : {
 
     },
     "Add Clock" : {
@@ -166725,19 +166720,10 @@
     "App Appearance" : {
 
     },
-    "Apply Locations" : {
-
-    },
     "Apply Weather Location" : {
 
     },
     "Apps" : {
-
-    },
-    "Arrange widgets and customize the bar on your displays." : {
-
-    },
-    "Arrange your widgets. The layout is shared by all displays in this style." : {
 
     },
     "Audio, media, calendar, weather, and system controls." : {
@@ -166771,9 +166757,6 @@
         }
       }
     },
-    "Browsing previews leaves your active style unchanged. Use Style preserves settings saved for both styles." : {
-
-    },
     "Build Your Island" : {
 
     },
@@ -166786,9 +166769,6 @@
     "Celsius" : {
 
     },
-    "Changes to this style’s controls apply immediately." : {
-
-    },
     "Character Size" : {
 
     },
@@ -166799,9 +166779,6 @@
 
     },
     "Choose a Style…" : {
-
-    },
-    "Choose a look for your desktop. Preview a style, then use it when you are ready." : {
 
     },
     "Choose a widget" : {
@@ -166886,9 +166863,6 @@
 
     },
     "Display" : {
-
-    },
-    "Display Surfaces" : {
 
     },
     "Display settings are saved while the global Workspace Bar is off." : {
@@ -167055,9 +167029,6 @@
     "Island Motion" : {
 
     },
-    "Island Preview" : {
-
-    },
     "Island Widgets" : {
 
     },
@@ -167188,13 +167159,7 @@
     "Palette" : {
 
     },
-    "Palettes change colors while keeping the style’s layout and widgets." : {
-
-    },
     "Petal Size" : {
-
-    },
-    "Place in" : {
 
     },
     "Placement" : {
@@ -167204,9 +167169,6 @@
 
     },
     "Preview Unavailable" : {
-
-    },
-    "Preview a desktop style and choose its color palette." : {
 
     },
     "Previous Widget" : {
@@ -167242,9 +167204,6 @@
     "Sakura Petals" : {
 
     },
-    "Sample data. Your desktop uses live information and system material effects." : {
-
-    },
     "Screen Edge" : {
 
     },
@@ -167275,16 +167234,10 @@
     "Shell Folder" : {
 
     },
-    "Show Dynamic Island" : {
-
-    },
     "Show Island" : {
 
     },
     "Show Panel Background" : {
-
-    },
-    "Show Workspace Bar" : {
 
     },
     "Show the menu-bar items you have hidden." : {
@@ -167302,13 +167255,7 @@
     "Still" : {
 
     },
-    "Style" : {
-
-    },
     "Style Profile" : {
-
-    },
-    "Styles" : {
 
     },
     "Support" : {
@@ -167321,9 +167268,6 @@
 
     },
     "Temperature" : {
-
-    },
-    "The bar and island have independent switches. Lake includes configurable island widgets; the other styles include Focus Ribbon." : {
 
     },
     "The focused app and window title." : {
@@ -167373,9 +167317,6 @@
 
     },
     "Trackpad" : {
-
-    },
-    "Try Again" : {
 
     },
     "Tune window spacing, scrolling columns, and split layouts." : {
@@ -167433,9 +167374,6 @@
 
     },
     "Your scratchpad windows." : {
-
-    },
-    "Your widget layout, excluded apps, and icon overrides are kept." : {
 
     },
     "Controls OmniWM’s item in the macOS menu bar. Show Workspace adds the active workspace and enables the app name and icon options.": {},
@@ -172787,6 +172725,153 @@
           }
         }
       }
+    },
+    "A change could not be saved. Retry or discard it first." : {
+
+    },
+    "Active" : {
+
+    },
+    "Active: %@" : {
+
+    },
+    "Add to" : {
+
+    },
+    "All Displays (sample preview)" : {
+
+    },
+    "All styles" : {
+
+    },
+    "Bar Settings" : {
+
+    },
+    "Built-in" : {
+
+    },
+    "Check the highlighted values before saving." : {
+
+    },
+    "Choose a style, then arrange its bar widgets and adjust its look." : {
+
+    },
+    "Display Overrides" : {
+
+    },
+    "Drop widget here" : {
+
+    },
+    "Edits save to %@" : {
+
+    },
+    "Failed" : {
+
+    },
+    "Intensity" : {
+
+    },
+    "Loaded" : {
+
+    },
+    "Loading" : {
+
+    },
+    "Motion Speed" : {
+
+    },
+    "Move to" : {
+
+    },
+    "Notch modes apply to the top edge only." : {
+
+    },
+    "Preview could not update: %@" : {
+
+    },
+    "Previewing %@" : {
+
+    },
+    "Reset %@ to Style default" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Sample data and schematic geometry. Your desktop uses live information." : {
+
+    },
+    "Sample data at this display’s bar geometry." : {
+
+    },
+    "Save changes before continuing?" : {
+
+    },
+    "Settings are saved for the “%@” style." : {
+
+    },
+    "Shared by all displays in this style." : {
+
+    },
+    "Shared by all styles" : {
+
+    },
+    "Source" : {
+
+    },
+    "Status" : {
+
+    },
+    "Style default" : {
+
+    },
+    "Styles & Widgets" : {
+
+    },
+    "These controls apply to every style, including the active style." : {
+
+    },
+    "This effect is shared by all displays in this style." : {
+
+    },
+    "Unavailable" : {
+
+    },
+    "Unsaved Changes" : {
+
+    },
+    "Updating" : {
+
+    },
+    "Use at most %lld characters per line." : {
+
+    },
+    "Using built-in fallback" : {
+
+    },
+    "Widget Lanes" : {
+
+    },
+    "Widget layout, display overrides, effects and All styles settings are kept." : {
+
+    },
+    "Workspace Bar Behavior" : {
+
+    },
+    "Your shell folder" : {
+
+    },
+    "Your unsaved changes stay here until you save or discard them." : {
+
+    },
+    "Your widget options are kept." : {
+
+    },
+    "%@ (Main)" : {
+
+    },
+    "Loading style…" : {
+
     }
   },
   "version" : "1.0"

@@ -128,7 +128,7 @@ extension WorkspaceBarManager {
         case let .editShellWidget(name, edit):
             editShellWidget(name, edit)
         case .openBarWidgetSettings:
-            controller?.statusBarController?.openSettings(section: .bar)
+            controller?.statusBarController?.openSettings(section: .styles)
         default:
             controller?.performWorkspaceBarMenuAction(action, barMonitorId: monitorId)
         }

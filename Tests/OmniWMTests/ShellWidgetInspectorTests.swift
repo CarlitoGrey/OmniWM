@@ -51,9 +51,12 @@ final class ShellWidgetInspectorTests: XCTestCase {
         defer { _ = NSApp.setActivationPolicy(activationPolicy) }
         let (directory, configuration) = try await fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
+        let editor = await editor(configuration: configuration, directory: directory)
         for appearance in [NSAppearance.Name.aqua, .darkAqua] {
             for option in options {
                 try await configuration.reset(table: "widgets." + option.widget)
+                await editor.reload()
+                _ = await editor.selectWidget(option.widget)
                 let window = NSWindow(
                     contentRect: CGRect(x: 0, y: 0, width: 600, height: 620),
                     styleMask: [.titled], backing: .buffered, defer: false
@@ -63,12 +66,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
                     window.close()
                 }
                 window.appearance = NSAppearance(named: appearance)
-                let host = NSHostingView(rootView: ShellWidgetInspector(
-                    configuration: configuration, widget: option.widget
-                )
-                .environment(\.locale, Locale(identifier: "en"))
-                .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light)
-                .transaction { $0.animation = nil })
+                let host = inspector(editor: editor, widget: option.widget, appearance: appearance)
                 window.contentView = host
                 window.orderBack(nil)
                 let cases: [(String, Double?)] = [
@@ -81,6 +79,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
                     } else {
                         try await configuration.reset(table: "widgets." + option.widget)
                     }
+                    await editor.reload()
                     await display(window)
                     pixels[state] = try snapshot(
                         host,
@@ -88,7 +87,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
                     )
                 }
                 try await assertInspectorSnapshots(
-                    pixels, option: option, appearance: appearance, window: window, configuration: configuration
+                    pixels, option: option, appearance: appearance, window: window, editor: editor
                 )
             }
         }
@@ -144,7 +143,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
         option: Option,
         appearance: NSAppearance.Name,
         window: NSWindow,
-        configuration: ShellConfigurationCoordinator
+        editor: ShellDesktopEditor
     ) async throws {
         XCTAssertNotEqual(pixels["default"], pixels["minimum"], option.widget)
         XCTAssertNotEqual(pixels["minimum"], pixels["maximum"], option.widget)
@@ -154,7 +153,8 @@ final class ShellWidgetInspectorTests: XCTestCase {
         }
         let view = try XCTUnwrap(window.contentView)
         for value in stride(from: option.minimum, through: option.maximum, by: 1) {
-            try await configuration.setWidgetValue(.number(value), widget: option.widget, key: option.key)
+            try await editor.configuration.setWidgetValue(.number(value), widget: option.widget, key: option.key)
+            await editor.reload()
             await display(window)
             let reference = try snapshot(
                 view,
@@ -171,6 +171,30 @@ final class ShellWidgetInspectorTests: XCTestCase {
         }
     }
 
+    private func inspector(editor: ShellDesktopEditor, widget: String, appearance: NSAppearance.Name) -> NSView {
+        NSHostingView(rootView: Form {
+            ShellDesktopWidgetInspector(editor: editor, widget: widget)
+        }
+        .formStyle(.grouped)
+        .environment(\.locale, Locale(identifier: "en"))
+        .environment(\.colorScheme, appearance == .darkAqua ? .dark : .light)
+        .transaction { $0.animation = nil })
+    }
+
+    private func editor(configuration: ShellConfigurationCoordinator, directory: URL) async -> ShellDesktopEditor {
+        let settings = SettingsStore(
+            persistence: SettingsFilePersistence(
+                directory: directory.appendingPathComponent("config"), startWatching: false, deferSaves: false
+            ),
+            runtimeState: RuntimeStateStore(directory: directory.appendingPathComponent("state"), deferSaves: false),
+            autosaveEnabled: false
+        )
+        let controller = WMController(settings: settings)
+        let editor = ShellDesktopEditor(configuration: configuration, settings: settings, controller: controller)
+        await editor.reload()
+        return editor
+    }
+
     private func fixture() async throws -> (URL, ShellConfigurationCoordinator) {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         _ = ShellDefaults.sync(into: directory)
@@ -183,13 +207,7 @@ final class ShellWidgetInspectorTests: XCTestCase {
     }
 
     private func snapshot(_ view: NSView, name: String) throws -> Data {
-        let height = min(view.bounds.height, 300)
-        let area = CGRect(
-            x: 0,
-            y: view.isFlipped ? 0 : view.bounds.maxY - height,
-            width: view.bounds.width,
-            height: height
-        )
+        let area = view.bounds
         let bitmap = try XCTUnwrap(NSBitmapImageRep(
             bitmapDataPlanes: nil, pixelsWide: Int(area.width * 2), pixelsHigh: Int(area.height * 2),
             bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,

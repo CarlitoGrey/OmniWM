@@ -35,6 +35,7 @@ final class ShellConfigurationCoordinator {
     private(set) var profiles: [String] = []
     private(set) var themes: [String] = []
     private(set) var revision: UInt64 = 0
+    private(set) var sourceGeneration: UInt64 = 0
     private(set) var metadataError: String?
     private(set) var configProblems: [String] = []
     private var pendingCount = 0
@@ -50,6 +51,7 @@ final class ShellConfigurationCoordinator {
     @ObservationIgnored private var metadataScope: MetadataScope?
     @ObservationIgnored private var inputs: ShellConfigurationInputs?
     @ObservationIgnored private var previewConfigurations: [String: ShellConfig] = [:]
+    @ObservationIgnored private let editorSnapshots = ShellEditorSnapshotCache()
     @ObservationIgnored private var previewGeneration: UInt64 = 0
     @ObservationIgnored private var observation: ShellDirectoryObservation?
     @ObservationIgnored private var observationTask: Task<Void, Never>?
@@ -73,11 +75,6 @@ final class ShellConfigurationCoordinator {
         self.config = config
         clearProfilePreviews()
         requestRefresh()
-    }
-
-    func invalidatePreviews() {
-        metadataScope = nil
-        clearProfilePreviews()
     }
 
     func ensureLoaded() async throws {
@@ -131,17 +128,23 @@ final class ShellConfigurationCoordinator {
 
     @discardableResult
     func selectProfile(_ name: String) async throws -> Bool {
-        try await editFile { try ShellProfiles.select(name, in: $0) }
+        try await editFile(scansSources: false) { try ShellProfiles.select(name, in: $0) }
     }
 
     @discardableResult
-    func selectTheme(_ name: String) async throws -> Bool {
-        try await editFile(refreshMetadata: false) { try ShellProfiles.selectTheme(name, in: $0) }
+    func selectTheme(_ name: String, profile: String? = nil) async throws -> Bool {
+        let profile = try await explicitProfile(profile)
+        return try await editFile(refreshMetadata: false, scansSources: false) {
+            try ShellProfiles.selectTheme(name, profile: profile, in: $0)
+        }
     }
 
     @discardableResult
-    func selectScheme(_ scheme: ShellWallpaperScheme) async throws -> Bool {
-        try await editFile(refreshMetadata: false) { try ShellProfiles.selectScheme(scheme, in: $0) }
+    func selectScheme(_ scheme: ShellWallpaperScheme, profile: String? = nil) async throws -> Bool {
+        let profile = try await explicitProfile(profile)
+        return try await editFile(refreshMetadata: false, scansSources: false) {
+            try ShellProfiles.selectScheme(scheme, profile: profile, in: $0)
+        }
     }
 
     func set<Value: Encodable>(
@@ -196,7 +199,7 @@ final class ShellConfigurationCoordinator {
 
     func setWeather<Value: Encodable>(_ value: Value?) async throws {
         let node = try value.map { try ShellTOMLText.node($0) }
-        _ = try await editFile(refreshMetadata: false) { directory in
+        _ = try await editFile(refreshMetadata: false, scansSources: false) { directory in
             try ShellProfiles.setNodes([(["weather"], node)], in: directory)
         }
     }
@@ -243,8 +246,8 @@ final class ShellConfigurationCoordinator {
         }
     }
 
-    func editBar(_ change: @escaping @MainActor (inout ShellBarLayout) -> Void) async throws {
-        let profile = try await targetProfile(nil)
+    func editBar(profile: String? = nil, _ change: @escaping @MainActor (inout ShellBarLayout) -> Void) async throws {
+        let profile = try await targetProfile(profile)
         try await ordered { [self] in
             let snapshot = try await load(profile: profile)
             var layout = try await persistence().perform {
@@ -260,8 +263,8 @@ final class ShellConfigurationCoordinator {
         }
     }
 
-    func resetBarLayout() async throws {
-        let profile = try await targetProfile(nil)
+    func resetBarLayout(profile: String? = nil) async throws {
+        let profile = try await targetProfile(profile)
         try await ordered { [self] in
             _ = try await persistence().perform { directory in
                 try ShellProfiles.setNodes(
@@ -273,12 +276,17 @@ final class ShellConfigurationCoordinator {
         }
     }
 
-    func setSystemStatsEnabled(_ enabled: Bool) async throws {
-        _ = try await editFile(refreshMetadata: false) { try ShellBarLayout.setSystemStatsEnabled(enabled, in: $0) }
+    func setSystemStatsEnabled(_ enabled: Bool, profile: String? = nil) async throws {
+        let profile = try await explicitProfile(profile)
+        _ = try await editFile(refreshMetadata: false, scansSources: false) {
+            try ShellBarLayout.setSystemStatsEnabled(enabled, profile: profile, in: $0)
+        }
     }
 
-    func updateMonitor(_ monitor: Monitor, change: (@MainActor (inout MonitorBarSettings) -> Void)?) async throws {
-        let profile = try await targetProfile(nil)
+    func updateMonitor(
+        _ monitor: Monitor, profile: String? = nil, change: (@MainActor (inout MonitorBarSettings) -> Void)?
+    ) async throws {
+        let profile = try await targetProfile(profile)
         try await ordered { [self] in
             let snapshot = try await load(profile: profile)
             var overrides = snapshot.barOverride?.monitorOverrides ?? []
@@ -300,11 +308,12 @@ final class ShellConfigurationCoordinator {
 
     func editFile(
         refreshMetadata: Bool = true,
+        scansSources: Bool = true,
         _ operation: @escaping @Sendable (URL) throws -> Bool
     ) async throws -> Bool {
         try await ordered { [self] in
             let changed = try await persistence().perform(operation)
-            if changed { try await saved(refreshMetadata: refreshMetadata) }
+            if changed { try await saved(refreshMetadata: refreshMetadata, scanInputs: scansSources) }
             return changed
         }
     }
@@ -327,14 +336,38 @@ final class ShellConfigurationCoordinator {
 }
 
 extension ShellConfigurationCoordinator {
+    func sharedWeather() async throws -> ShellWeatherLocation? {
+        try await persistence().perform { try ShellProfiles.sharedWeather(in: $0) }
+    }
+
+    func editorSnapshot(profile: String) async throws -> ShellEditorSnapshot {
+        let snapshot = try await previewConfig(profile: profile)
+        if snapshot == config, let barLayout, metadataScope == MetadataScope(config) {
+            return ShellEditorSnapshot(config: snapshot, layout: barLayout, schemas: widgetSchemas, themes: themes)
+        }
+        return try await editorSnapshots.snapshot(
+            for: snapshot, metadata: inputs?.metadata, generation: previewGeneration,
+            writer: persistence(), catalog: catalogLoader
+        )
+    }
+
     private func targetProfile(_ profile: String?) async throws -> String {
-        if let profile { return profile }
+        if let profile = try await explicitProfile(profile) { return profile }
         if !config.directories.isEmpty { return config.profile }
         return try await load().profile
     }
 
+    private func explicitProfile(_ profile: String?) async throws -> String? {
+        guard let profile else { return nil }
+        try await ensureLoaded()
+        guard profiles.contains(profile) else { throw CocoaError(.fileNoSuchFile) }
+        return profile
+    }
+
     private func load(profile: String? = nil) async throws -> ShellConfig {
-        try await prepared(profile: profile).config
+        let snapshot = try await prepared(profile: profile).config
+        if let profile, snapshot.profile != profile { throw ShellBarLayout.Unreadable(problem: profile) }
+        return snapshot
     }
 
     private func prepared(profile: String? = nil) async throws -> ShellConfigurationInputs.Prepared {
@@ -374,6 +407,7 @@ extension ShellConfigurationCoordinator {
             clearProfilePreviews()
             revision += 1
         }
+        if previousInputs == nil || nextInputs?.sources != previousInputs?.sources { sourceGeneration += 1 }
         config = snapshot
         configProblems = loaded.problems
         profiles = listing.0
@@ -409,8 +443,8 @@ extension ShellConfigurationCoordinator {
         return (schemas, catalog)
     }
 
-    private func saved(refreshMetadata: Bool = false) async throws {
-        try await reload(refreshMetadata: refreshMetadata, didSave: true)
+    private func saved(refreshMetadata: Bool = false, scanInputs: Bool = false) async throws {
+        try await reload(scanInputs: scanInputs, refreshMetadata: refreshMetadata, didSave: true)
     }
 
     private func clearProfilePreviews() {

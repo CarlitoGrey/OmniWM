@@ -63,7 +63,8 @@ struct DynamicIslandSettingsPage: View {
                     ShellSettingsPreview(
                         config: configuration.config,
                         surface: .island(expanded: expandedPreview),
-                        revision: configuration.revision
+                        sourceGeneration: configuration.sourceGeneration,
+                        slot: .init(id: "island")
                     )
                     .frame(height: expandedPreview ? 200 : 120)
                 } else {

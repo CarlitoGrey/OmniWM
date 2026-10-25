@@ -2,6 +2,7 @@
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 import AppKit
+import TOML
 
 enum ShellProfiles {
     private static let reserved: Set<String> = ["widgets", "themes", "shaders", "lib"]
@@ -52,8 +53,8 @@ enum ShellProfiles {
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    static func selectTheme(_ name: String, in shellDirectory: URL) throws -> Bool {
-        let config = ShellConfig.resolve(shellDirectory: shellDirectory)
+    static func selectTheme(_ name: String, profile: String? = nil, in shellDirectory: URL) throws -> Bool {
+        let config = try config(profile: profile, in: shellDirectory)
         guard themes(of: config).contains(name) else { throw CocoaError(.fileNoSuchFile) }
         guard name != config.themeName else { return false }
         return try setTopLevel(
@@ -62,13 +63,36 @@ enum ShellProfiles {
         )
     }
 
-    static func selectScheme(_ scheme: ShellWallpaperScheme, in shellDirectory: URL) throws -> Bool {
-        let config = ShellConfig.resolve(shellDirectory: shellDirectory)
+    static func selectScheme(
+        _ scheme: ShellWallpaperScheme, profile: String? = nil, in shellDirectory: URL
+    ) throws -> Bool {
+        let config = try config(profile: profile, in: shellDirectory)
         guard scheme != config.wallpaperScheme else { return false }
         return try setTopLevel(
             [(key("scheme", of: config.profile), ShellTOMLText.quoted(scheme.rawValue))],
             in: shellDirectory
         )
+    }
+
+    static func config(profile: String?, in shellDirectory: URL) throws -> ShellConfig {
+        guard let profile else { return ShellConfig.resolve(shellDirectory: shellDirectory) }
+        var problems: [String] = []
+        guard let config = ShellConfig.load(profile: profile, shellDirectory: shellDirectory, problems: &problems),
+              config.profile == profile
+        else { throw ShellBarLayout.Unreadable(problem: problems.last ?? profile) }
+        return config
+    }
+
+    static func sharedWeather(in shellDirectory: URL) throws -> ShellWeatherLocation? {
+        guard let table = try? TOMLDecoder().decode(
+            [String: TOMLNode].self,
+            from: Data(contents(in: shellDirectory).utf8)
+        )
+        else { throw ShellTOMLText.Failure.unreadable }
+        var config = ShellConfig()
+        var problems: [String] = []
+        ShellConfig.applyServices(table["weather"].map { ["weather": $0] } ?? [:], to: &config, &problems)
+        return config.weather
     }
 
     static func hasTopLevel(_ keys: [[String]], in shellDirectory: URL) -> Bool {

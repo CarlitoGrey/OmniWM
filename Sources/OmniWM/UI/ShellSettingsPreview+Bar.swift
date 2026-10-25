@@ -16,11 +16,9 @@ extension ShellSettingsPreview {
         let vertical = request.style.vertical
         let sizes = images.map { vertical ? $0.size.height : $0.size.width }
         let natural = sizes.reduce(8, +) + CGFloat(max(0, images.count - 1)) * 8
-        let length = request.fullWidth ? max(960, min(natural, 1800)) : min(natural, 1800)
-        let thickness = max(
-            CGFloat(request.style.height),
-            images.map { vertical ? $0.size.width : $0.size.height }.max() ?? 0
-        )
+        let geometry = geometry(of: images, natural: natural, request: request)
+        let length = geometry.length
+        let thickness = geometry.thickness
         let size = vertical ? CGSize(width: thickness, height: length) : CGSize(width: length, height: thickness)
         let scale = ShellSettingsPreviewResolution.scale(size: size, requested: request.scale)
         guard let space = CGColorSpace(name: CGColorSpace.sRGB),
@@ -38,7 +36,7 @@ extension ShellSettingsPreview {
         drawBackground(in: context, size: size, thickness: thickness, request: request)
         try await drawShader(in: context, size: size, scale: scale, request: request)
         drawOutline(in: context, size: size, thickness: thickness, request: request)
-        let offsets = offsets(of: images, sizes: sizes, length: length, request: request)
+        let offsets = offsets(of: images, sizes: sizes, length: length, zones: geometry.zones, request: request)
         drawWidgets(images, in: context, size: size, offsets: offsets, vertical: vertical)
         guard let image = context.makeImage() else {
             throw ShellScriptFailure(kind: .memory, message: "The bar preview could not be rendered.")
@@ -57,7 +55,35 @@ extension ShellSettingsPreview {
     }
 
     private static func cornerRadius(request: Request) -> CGFloat {
-        request.fullWidth || request.style.solidBlack ? 0 : WorkspaceBarGeometry.cornerRadius
+        request.barFullWidth || request.style.solidBlack ? 0 : WorkspaceBarGeometry.cornerRadius
+    }
+
+    private struct BarGeometry {
+        let length: CGFloat
+        let thickness: CGFloat
+        let zones: WorkspaceBarZones?
+    }
+
+    @MainActor
+    private static func geometry(
+        of images: [ShellSettingsPreviewRaster.Image], natural: CGFloat, request: Request
+    ) -> BarGeometry {
+        let vertical = request.style.vertical
+        let content = images.map { vertical ? $0.size.width : $0.size.height }.max() ?? 0
+        guard let display = request.display else {
+            return BarGeometry(
+                length: request.fullWidth ? max(960, min(natural, 1800)) : min(natural, 1800),
+                thickness: max(CGFloat(request.style.height), content),
+                zones: request.fullWidth ? .init(notch: nil, mode: .moveBelowMenuBar) : nil
+            )
+        }
+        let bar = WorkspaceBarGeometry.resolve(monitor: display.monitor, resolved: display.resolved, isVisible: true)
+        let frame = bar.frame(fittingLength: natural, monitor: display.monitor, resolved: display.resolved)
+        return BarGeometry(
+            length: vertical ? frame.height : frame.width,
+            thickness: max(bar.barHeight, content),
+            zones: bar.zones(frame: frame, monitor: display.monitor, resolved: display.resolved)
+        )
     }
 
     @MainActor
@@ -89,7 +115,7 @@ extension ShellSettingsPreview {
     @MainActor
     private static func drawOutline(in context: CGContext, size: CGSize, thickness: CGFloat, request: Request) {
         let style = backgroundStyle(thickness: thickness, request: request)
-        guard !request.fullWidth || style != .material,
+        guard !request.barFullWidth || style != .material,
               let outline = style.outline(
                   contrast: NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? .increased : .standard,
                   colorScheme: request.dark ? .dark : .light
@@ -141,14 +167,15 @@ extension ShellSettingsPreview {
     }
 
     private static func offsets(
-        of images: [ShellSettingsPreviewRaster.Image], sizes: [CGFloat], length: CGFloat, request: Request
+        of images: [ShellSettingsPreviewRaster.Image], sizes: [CGFloat], length: CGFloat,
+        zones: WorkspaceBarZones?, request: Request
     ) -> [CGFloat] {
         let vertical = request.style.vertical
         let offsets: [CGFloat]
-        if request.fullWidth {
+        if let zones {
             offsets = WorkspaceBarZoneLayout.offsets(
                 of: images.map { (request.config.lane(of: $0.name).lane, vertical ? $0.size.height : $0.size.width) },
-                length: length, zones: .init(notch: nil, mode: .moveBelowMenuBar), spacing: 8, inset: 4
+                length: length, zones: zones, spacing: 8, inset: 4
             )
         } else {
             var cursor: CGFloat = 4

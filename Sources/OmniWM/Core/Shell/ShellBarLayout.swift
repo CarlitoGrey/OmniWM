@@ -90,9 +90,12 @@ struct ShellBarLayout: Equatable, Sendable {
     }
 
     @discardableResult
-    static func setSystemStatsEnabled(_ enabled: Bool, in shellDirectory: URL) throws -> Bool {
+    static func setSystemStatsEnabled(_ enabled: Bool, profile: String? = nil, in shellDirectory: URL) throws -> Bool {
         var problems: [String] = []
-        guard let config = ShellConfig.load(shellDirectory: shellDirectory, problems: &problems) else {
+        let loaded = if let profile {
+            ShellConfig.load(profile: profile, shellDirectory: shellDirectory, problems: &problems)
+        } else { ShellConfig.load(shellDirectory: shellDirectory, problems: &problems) }
+        guard let config = loaded, profile.map({ $0 == config.profile }) != false else {
             throw Unreadable(problem: problems.last ?? "shell.toml")
         }
         var entries = [(

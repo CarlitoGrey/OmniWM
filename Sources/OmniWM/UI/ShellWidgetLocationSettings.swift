@@ -3,69 +3,6 @@
 
 import SwiftUI
 
-struct ShellWorldClockSettingsSection: View {
-    let configuration: ShellConfigurationCoordinator
-    @State private var clocks: [ShellWorldClockEntry] = []
-    @State private var saveError: String?
-
-    var body: some View {
-        Section("World Clock Locations") {
-            ForEach($clocks) { clock in
-                ShellWorldClockRow(clock: clock, canRemove: clocks.count > 1) {
-                    clocks.removeAll { $0.id == clock.wrappedValue.id }
-                }
-            }
-            HStack {
-                Button("Add Clock", systemImage: "plus") {
-                    clocks.append(ShellWorldClockEntry(label: "New York", zone: "America/New_York"))
-                }
-                .disabled(clocks.count >= 64)
-                Spacer()
-                Button("Apply Locations", action: applyLocations)
-                    .disabled(!ShellWidgetSettingsModel.validClocks(clocks))
-            }
-            SettingsCaption(
-                localized: "The order here is the order in the bar and popup. Locations are saved for the selected style."
-            )
-        }
-        .onAppear { clocks = ShellWidgetSettingsModel.clocks(config: configuration.config) }
-        .onChange(of: ShellWidgetSettingsModel
-            .fields(widget: "world-clock", config: configuration.config)["zones"])
-        { _, _ in
-            clocks = ShellWidgetSettingsModel.clocks(config: configuration.config)
-        }
-        .shellSettingsError($saveError)
-    }
-
-    private func applyLocations() {
-        Task {
-            do { try await configuration.setWidgetOptions(clocks, widget: "world-clock", key: "zones") }
-            catch { saveError = error.localizedDescription }
-        }
-    }
-}
-
-private struct ShellWorldClockRow: View {
-    @Binding var clock: ShellWorldClockEntry
-    let canRemove: Bool
-    let remove: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            TextField("Label", text: $clock.label).textFieldStyle(.roundedBorder)
-            Picker("Time Zone", selection: $clock.zone) {
-                ForEach(TimeZone.knownTimeZoneIdentifiers, id: \.self) { zone in
-                    Text(zone.replacingOccurrences(of: "_", with: " ")).tag(zone)
-                }
-            }
-            Button("Remove Clock", role: .destructive, action: remove)
-                .disabled(!canRemove)
-                .controlSize(.small)
-        }
-        .padding(.vertical, 4)
-    }
-}
-
 struct ShellWeatherSettingsSection: View {
     struct Location: Encodable {
         var city: String?

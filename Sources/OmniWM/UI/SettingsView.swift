@@ -41,7 +41,7 @@ struct SettingsView: View {
         .onDisappear { controller.workspaceBarManager.shellConfiguration.stopObserving() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             controller.refreshDiagnosticsIssues()
-            guard [.styles, .bar, .island, .widgets, .menuBar, .advanced].contains(navigation.section) else { return }
+            guard [.styles, .island, .widgets, .menuBar, .advanced].contains(navigation.section) else { return }
             Task {
                 do { try await controller.workspaceBarManager.shellConfiguration.refresh() }
                 catch { refreshError = error.localizedDescription }

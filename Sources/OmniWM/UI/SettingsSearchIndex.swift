@@ -12,7 +12,8 @@ struct SettingsSearchEntry: Identifiable {
     }
 
     var context: String {
-        [route.section.displayName, route.tab?.capitalized].compactMap { $0 }.joined(separator: " › ")
+        [route.section.displayName, route.tab.map(SettingsSearchIndex.tabTitle)].compactMap { $0 }
+            .joined(separator: " › ")
     }
 }
 
@@ -286,16 +287,16 @@ enum SettingsSearchIndex {
         setting("Diagnostics recording", section: .reportIssue, anchor: "Diagnostics recording"),
         setting("Stop, Save & Include Recording", section: .reportIssue, anchor: "Stop, Save & Include Recording"),
         setting("Additional evidence", section: .reportIssue, anchor: "Additional evidence"),
-        setting("Custom Bar", section: .bar, tab: "layout"),
-        setting("Bar Widgets", section: .bar, tab: "layout"),
-        setting("Position", section: .bar, tab: "layout"),
-        setting("Notch Mode", section: .bar, tab: "layout"),
-        setting("Bar Thickness", section: .bar, tab: "appearance"),
-        setting("Background Opacity", section: .bar, tab: "appearance"),
-        setting("Notification Badges", section: .bar, tab: "behavior"),
-        setting("Auto-Hide", section: .bar, tab: "behavior"),
-        setting("Excluded Apps", section: .bar, tab: "apps"),
-        setting("Icon Overrides", section: .bar, tab: "apps"),
+        setting("Custom Bar", section: .styles, tab: "lanes"),
+        setting("Bar Widgets", section: .styles, tab: "lanes"),
+        setting("Position", section: .styles, tab: "placement"),
+        setting("Notch Mode", section: .styles, tab: "placement"),
+        setting("Bar Thickness", section: .styles, tab: "appearance"),
+        setting("Background Opacity", section: .styles, tab: "appearance"),
+        setting("Notification Badges", section: .styles, tab: "behavior"),
+        setting("Auto-Hide", section: .styles, tab: "behavior"),
+        setting("Excluded Apps", section: .styles, tab: "apps"),
+        setting("Icon Overrides", section: .styles, tab: "apps"),
         setting("Enable Island", section: .island, tab: "placement"),
         setting("Island Widgets", section: .island, tab: "widgets"),
         setting("Component Regions", section: .island, tab: "widgets"),
@@ -305,10 +306,10 @@ enum SettingsSearchIndex {
         setting("Style Profile", section: .styles),
         setting("Color Palette", section: .styles),
         setting("Wallpaper Colors", section: .styles),
-        setting("Clock", section: .widgets, itemID: "clock"),
-        setting("Weather", section: .widgets, itemID: "weather"),
-        setting("World Clock", section: .widgets, itemID: "world-clock"),
-        setting("Volume", section: .widgets, itemID: "volume"),
+        setting("Clock", section: .styles, itemID: "clock"),
+        setting("Weather", section: .styles, itemID: "weather"),
+        setting("World Clock", section: .styles, itemID: "world-clock"),
+        setting("Volume", section: .styles, itemID: "volume"),
         setting("Drawer", section: .widgets, anchor: "Drawers"),
         setting("Settings File", section: .advanced, anchor: "Configuration Files"),
         setting("Shell Folder", section: .advanced, anchor: "Shell Development"),
@@ -318,12 +319,36 @@ enum SettingsSearchIndex {
 }
 
 extension SettingsSearchIndex {
+    static func tabTitle(_ tab: String) -> String {
+        switch tab {
+        case "lanes": String(localized: "Bar Widgets")
+        case "placement": String(localized: "Placement")
+        case "appearance": String(localized: "Appearance")
+        case "behavior": String(localized: "Behavior")
+        case "apps": String(localized: "Apps")
+        case "widgets": String(localized: "Widgets")
+        case "interaction": String(localized: "Interaction")
+        case "status": String(localized: "macOS Status Item")
+        case "hidden": String(localized: "Hidden Bar")
+        default: tab.capitalized
+        }
+    }
+
     private static func aliases(for section: SettingsSection) -> [String] {
         switch section {
         case .general: ["language", "startup", "login", "updates"]
         case .appearance: ["theme", "dark", "light", "animations", "corners", "borders", "glow"]
-        case .styles: ["shell", "profile", "preset", "palette", "theme", "wallpaper"]
-        case .bar: ["shell", "custom bar", "workspace bar", "widgets"]
+        case .styles: [
+                "shell",
+                "profile",
+                "preset",
+                "palette",
+                "theme",
+                "wallpaper",
+                "custom bar",
+                "workspace bar",
+                "widgets"
+            ]
         case .island: ["shell", "dynamic island", "lake", "focus ribbon", "components"]
         case .widgets: ["shell", "widget", "clock", "calendar", "weather", "media", "volume", "drawer"]
         case .menuBar: ["status bar", "hidden bar", "menu bar", "icons"]

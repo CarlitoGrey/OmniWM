@@ -35,7 +35,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
             let request = ShellSettingsPreview.Request(
                 config: config, surface: .bar, style: ShellSettingsPreview.style(settings: settings, config: config),
                 scale: 2, dark: false, fullWidth: config.barOverride?.settings.fullWidth ?? settings.fullWidth,
-                revision: 0
+                sourceGeneration: 0
             )
             let image = try await ShellSettingsPreview.render(request)
             try inspect(image, name: "settings-\(profile)-bar")
@@ -58,7 +58,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
             let request = ShellSettingsPreview.Request(
                 config: config, surface: .bar, style: ShellSettingsPreview.style(settings: settings, config: config),
                 scale: 2, dark: false, fullWidth: config.barOverride?.settings.fullWidth ?? settings.fullWidth,
-                revision: 0
+                sourceGeneration: 0
             )
             let image = try await ShellSettingsPreview.render(request)
             try inspect(image, name: "settings-\(profile)-symlink-bar")
@@ -96,7 +96,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
                     for expanded in [false, true] {
                         let request = ShellSettingsPreview.Request(
                             config: config, surface: .island(expanded: expanded), style: .init(),
-                            scale: scale, dark: dark, fullWidth: false, revision: 0
+                            scale: scale, dark: dark, fullWidth: false, sourceGeneration: 0
                         )
                         let image = try await ShellSettingsPreview.render(request)
                         let island = try XCTUnwrap(config.island)
@@ -123,7 +123,8 @@ final class ShellSettingsPreviewTests: XCTestCase {
                 style.position = vertical ? "left" : "belowMenuBar"
                 style.height = 40
                 let request = ShellSettingsPreview.Request(
-                    config: config, surface: .bar, style: style, scale: scale, dark: true, fullWidth: true, revision: 0
+                    config: config, surface: .bar, style: style, scale: scale, dark: true, fullWidth: true,
+                    sourceGeneration: 0
                 )
                 let image = try await ShellSettingsPreview.render(request)
                 XCTAssertEqual(vertical ? image.width : image.height, Int(style.height * scale))
@@ -164,7 +165,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertEqual(sampleIsland.fields?["navigation"]?.fields?["focused"]?.string, "sample-safari")
         let request = ShellSettingsPreview.Request(
             config: config, surface: .island(expanded: true), style: .init(), scale: 2,
-            dark: true, fullWidth: false, revision: 0
+            dark: true, fullWidth: false, sourceGeneration: 0
         )
         let image = try await ShellSettingsPreview.render(request)
         XCTAssertLessThanOrEqual(image.width, ShellSettingsPreviewResolution.maximumDimension)
@@ -184,7 +185,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
         style.transparent = true
         style.opacity = 0
         let image = try await ShellSettingsPreview.render(.init(
-            config: config, surface: .bar, style: style, scale: 1, dark: false, fullWidth: true, revision: 0
+            config: config, surface: .bar, style: style, scale: 1, dark: false, fullWidth: true, sourceGeneration: 0
         ))
         let bytes = try XCTUnwrap(image.dataProvider?.data) as Data
         XCTAssertEqual(Array(bytes.prefix(4)), [0, 0, 0, 255])
@@ -246,7 +247,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
         config.directories = [directory]
         config.leading = ["apple-menu", "app-menu", "omniwm"]
         let request = ShellSettingsPreview.Request(
-            config: config, surface: .bar, style: .init(), scale: 1, dark: false, fullWidth: false, revision: 0
+            config: config, surface: .bar, style: .init(), scale: 1, dark: false, fullWidth: false, sourceGeneration: 0
         )
         let image = try await ShellSettingsPreview.render(request)
         try inspect(image, name: "settings-bundled-menu-fallbacks")

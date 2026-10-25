@@ -10,6 +10,11 @@ struct ShellSettingsPreview: View {
         case island(expanded: Bool)
     }
 
+    struct Display: Equatable {
+        let monitor: Monitor
+        let resolved: ResolvedBarSettings
+    }
+
     struct Request: Equatable {
         let config: ShellConfig
         let surface: Surface
@@ -17,14 +22,21 @@ struct ShellSettingsPreview: View {
         let scale: CGFloat
         let dark: Bool
         let fullWidth: Bool
-        let revision: UInt64
+        let sourceGeneration: UInt64
+        var display: Display?
+
+        var barFullWidth: Bool {
+            display?.resolved.fullWidth ?? fullWidth
+        }
     }
 
     let config: ShellConfig
     var surface = Surface.bar
     var style = ShellBarStyle()
     var fullWidth: Bool?
-    var revision: UInt64 = 0
+    var sourceGeneration: UInt64 = 0
+    var display: Display?
+    var slot: ShellSettingsPreviewCache.Slot?
     var onRendered: ((CGImage) -> Void)?
 
     @Environment(\.colorScheme) private var colorScheme
@@ -39,8 +51,9 @@ struct ShellSettingsPreview: View {
             style: style,
             scale: displayScale,
             dark: colorScheme == .dark,
-            fullWidth: fullWidth ?? config.barOverride?.settings.fullWidth ?? false,
-            revision: revision
+            fullWidth: fullWidth ?? display?.resolved.fullWidth ?? config.barOverride?.settings.fullWidth ?? false,
+            sourceGeneration: sourceGeneration,
+            display: display
         )
     }
 
@@ -68,7 +81,7 @@ struct ShellSettingsPreview: View {
             image = nil
             failure = nil
             do {
-                let rendered = try await ShellSettingsPreviewCache.shared.image(for: value)
+                let rendered = try await ShellSettingsPreviewCache.shared.image(for: value, slot: slot)
                 try Task.checkCancellation()
                 image = rendered
                 onRendered?(rendered)
@@ -82,12 +95,8 @@ struct ShellSettingsPreview: View {
 
     @MainActor
     static func style(settings: WorkspaceBarSettings, config: ShellConfig, monitor: Monitor? = nil) -> ShellBarStyle {
-        let isolated = WorkspaceBarSettings()
-        let values = settings.export()
-        isolated.applyIdentity(values)
-        isolated.applyAppearance(values, monitorOverrides: settings.monitorOverrides)
-        isolated.profileOverride = config.barOverride
-        let monitor = monitor ?? Monitor(
+        let isolated = settings.isolated(profileOverride: config.barOverride)
+        let previewMonitor = monitor ?? Monitor(
             id: .init(displayId: 0),
             displayId: 0,
             frame: CGRect(x: 0, y: 0, width: 1440, height: 900),
@@ -95,17 +104,30 @@ struct ShellSettingsPreview: View {
             hasNotch: false,
             name: "Sample display"
         )
-        let resolved = isolated.resolved(for: monitor)
+        let resolved = isolated.resolved(for: previewMonitor)
+        let height = monitor.map {
+            WorkspaceBarGeometry.resolve(monitor: $0, resolved: resolved, isVisible: true).barHeight
+        } ?? CGFloat(resolved.height)
         let snapshot = WorkspaceBarSnapshot(
             projection: .init(items: [], scratchpads: []), backgroundOpacity: resolved.backgroundOpacity,
-            barHeight: resolved.height
+            barHeight: height
         )
         return ShellBarStyle(resolved, settings: isolated, snapshot: snapshot)
     }
 
     @MainActor
-    static func cachedImage(for request: Request) async throws -> CGImage {
-        try await ShellSettingsPreviewCache.shared.image(for: request)
+    static func display(settings: WorkspaceBarSettings, config: ShellConfig, monitor: Monitor) -> Display {
+        Display(
+            monitor: monitor,
+            resolved: settings.isolated(profileOverride: config.barOverride).resolved(for: monitor)
+        )
+    }
+
+    @MainActor
+    static func cachedImage(
+        for request: Request, slot: ShellSettingsPreviewCache.Slot? = nil
+    ) async throws -> CGImage {
+        try await ShellSettingsPreviewCache.shared.image(for: request, slot: slot)
     }
 
     @MainActor
@@ -149,103 +171,5 @@ struct ShellSettingsPreview: View {
         try Task.checkCancellation()
         if let image = images.first, islandSize != nil { return image.image }
         return try await barImage(images, request: request)
-    }
-}
-
-@MainActor
-final class ShellSettingsPreviewCache {
-    private struct Pending {
-        let id: UUID
-        let request: ShellSettingsPreview.Request
-        let task: Task<Void, Never>
-        var waiters: [UUID: CheckedContinuation<CGImage, any Error>]
-    }
-
-    static let shared = ShellSettingsPreviewCache()
-    static let maximumBytes = 32 << 20
-    private let render: @MainActor (ShellSettingsPreview.Request) async throws -> CGImage
-    private var entries: [(ShellSettingsPreview.Request, CGImage)] = []
-    private var pending: [Pending] = []
-    private(set) var retainedBytes = 0
-    var count: Int {
-        entries.count
-    }
-
-    init(render: @escaping @MainActor (ShellSettingsPreview.Request) async throws -> CGImage = ShellSettingsPreview
-        .render)
-    {
-        self.render = render
-    }
-
-    func image(for request: ShellSettingsPreview.Request) async throws -> CGImage {
-        try Task.checkCancellation()
-        if let index = entries.firstIndex(where: { $0.0 == request }) {
-            let entry = entries.remove(at: index)
-            entries.append(entry)
-            return entry.1
-        }
-        let waiter = UUID()
-        return try await withTaskCancellationHandler {
-            let image = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
-                CGImage,
-                any Error
-            >) in
-                guard !Task.isCancelled else {
-                    continuation.resume(throwing: CancellationError())
-                    return
-                }
-                if let index = pending.firstIndex(where: { $0.request == request }) {
-                    pending[index].waiters[waiter] = continuation
-                    return
-                }
-                let id = UUID()
-                let task = Task { [weak self, render] in
-                    let result: Result<CGImage, any Error>
-                    do {
-                        let image = try await render(request)
-                        try Task.checkCancellation()
-                        result = .success(image)
-                    } catch {
-                        result = .failure(error)
-                    }
-                    self?.complete(id, result: result)
-                }
-                pending.append(Pending(id: id, request: request, task: task, waiters: [waiter: continuation]))
-            }
-            try Task.checkCancellation()
-            return image
-        } onCancel: {
-            Task { @MainActor in self.cancel(waiter) }
-        }
-    }
-
-    private func cancel(_ waiter: UUID) {
-        guard let index = pending.firstIndex(where: { $0.waiters[waiter] != nil }),
-              let continuation = pending[index].waiters.removeValue(forKey: waiter)
-        else { return }
-        if pending[index].waiters.isEmpty {
-            pending.remove(at: index).task.cancel()
-        }
-        continuation.resume(throwing: CancellationError())
-    }
-
-    private func complete(_ id: UUID, result: Result<CGImage, any Error>) {
-        guard let index = pending.firstIndex(where: { $0.id == id }) else { return }
-        let entry = pending.remove(at: index)
-        if case let .success(image) = result { insert(image, for: entry.request) }
-        for continuation in entry.waiters.values { continuation.resume(with: result) }
-    }
-
-    func insert(_ image: CGImage, for request: ShellSettingsPreview.Request) {
-        if let index = entries.firstIndex(where: { $0.0 == request }) {
-            let removed = entries.remove(at: index).1
-            retainedBytes -= removed.bytesPerRow * removed.height
-        }
-        entries.append((request, image))
-        retainedBytes += image.bytesPerRow * image.height
-        while entries.count > 12 || retainedBytes > Self.maximumBytes {
-            let removed = entries.removeFirst().1
-            retainedBytes -= removed.bytesPerRow * removed.height
-        }
     }
 }

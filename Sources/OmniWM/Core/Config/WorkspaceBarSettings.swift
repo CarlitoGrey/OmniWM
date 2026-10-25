@@ -295,6 +295,15 @@ extension WorkspaceBarSettings {
         self.monitorOverrides = monitorOverrides
     }
 
+    func isolated(profileOverride: WorkspaceBarProfileOverride?) -> WorkspaceBarSettings {
+        let isolated = WorkspaceBarSettings()
+        let values = export()
+        isolated.applyIdentity(values)
+        isolated.applyAppearance(values, monitorOverrides: monitorOverrides)
+        isolated.profileOverride = profileOverride
+        return isolated
+    }
+
     func settings(for monitor: Monitor) -> MonitorBarSettings? {
         MonitorSettingsStore.get(for: monitor, in: monitorOverrides)
     }

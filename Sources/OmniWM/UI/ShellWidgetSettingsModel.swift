@@ -96,7 +96,11 @@ enum ShellWidgetSettingsModel {
         "menu": "Menu",
         "clipboard": "Clipboard",
         "applications": "Applications",
-        "files": "Files"
+        "files": "Files",
+        "loaded": "Loaded",
+        "loading": "Loading",
+        "failed": "Failed",
+        "fallback": "Using built-in fallback"
     ]
 
     static func description(_ widget: String) -> String {
