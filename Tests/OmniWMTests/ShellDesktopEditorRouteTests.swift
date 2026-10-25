@@ -17,7 +17,7 @@ extension ShellDesktopEditorTests {
         XCTAssertEqual(fixture.editor.selectedWidget, "volume")
         await fixture.editor.reload()
         XCTAssertEqual(fixture.editor.selectedWidget, "volume")
-        await fixture.editor.open(SettingsRoute(section: .widgets, itemID: "clock"))
+        await fixture.editor.open(SettingsRoute(section: .menuBar, itemID: "clock"))
         XCTAssertEqual(fixture.editor.selectedWidget, "volume")
         XCTAssertEqual(fixture.configuration.config.profile, "default")
     }

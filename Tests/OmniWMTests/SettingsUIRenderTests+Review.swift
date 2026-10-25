@@ -41,7 +41,7 @@ extension SettingsUIRenderTests {
             await editor.reload()
             XCTAssertTrue(editor.layout?.addable.contains { $0.name == "world-clock" } == true)
             try await self.render(
-                ShellDesktopAddWidgetSheet(editor: editor, dismiss: {}),
+                ShellWidgetLibrary(editor: editor, target: .bar),
                 fixture: fixture, windowClass: self.reviewSheet,
                 name: "review-add-widgets-380x400-dark",
                 requiredText: [
@@ -51,7 +51,7 @@ extension SettingsUIRenderTests {
                 ]
             )
             try await self.render(
-                ShellDesktopAddWidgetSheet(editor: editor, query: "Time in the places", dismiss: {}),
+                ShellWidgetLibrary(editor: editor, target: .bar, query: "Time in the places"),
                 fixture: fixture, windowClass: self.reviewSheet,
                 name: "review-add-widgets-description-search-380x400-dark",
                 requiredText: [
@@ -61,7 +61,7 @@ extension SettingsUIRenderTests {
                 forbiddenText: [String(localized: "Calendar")]
             )
             try await self.render(
-                ShellDesktopAddWidgetSheet(editor: editor, query: "__no_matching_widget__", dismiss: {}),
+                ShellWidgetLibrary(editor: editor, target: .bar, query: "__no_matching_widget__"),
                 fixture: fixture, windowClass: self.reviewSheet,
                 name: "review-add-widgets-no-match-380x400-dark",
                 requiredText: [String(localized: "Add Widget"), String(localized: "Cancel")],

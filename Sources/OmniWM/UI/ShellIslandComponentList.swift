@@ -55,11 +55,7 @@ struct ShellIslandComponentList: View {
         } footer: {
             Text("Order, placement and options are saved for this style.")
         }
-        .sheet(isPresented: $adding) {
-            ShellComponentGallery(entries: editor.islandEntries, problem: editor.problem) {
-                await editor.addComponent($0)
-            }
-        }
+        .shellWidgetLibrary(editor: editor, target: .island, isPresented: $adding)
     }
 
     private func insertionIndex(at point: CGPoint) -> Int {

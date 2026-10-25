@@ -32,7 +32,7 @@ extension SettingsUIRenderTests {
                         requiredText: state.labels,
                         requiredObservations: state == .dirtyDraft ? [] : [
                             String(localized: "Bar"),
-                            String(localized: "Island")
+                            String(localized: "Island"), String(localized: "Drawers")
                         ],
                         editorFormScrollOffset: state.scrollOffset(dark: windowClass.dark)
                     ) { scale in

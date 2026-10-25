@@ -14,6 +14,12 @@ actor ShellSettingsPreviewRenderer {
         let packages: [String: URL]
     }
 
+    enum Panel: Equatable, Sendable {
+        case available
+        case missing
+        case failed(String)
+    }
+
     static let shared = ShellSettingsPreviewRenderer()
     private let queue = DispatchSerialQueue(label: "com.barut.OmniWM.settings.preview", qos: .userInitiated)
 
@@ -25,9 +31,11 @@ actor ShellSettingsPreviewRenderer {
         inputs: [ShellWidgetSourceLoader.Input],
         values: [String: [UInt8]],
         settings: [String: [UInt8]],
-        expanded: Bool?
+        expanded: Bool?,
+        popout: Bool = false
     ) throws -> [Tree] {
-        try inputs.map { input in
+        let view = popout ? OMNI_VIEW_POPOUT : OMNI_VIEW_BAR
+        return try inputs.compactMap { input in
             try Task.checkCancellation()
             let source = try ShellWidgetSourceLoader.build(input)
             guard let vm = ShellVM.make(memoryLimit: ShellWidgetPackage.memoryLimit) else {
@@ -39,6 +47,7 @@ actor ShellSettingsPreviewRenderer {
                 try Self.check(status, error: error)
             }
             try load(source, into: vm, expanded: expanded, error: &error)
+            if popout, omni_vm_global_function(vm, "popout") != OMNI_OK { return nil }
             guard let instance = omni_instance_create(vm) else {
                 throw ShellScriptFailure(kind: .memory, message: "The preview could not create a widget instance.")
             }
@@ -55,11 +64,41 @@ actor ShellSettingsPreviewRenderer {
             })
             var stats = omni_render_stats()
             try check(omni_instance_render(
-                instance, OMNI_VIEW_BAR, ShellWidgetPackage.renderBudget, &stats, &error, error.count
+                instance,
+                view,
+                ShellWidgetPackage.renderBudget,
+                &stats,
+                &error,
+                error.count
             ))
             try Task.checkCancellation()
-            return try tree(from: instance, input: input, source: source)
+            return try tree(from: instance, input: input, source: source, view: view)
         }
+    }
+
+    func panels(_ inputs: [ShellWidgetSourceLoader.Input]) throws -> [String: Panel] {
+        var panels: [String: Panel] = [:]
+        for input in inputs {
+            try Task.checkCancellation()
+            do {
+                let source = try ShellWidgetSourceLoader.build(input)
+                guard let vm = ShellVM.make(memoryLimit: ShellWidgetPackage.memoryLimit) else {
+                    throw ShellScriptFailure(kind: .memory, message: "The preview could not create a script VM.")
+                }
+                defer { _ = omni_vm_destroy(vm) }
+                var error = [CChar](repeating: 0, count: 512)
+                try load(source, into: vm, expanded: nil, error: &error)
+                guard omni_vm_global_function(vm, "render") == OMNI_OK else {
+                    throw ShellScriptFailure(kind: .compile, message: "the widget does not define a render function")
+                }
+                panels[input.name] = omni_vm_global_function(vm, "popout") == OMNI_OK ? .available : .missing
+            } catch let error as CancellationError {
+                throw error
+            } catch {
+                panels[input.name] = .failed((error as? ShellScriptFailure)?.message ?? error.localizedDescription)
+            }
+        }
+        return panels
     }
 
     private static func check(_ status: omni_status, error: [CChar]) throws {
@@ -107,10 +146,11 @@ actor ShellSettingsPreviewRenderer {
     }
 
     private func tree(
-        from instance: OpaquePointer, input: ShellWidgetSourceLoader.Input, source: ShellWidgetSource
-    ) throws -> Tree {
+        from instance: OpaquePointer, input: ShellWidgetSourceLoader.Input, source: ShellWidgetSource, view: omni_view
+    ) throws -> Tree? {
         var count = 0
-        guard let wire = omni_instance_output(instance, OMNI_VIEW_BAR, &count), count > 0 else {
+        guard let wire = omni_instance_output(instance, view, &count), count > 0 else {
+            if view == OMNI_VIEW_POPOUT { return nil }
             throw ShellScriptFailure(kind: .runtime, message: "\(input.name) did not produce a preview.")
         }
         let output = UnsafeRawBufferPointer(start: wire, count: count)

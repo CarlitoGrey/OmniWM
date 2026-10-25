@@ -26,10 +26,10 @@ struct ShellDesktopEditorPage: View {
             ShellDesktopStyleStrip(editor: editor)
             scope
             TabView(selection: Binding(
-                get: { editor.surface == .bar ? "bar" : "island" },
-                set: { next in Task { await editor.selectSurface(next == "bar" ? .bar : .island) } }
+                get: { editor.surface },
+                set: { next in Task { await editor.selectSurface(next) } }
             )) {
-                Tab("Bar", systemImage: "rectangle.topthird.inset.filled", value: "bar") {
+                Tab("Bar", systemImage: "rectangle.topthird.inset.filled", value: ShellDesktopEditor.Surface.bar) {
                     if editor.surface == .bar {
                         VStack(spacing: 10) {
                             preview
@@ -37,7 +37,7 @@ struct ShellDesktopEditorPage: View {
                         }
                     }
                 }
-                Tab("Island", systemImage: "capsule", value: "island") {
+                Tab("Island", systemImage: "capsule", value: ShellDesktopEditor.Surface.island) {
                     if editor.surface == .island {
                         GeometryReader { geometry in
                             VStack(spacing: 8) {
@@ -46,6 +46,18 @@ struct ShellDesktopEditorPage: View {
                                     max(64, geometry.size.height * 0.32)
                                 ))
                                 ShellIslandEditorForm(editor: editor)
+                            }
+                        }
+                    }
+                }
+                Tab("Drawers", systemImage: "rectangle.stack", value: ShellDesktopEditor.Surface.drawers) {
+                    if editor.surface == .drawers {
+                        GeometryReader { geometry in
+                            VStack(spacing: 8) {
+                                drawerPreview(height: min(
+                                    ShellSettingsPreview.drawerHeight, max(64, geometry.size.height * 0.3)
+                                ))
+                                ShellDrawerEditorForm(editor: editor)
                             }
                         }
                     }
@@ -158,6 +170,22 @@ struct ShellDesktopEditorPage: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder private func drawerPreview(height: CGFloat) -> some View {
+        if let config = editor.drawerPreviewConfig, let drawer = editor.drawer {
+            VStack(spacing: 4) {
+                ShellDesktopPreview(
+                    config: config, style: ShellBarStyle(), display: nil,
+                    sourceGeneration: editor.configuration.sourceGeneration,
+                    fullWidth: false, surface: .drawer(drawer.id)
+                )
+                .frame(height: height)
+                Text("Sample data and panel layout. Hover settings change the trigger area, not the panel.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+        }
     }
 
     @ViewBuilder private func islandPreview(height: CGFloat) -> some View {

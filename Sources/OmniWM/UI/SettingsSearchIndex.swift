@@ -310,7 +310,7 @@ enum SettingsSearchIndex {
         setting("Weather", section: .styles, itemID: "weather"),
         setting("World Clock", section: .styles, itemID: "world-clock"),
         setting("Volume", section: .styles, itemID: "volume"),
-        setting("Drawer", section: .widgets, anchor: "Drawers"),
+        setting("Drawer", section: .styles, tab: "drawers"),
         setting("Settings File", section: .advanced, anchor: "Configuration Files"),
         setting("Shell Folder", section: .advanced, anchor: "Shell Development"),
         setting("IPC", section: .advanced, anchor: "Automation"),
@@ -323,6 +323,7 @@ extension SettingsSearchIndex {
         switch tab {
         case "lanes": String(localized: "Bar Widgets")
         case "island": String(localized: "Dynamic Island")
+        case "drawers": String(localized: "Drawers")
         case "placement": String(localized: "Placement")
         case "appearance": String(localized: "Appearance")
         case "behavior": String(localized: "Behavior")
@@ -347,12 +348,18 @@ extension SettingsSearchIndex {
                 "custom bar",
                 "workspace bar",
                 "widgets",
+                "widget",
+                "clock",
+                "calendar",
+                "weather",
+                "media",
+                "volume",
+                "drawer",
                 "dynamic island",
                 "lake",
                 "focus ribbon",
                 "components"
             ]
-        case .widgets: ["shell", "widget", "clock", "calendar", "weather", "media", "volume", "drawer"]
         case .menuBar: ["status bar", "hidden bar", "menu bar", "icons"]
         case .layouts: ["spacing", "gaps", "margins", "niri", "dwindle", "columns", "tiling"]
         case .monitors: ["monitors", "displays", "screens", "routing"]

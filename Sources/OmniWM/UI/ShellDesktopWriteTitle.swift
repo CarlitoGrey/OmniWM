@@ -29,6 +29,9 @@ enum ShellDesktopWriteTitle {
         } else if target.path.first == "island-root" {
             parts.append(String(localized: "Island"))
             parts.append(option(editor.islandRootOptions[key], fallback: key))
+        } else if target.path.first == "drawer", target.path.count > 2 {
+            parts.append(ShellBarLayout.title(of: target.path[1]))
+            parts.append(drawerSetting(key))
         } else {
             parts.append(setting(key))
         }
@@ -56,6 +59,14 @@ enum ShellDesktopWriteTitle {
         case "values": String(localized: "Background Effect")
         case "fps": String(localized: "Frame Rate")
         default: ShellWidgetSettingsModel.title(key)
+        }
+    }
+
+    private static func drawerSetting(_ key: String) -> String {
+        switch key {
+        case "reach": String(localized: "Hover Area Depth")
+        case "width": String(localized: "Hover Area Length")
+        default: setting(key)
         }
     }
 }

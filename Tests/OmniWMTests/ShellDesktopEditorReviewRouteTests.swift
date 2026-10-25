@@ -139,7 +139,8 @@ extension ShellDesktopEditorTests {
         defer { fixture.editor.detach() }
         navigation.searchText = "Volume"
         let nextSave = fixture.saves.count + 1
-        fixture.editor.add("volume", to: .trailing)
+        let added = await fixture.editor.add("volume", to: .trailing)
+        XCTAssertTrue(added)
         XCTAssertEqual(fixture.editor.selectedWidget, "volume")
         XCTAssertEqual(navigation.route, SettingsRoute(section: .styles, itemID: "volume"))
         XCTAssertEqual(navigation.searchText, "Volume")
@@ -160,7 +161,8 @@ extension ShellDesktopEditorTests {
         let original = fixture.editor.draft(key)
         navigation.searchText = "Volume"
         let nextSave = fixture.saves.count + 1
-        fixture.editor.add("volume", to: .trailing)
+        let added = await fixture.editor.add("volume", to: .trailing)
+        XCTAssertTrue(added)
         XCTAssertEqual(fixture.editor.selectedWidget, "omniwm")
         XCTAssertEqual(navigation.route, SettingsRoute(section: .styles, itemID: "omniwm"))
         XCTAssertEqual(navigation.searchText, "Volume")

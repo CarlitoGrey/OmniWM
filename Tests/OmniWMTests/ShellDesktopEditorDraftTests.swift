@@ -257,6 +257,7 @@ extension ShellDesktopEditorTests {
         case .leave(nil): XCTAssertEqual(closed.count, 1)
         case .surface,
              .component,
+             .drawer,
              .destination: XCTFail("Unexpected selection transition")
         }
     }

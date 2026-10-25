@@ -11,7 +11,7 @@ enum ShellLane: String, Equatable, CaseIterable, Sendable {
 }
 
 struct ShellDrawerConfig: Equatable {
-    enum Edge: String {
+    enum Edge: String, CaseIterable {
         case left
         case right
         case top
@@ -50,6 +50,7 @@ struct ShellConfig: Equatable {
     var hiddenBarWidget: String?
     var systemStatsWidget: String?
     var drawers: [ShellDrawerConfig] = []
+    var styleDrawers: Set<String> = []
     var island: ShellIslandConfig?
 
     static func bundledWidget(_ name: String) -> URL? {
@@ -165,6 +166,9 @@ extension ShellConfig {
         }
         if case let .string(name)? = table["theme"] {
             config.styleThemeName = name
+        }
+        if case let .table(drawers)? = table["drawer"] {
+            config.styleDrawers = Set(drawers.keys)
         }
         let own = ownLayer(top, profile: config.profile, &problems)
         table = merged(table, own)

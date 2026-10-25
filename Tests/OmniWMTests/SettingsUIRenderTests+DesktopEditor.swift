@@ -37,7 +37,8 @@ extension SettingsUIRenderTests {
                     try await render(
                         root, fixture: fixture, windowClass: windowClass, section: .styles,
                         name: "settings-editor-\(state.rawValue)-\(windowClass.suffix)",
-                        requiredText: state.labels, scrollEditorForm: state == .widget || state == .display
+                        requiredText: state.labels, scrollEditorForm: state == .widget || state == .display,
+                        editorFormScrollOffset: state == .widget && windowClass.size.width == 760 ? 340 : nil
                     ) { scale in
                         let editor = try await ready.value()
                         try await self.prepareEditorPreviews(editor, dark: windowClass.dark, scale: scale)

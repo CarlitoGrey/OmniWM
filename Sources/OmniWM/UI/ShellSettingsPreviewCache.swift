@@ -37,11 +37,22 @@ final class ShellSettingsPreviewCache {
         }
     }
 
+    private struct Probe {
+        let id = UUID()
+        let request: ShellSettingsPreview.PanelRequest
+        var waiters: [UUID: CheckedContinuation<[String: ShellSettingsPreview.Panel], any Error>]
+        var task: Task<Void, Never>?
+    }
+
     static let shared = ShellSettingsPreviewCache()
     static let maximumBytes = 32 << 20
     private let render: @MainActor (ShellSettingsPreview.Request) async throws -> CGImage
+    private let probe: @MainActor (ShellSettingsPreview.PanelRequest) async throws
+        -> [String: ShellSettingsPreview.Panel]
     private var entries: [(ShellSettingsPreview.Request, CGImage)] = []
+    private var panelEntries: [(ShellSettingsPreview.PanelRequest, [String: ShellSettingsPreview.Panel])] = []
     private var jobs: [Job] = []
+    private var probes: [Probe] = []
     private var running: UUID?
     private var order: UInt64 = 0
     private(set) var retainedBytes = 0
@@ -49,10 +60,14 @@ final class ShellSettingsPreviewCache {
         entries.count
     }
 
-    init(render: @escaping @MainActor (ShellSettingsPreview.Request) async throws -> CGImage = ShellSettingsPreview
-        .render)
-    {
+    init(
+        render: @escaping @MainActor (ShellSettingsPreview.Request) async throws -> CGImage = ShellSettingsPreview
+            .render,
+        probe: @escaping @MainActor (ShellSettingsPreview.PanelRequest) async throws
+            -> [String: ShellSettingsPreview.Panel] = ShellSettingsPreview.probe
+    ) {
         self.render = render
+        self.probe = probe
     }
 
     func image(for request: ShellSettingsPreview.Request, slot: Slot? = nil) async throws -> CGImage {
@@ -90,12 +105,42 @@ final class ShellSettingsPreviewCache {
         }
     }
 
+    func panels(for request: ShellSettingsPreview.PanelRequest) async throws -> [String: ShellSettingsPreview.Panel] {
+        try Task.checkCancellation()
+        if let index = panelEntries.firstIndex(where: { $0.0 == request }) {
+            let entry = panelEntries.remove(at: index)
+            panelEntries.append(entry)
+            return entry.1
+        }
+        let waiter = UUID()
+        return try await withTaskCancellationHandler {
+            let panels = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<
+                [String: ShellSettingsPreview.Panel],
+                any Error
+            >) in
+                guard !Task.isCancelled else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
+                if let index = probes.firstIndex(where: { $0.request == request }) {
+                    probes[index].waiters[waiter] = continuation
+                } else {
+                    probes.append(Probe(request: request, waiters: [waiter: continuation]))
+                }
+                admit()
+            }
+            try Task.checkCancellation()
+            return panels
+        } onCancel: {
+            Task { @MainActor in self.cancelProbe(waiter) }
+        }
+    }
+
     private func admit() {
-        guard running == nil,
-              let index = jobs.indices.filter({ jobs[$0].task == nil }).max(by: {
-                  (jobs[$0].priority, jobs[$1].order) < (jobs[$1].priority, jobs[$0].order)
-              })
-        else { return }
+        guard running == nil else { return }
+        guard let index = jobs.indices.filter({ jobs[$0].task == nil }).max(by: {
+            (jobs[$0].priority, jobs[$1].order) < (jobs[$1].priority, jobs[$0].order)
+        }) else { return admitProbe() }
         let id = jobs[index].id
         let request = jobs[index].request
         running = id
@@ -110,6 +155,50 @@ final class ShellSettingsPreviewCache {
             }
             self?.complete(id, result: result)
         }
+    }
+
+    private func admitProbe() {
+        guard let index = probes.firstIndex(where: { $0.task == nil }) else { return }
+        let id = probes[index].id
+        let request = probes[index].request
+        running = id
+        probes[index].task = Task { [weak self, probe] in
+            let result: Result<[String: ShellSettingsPreview.Panel], any Error>
+            do {
+                let panels = try await probe(request)
+                try Task.checkCancellation()
+                result = .success(panels)
+            } catch {
+                result = .failure(error)
+            }
+            self?.completeProbe(id, result: result)
+        }
+    }
+
+    private func completeProbe(_ id: UUID, result: Result<[String: ShellSettingsPreview.Panel], any Error>) {
+        if running == id { running = nil }
+        if let index = probes.firstIndex(where: { $0.id == id }) {
+            let probe = probes.remove(at: index)
+            if case let .success(panels) = result, !panels.values.contains(where: {
+                if case .failed = $0 { return true }
+                return false
+            }) {
+                panelEntries.append((probe.request, panels))
+                if panelEntries.count > 12 { panelEntries.removeFirst() }
+            }
+            for waiter in probe.waiters.values {
+                waiter.resume(with: result)
+            }
+        }
+        admit()
+    }
+
+    private func cancelProbe(_ waiter: UUID) {
+        guard let index = probes.firstIndex(where: { $0.waiters[waiter] != nil }),
+              let removed = probes[index].waiters.removeValue(forKey: waiter)
+        else { return }
+        if probes[index].waiters.isEmpty { probes.remove(at: index).task?.cancel() }
+        removed.resume(throwing: CancellationError())
     }
 
     private func cancel(_ waiter: UUID) {

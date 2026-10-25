@@ -7,62 +7,6 @@ import Observation
 @MainActor
 @Observable
 final class ShellDesktopEditor {
-    struct StyleCard: Identifiable, Equatable {
-        let name: String
-        let title: String
-        let summary: String
-        let active: Bool
-
-        var id: String {
-            name
-        }
-    }
-
-    enum Scope: Equatable {
-        case active
-        case previewing(active: String)
-    }
-
-    enum Surface: Equatable {
-        case bar
-        case island
-    }
-
-    struct Destination: Equatable {
-        var surface: Surface
-        var widget: String?
-        var component: String?
-        var group: String?
-    }
-
-    enum Transition: Equatable {
-        case style(String)
-        case widget(String?)
-        case surface(Surface)
-        case component(String?)
-        case destination(Destination)
-        case useStyle
-        case leave(SettingsRoute?)
-
-        var selection: Bool {
-            switch self {
-            case .widget,
-                 .surface,
-                 .component,
-                 .destination: true
-            case .style,
-                 .useStyle,
-                 .leave: false
-            }
-        }
-    }
-
-    enum Resolution {
-        case save
-        case discard
-        case cancel
-    }
-
     let configuration: ShellConfigurationCoordinator
     let settings: SettingsStore
     let writes = ShellSettingsWriteQueue()
@@ -78,6 +22,7 @@ final class ShellDesktopEditor {
     private(set) var selectedWidget: String?
     private(set) var surface = Surface.bar
     private(set) var selectedComponent: String?
+    private(set) var selectedDrawer: String?
     private(set) var group: String?
     private(set) var drafts: [ShellEditorDraft.Key: ShellEditorDraft] = [:]
     private(set) var pendingTransition: Transition?
@@ -131,6 +76,7 @@ final class ShellDesktopEditor {
             {
                 selectedComponent = nil
             }
+            selectedDrawer = drawerID(selectedDrawer)
             await refreshCleanDrafts()
         } catch is CancellationError {
         } catch {
@@ -172,20 +118,41 @@ final class ShellDesktopEditor {
         return await request(.component(id))
     }
 
+    @discardableResult
+    func selectDrawer(_ id: String?) async -> Bool {
+        guard id != selectedDrawer else { return true }
+        return await request(.drawer(id))
+    }
+
     var destination: Destination {
-        Destination(surface: surface, widget: selectedWidget, component: selectedComponent, group: group)
+        Destination(
+            surface: surface, widget: selectedWidget, component: selectedComponent, group: group, drawer: selectedDrawer
+        )
     }
 
     func open(_ route: SettingsRoute) async {
         guard route.section == .styles else { return }
         let next: Destination
         if route.tab == "island" {
-            next = Destination(surface: .island, widget: selectedWidget, component: route.itemID, group: route.anchor)
+            next = Destination(
+                surface: .island, widget: selectedWidget, component: route.itemID, group: route.anchor,
+                drawer: selectedDrawer
+            )
+        } else if route.tab == "drawers" {
+            next = Destination(
+                surface: .drawers, widget: selectedWidget, component: selectedComponent,
+                drawer: route.itemID ?? selectedDrawer
+            )
         } else if route.itemID != nil || route.tab != nil {
-            next = Destination(surface: .bar, widget: route.itemID, component: selectedComponent, group: route.tab)
+            next = Destination(
+                surface: .bar, widget: route.itemID, component: selectedComponent, group: route.tab,
+                drawer: selectedDrawer
+            )
         } else { return }
         guard next != destination else { return }
-        guard next.surface != surface || next.widget != selectedWidget || next.component != selectedComponent else {
+        guard next.surface != surface || next.widget != selectedWidget || next.component != selectedComponent
+            || next.drawer != selectedDrawer
+        else {
             group = next.group
             return syncRoute()
         }
@@ -258,16 +225,23 @@ final class ShellDesktopEditor {
         syncRoute()
     }
 
+    func focusDrawer(_ id: String) {
+        guard drafts.values.allSatisfy({ !$0.dirty }) else { return }
+        selectedDrawer = drawerID(id)
+        syncRoute()
+    }
+
     func syncRoute() {
         guard navigation?.section == .styles else { return }
-        navigation?.reflect(
-            surface == .island
-                ? SettingsRoute(
-                    section: .styles, tab: "island", anchor: selectedComponent == nil ? group : nil,
-                    itemID: selectedComponent
-                )
-                : SettingsRoute(section: .styles, itemID: selectedWidget)
-        )
+        let route = switch surface {
+        case .bar: SettingsRoute(section: .styles, itemID: selectedWidget)
+        case .island: SettingsRoute(
+                section: .styles, tab: "island", anchor: selectedComponent == nil ? group : nil,
+                itemID: selectedComponent
+            )
+        case .drawers: SettingsRoute(section: .styles, tab: "drawers", itemID: selectedDrawer)
+        }
+        navigation?.reflect(route)
     }
 
     func attach(_ navigation: SettingsNavigationModel) {
@@ -295,33 +269,11 @@ final class ShellDesktopEditor {
             return false
         }
         switch transition {
-        case let .widget(name):
-            drafts.removeAll()
-            selectedWidget = name
-            syncRoute()
-        case let .surface(next):
-            drafts.removeAll()
-            surface = next
-            group = nil
-            syncRoute()
-        case let .component(id):
-            drafts.removeAll()
-            selectedComponent = id
-            group = nil
-            syncRoute()
-        case let .destination(next):
-            drafts.removeAll()
-            surface = next.surface
-            selectedWidget = next.widget
-            selectedComponent = next.component.flatMap { id in
-                snapshot.map { $0.config.island?.components.contains { $0.id == id } == true ? id : nil } ?? id
-            }
-            group = next.group
-            syncRoute()
         case let .style(name):
             drafts.removeAll()
             selectedWidget = nil
             selectedComponent = nil
+            selectedDrawer = nil
             group = nil
             selectedStyle = name
             snapshot = nil
@@ -334,7 +286,105 @@ final class ShellDesktopEditor {
         case let .leave(route):
             drafts.removeAll()
             navigation?.proceed(to: route)
+        default:
+            select(transition)
         }
         return true
+    }
+
+    private func select(_ transition: Transition) {
+        drafts.removeAll()
+        switch transition {
+        case let .widget(name):
+            selectedWidget = name
+        case let .surface(next):
+            surface = next
+            group = nil
+        case let .component(id):
+            selectedComponent = id
+            group = nil
+        case let .drawer(id):
+            selectedDrawer = drawerID(id)
+        case let .destination(next):
+            surface = next.surface
+            selectedWidget = next.widget
+            selectedComponent = next.component.flatMap { id in
+                snapshot.map { $0.config.island?.components.contains { $0.id == id } == true ? id : nil } ?? id
+            }
+            selectedDrawer = drawerID(next.drawer)
+            group = next.group
+        case .style,
+             .useStyle,
+             .leave:
+            return
+        }
+        syncRoute()
+    }
+
+    private func drawerID(_ id: String?) -> String? {
+        guard let ids = snapshot?.config.drawers.map(\.id) else { return id }
+        return id.flatMap { ids.contains($0) ? $0 : nil } ?? ids.first
+    }
+}
+
+extension ShellDesktopEditor {
+    struct StyleCard: Identifiable, Equatable {
+        let name: String
+        let title: String
+        let summary: String
+        let active: Bool
+
+        var id: String {
+            name
+        }
+    }
+
+    enum Scope: Equatable {
+        case active
+        case previewing(active: String)
+    }
+
+    enum Surface: Equatable {
+        case bar
+        case island
+        case drawers
+    }
+
+    struct Destination: Equatable {
+        var surface: Surface
+        var widget: String?
+        var component: String?
+        var group: String?
+        var drawer: String?
+    }
+
+    enum Transition: Equatable {
+        case style(String)
+        case widget(String?)
+        case surface(Surface)
+        case component(String?)
+        case drawer(String?)
+        case destination(Destination)
+        case useStyle
+        case leave(SettingsRoute?)
+
+        var selection: Bool {
+            switch self {
+            case .widget,
+                 .surface,
+                 .component,
+                 .drawer,
+                 .destination: true
+            case .style,
+                 .useStyle,
+                 .leave: false
+            }
+        }
+    }
+
+    enum Resolution {
+        case save
+        case discard
+        case cancel
     }
 }

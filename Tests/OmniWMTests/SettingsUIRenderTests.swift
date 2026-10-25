@@ -404,7 +404,7 @@ final class SettingsUIRenderTests: XCTestCase {
 
     private func paneLabels(_ section: SettingsSection) -> [String] {
         switch section {
-        case .styles: [String(localized: "Bar"), String(localized: "Island")]
+        case .styles: [String(localized: "Bar"), String(localized: "Island"), String(localized: "Drawers")]
         default: []
         }
     }
@@ -414,7 +414,6 @@ final class SettingsUIRenderTests: XCTestCase {
         case .general: String(localized: "App Language")
         case .appearance: String(localized: "App Appearance")
         case .styles: String(localized: "Bar Widgets")
-        case .widgets: String(localized: "Widget Library")
         case .menuBar: String(localized: "Show Workspace")
         case .workspaces: String(localized: "Layout Algorithm")
         case .layouts: String(localized: "Spacing")

@@ -166675,9 +166675,6 @@
     "Add to Bar" : {
 
     },
-    "Add to Island" : {
-
-    },
     "Advanced Motion" : {
 
     },
@@ -166691,9 +166688,6 @@
 
     },
     "All Rules" : {
-
-    },
-    "All Widgets" : {
 
     },
     "Allows local commands and scripts to control OmniWM." : {
@@ -166730,9 +166724,6 @@
 
     },
     "Bar" : {
-
-    },
-    "Bar and Island" : {
 
     },
     "Battery charge and power information." : {
@@ -166829,16 +166820,10 @@
     "Custom Bar" : {
 
     },
-    "Custom Width" : {
-
-    },
     "Customize the workspace overview and its controls." : {
 
     },
     "Desktop" : {
-
-    },
-    "Discover widgets, choose where they appear, and edit their options." : {
 
     },
     "Display" : {
@@ -166853,9 +166838,6 @@
     "Displays with a Notch" : {
 
     },
-    "Done" : {
-
-    },
     "Drawer" : {
 
     },
@@ -166866,9 +166848,6 @@
 
     },
     "Dwindle" : {
-
-    },
-    "Edge Activation Area" : {
 
     },
     "Edit Settings File…" : {
@@ -166996,9 +166975,6 @@
     "Island Appearance" : {
 
     },
-    "Island Instance: %@" : {
-
-    },
     "Island Interaction" : {
 
     },
@@ -167072,9 +167048,6 @@
     "Mouse & Focus" : {
 
     },
-    "Move" : {
-
-    },
     "Move Earlier" : {
 
     },
@@ -167108,16 +167081,10 @@
     "Now Playing and playback controls." : {
 
     },
-    "On Bar · %@" : {
-
-    },
     "Open on Hover" : {
 
     },
     "Open the command palette." : {
-
-    },
-    "Opens a persistent copy in your external editor. Visual options are available in Widgets." : {
 
     },
     "Options" : {
@@ -167228,9 +167195,6 @@
     "Support" : {
 
     },
-    "Surface" : {
-
-    },
     "Sweep Glow" : {
 
     },
@@ -167317,9 +167281,6 @@
 
     },
     "Weather Location" : {
-
-    },
-    "Widget Library" : {
 
     },
     "Widget Source" : {
@@ -172841,9 +172802,6 @@
         }
       }
     },
-    "Choose a style, then arrange its bar and island and adjust its look." : {
-
-    },
     "Default includes Focus Ribbon; Lake includes an island with customizable widgets." : {
 
     },
@@ -172875,6 +172833,124 @@
 
     },
     "The island root changed before this draft was saved" : {
+
+    },
+    "%@ is a widget name. Choose another name." : {
+
+    },
+    "%@ is not installed." : {
+
+    },
+    "%@ · %lld widgets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld widgets"
+          }
+        }
+      }
+    },
+    "%@ · 1 widget" : {
+
+    },
+    "A drawer needs at least one widget." : {
+
+    },
+    "A drawer that comes with the style can only be reset." : {
+
+    },
+    "Checking widget panels…" : {
+
+    },
+    "Choose a style, then arrange its bar, island and drawers, and adjust its look." : {
+
+    },
+    "Delete Drawer" : {
+
+    },
+    "Delete Drawer?" : {
+
+    },
+    "Delete Drawer…" : {
+
+    },
+    "Delete the “%@” drawer? Its shortcut binding will be kept." : {
+
+    },
+    "Drawer names can't contain /, \\, : or control characters." : {
+
+    },
+    "Drawer names can't contain periods." : {
+
+    },
+    "Drawer names can't contain spaces." : {
+
+    },
+    "Drawer names with spaces can't have a shortcut." : {
+
+    },
+    "Drawers load only while the Workspace Bar or Dynamic Island is on." : {
+
+    },
+    "Enter a drawer name." : {
+
+    },
+    "Hover" : {
+
+    },
+    "Hover Area Depth" : {
+
+    },
+    "Hover Area Length" : {
+
+    },
+    "Length" : {
+
+    },
+    "Limit Hover Area Length" : {
+
+    },
+    "No panel" : {
+
+    },
+    "No widgets with panels are available in this style." : {
+
+    },
+    "Opens a persistent copy in your external editor. Visual options are in Styles & Widgets." : {
+
+    },
+    "Rename this drawer in shell.toml to edit it here." : {
+
+    },
+    "Sample data and panel layout. Hover settings change the trigger area, not the panel." : {
+
+    },
+    "Shortcut" : {
+
+    },
+    "Shortcuts register while this style is active." : {
+
+    },
+    "Style" : {
+
+    },
+    "This drawer has nothing to show." : {
+
+    },
+    "This drawer name is too long." : {
+
+    },
+    "This drawer no longer exists." : {
+
+    },
+    "This style already has a drawer named %@." : {
+
+    },
+    "This style has no drawers." : {
+
+    },
+    "This widget has no panel, so it can't show in a drawer." : {
 
     }
   },

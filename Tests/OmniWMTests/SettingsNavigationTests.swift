@@ -10,7 +10,7 @@ final class SettingsNavigationTests: XCTestCase {
         let destinations = SettingsSectionGroup.allCases.flatMap(\.sections)
         XCTAssertEqual(Set(destinations), Set(SettingsSection.allCases))
         XCTAssertEqual(destinations.count, Set(destinations).count)
-        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .widgets, .menuBar])
+        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .menuBar])
     }
 
     func testSearchFindsShellTasksAndIndividualControls() throws {
@@ -62,7 +62,7 @@ final class SettingsNavigationTests: XCTestCase {
         XCTAssertFalse(SettingsSearchIndex.results(for: "Clock").contains { $0.route.itemID == "weather" })
         XCTAssertEqual(
             SettingsSearchIndex.results(for: "Drawer").first { $0.title == "Drawer" }?.route,
-            SettingsRoute(section: .widgets, anchor: "Drawers")
+            SettingsRoute(section: .styles, tab: "drawers")
         )
     }
 
@@ -71,7 +71,7 @@ final class SettingsNavigationTests: XCTestCase {
         navigation.section = .appRules
         navigation.ruleEditorState.isDirty = true
         navigation.searchText = "widgets"
-        let requested = SettingsRoute(section: .widgets, itemID: "clock")
+        let requested = SettingsRoute(section: .styles, itemID: "clock")
         navigation.request(requested)
         XCTAssertEqual(navigation.section, .appRules)
         XCTAssertEqual(navigation.pendingRoute, requested)
@@ -135,7 +135,7 @@ final class SettingsNavigationTests: XCTestCase {
         XCTAssertEqual(navigation.route, local)
         XCTAssertTrue(intercepted.isEmpty)
         navigation.searchText = "weather"
-        let destination = SettingsRoute(section: .widgets, anchor: "Drawers")
+        let destination = SettingsRoute(section: .menuBar)
         navigation.request(destination)
         XCTAssertEqual(intercepted, [destination])
         XCTAssertEqual(navigation.route, local)

@@ -28,9 +28,6 @@ final class ShellConfigurationCoordinator {
     private(set) var catalog: ShellConfigurationCatalog?
     private(set) var widgetSchemas: [String: ShellRootSettings] = [:]
     private(set) var barLayout: ShellBarLayout?
-    var availableWidgets: [String] {
-        barLayout?.widgets.map(\.name) ?? []
-    }
 
     private(set) var profiles: [String] = []
     private(set) var themes: [String] = []

@@ -50,7 +50,7 @@ struct AdvancedSettingsPage: View {
                 }
                 Button("Edit Widget Source…", action: editSource).disabled(widget == nil || editingSource)
                 SettingsCaption(
-                    localized: "Opens a persistent copy in your external editor. Visual options are available in Widgets."
+                    localized: "Opens a persistent copy in your external editor. Visual options are in Styles & Widgets."
                 )
                 if let sourceError { Label(sourceError, systemImage: "exclamationmark.triangle").foregroundStyle(.red) }
             }

@@ -8,6 +8,7 @@ enum ShellSettingsPreview {
     enum Surface: Equatable, Sendable {
         case bar
         case island(expanded: Bool)
+        case drawer(String)
     }
 
     struct Display: Equatable {
@@ -85,17 +86,16 @@ enum ShellSettingsPreview {
             names = [island.root]
             islandSize = island.size
             expanded = value
+        case let .drawer(id):
+            return try await drawerImage(id, request: request)
         }
         var seen: Set<String> = []
+        let components = islandSize == nil ? nil : config.island?.components
         let inputs = try names.filter { seen.insert($0).inserted }.map { name in
-            guard let source = config.widget(name) ?? ShellConfig.bundledWidget(name) else {
+            guard let value = input(name, config: config, components: components) else {
                 throw ShellScriptFailure(kind: .compile, message: "\(ShellBarLayout.title(of: name)) is not installed.")
             }
-            return ShellWidgetSourceLoader.Input(
-                name: name, shellDirectory: config.directories.first ?? source.deletingLastPathComponent(),
-                sourceURL: source, directories: config.directories, profile: config.profile,
-                components: islandSize == nil ? nil : config.island?.components
-            )
+            return value
         }
         let trees = try await ShellSettingsPreviewRenderer.shared.render(
             inputs: inputs, values: ShellSettingsPreviewSamples.values(
@@ -108,5 +108,15 @@ enum ShellSettingsPreview {
         try Task.checkCancellation()
         if let image = images.first, islandSize != nil { return image.image }
         return try await barImage(images, request: request)
+    }
+
+    static func input(
+        _ name: String, config: ShellConfig, components: [ShellComponentInstance]? = nil
+    ) -> ShellWidgetSourceLoader.Input? {
+        guard let source = config.widget(name) ?? ShellConfig.bundledWidget(name) else { return nil }
+        return ShellWidgetSourceLoader.Input(
+            name: name, shellDirectory: config.directories.first ?? source.deletingLastPathComponent(),
+            sourceURL: source, directories: config.directories, profile: config.profile, components: components
+        )
     }
 }

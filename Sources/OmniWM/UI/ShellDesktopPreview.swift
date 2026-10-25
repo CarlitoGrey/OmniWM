@@ -18,10 +18,23 @@ struct ShellDesktopPreview: View {
     @State private var updating = false
     @State private var failure: String?
 
-    private struct Context: Equatable {
+    struct Context: Equatable {
         let profile: String
         let monitor: Monitor.ID?
-        let island: Bool
+        let surface: RetainedSurface
+    }
+
+    enum RetainedSurface: Equatable {
+        case bar, island, drawer(String)
+    }
+
+    static func context(for request: ShellSettingsPreview.Request) -> Context {
+        let surface: RetainedSurface = switch request.surface {
+        case .bar: .bar
+        case .island: .island
+        case let .drawer(id): .drawer(id)
+        }
+        return Context(profile: request.config.profile, monitor: request.display?.monitor.id, surface: surface)
     }
 
     private var request: ShellSettingsPreview.Request {
@@ -62,11 +75,7 @@ struct ShellDesktopPreview: View {
         }
         .task(id: request) {
             let value = request
-            let next = Context(
-                profile: value.config.profile,
-                monitor: value.display?.monitor.id,
-                island: value.surface != .bar
-            )
+            let next = Self.context(for: value)
             if next != context { image = nil }
             context = next
             current = value
@@ -76,6 +85,7 @@ struct ShellDesktopPreview: View {
                 let slot = switch value.surface {
                 case .bar: "editor-bar"
                 case .island: "editor-island"
+                case .drawer: "editor-drawer"
                 }
                 let rendered = try await ShellSettingsPreview.cachedImage(for: value, slot: .init(id: slot))
                 try Task.checkCancellation()

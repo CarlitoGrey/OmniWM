@@ -55,7 +55,7 @@ struct ShellDesktopWidgetInspector: View {
                     ForEach(ShellLane.allCases, id: \.self) { lane in
                         Button(ShellBarLayout.side(
                             lane, vertical: ShellBarLayout.vertical(editor.barSettings, on: editor.monitors)
-                        )) { editor.add(widget, to: lane) }
+                        )) { Task { await editor.add(widget, to: lane) } }
                     }
                 }
             } else {

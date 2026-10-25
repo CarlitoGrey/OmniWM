@@ -30,69 +30,10 @@ struct ShellDesktopLanes: View {
         } footer: {
             Text("Shared by all displays in this style.")
         }
-        .sheet(isPresented: $adding) {
-            ShellDesktopAddWidgetSheet(editor: editor) { adding = false }
-        }
+        .shellWidgetLibrary(editor: editor, target: .bar, isPresented: $adding)
         .confirmationDialog("Use this style’s widget layout?", isPresented: $confirmingReset) {
             Button("Use Style Layout", role: .destructive) { editor.resetLayout() }
         } message: { Text("Your widget options are kept.") }
-    }
-}
-
-struct ShellDesktopAddWidgetSheet: View {
-    let editor: ShellDesktopEditor
-    let dismiss: () -> Void
-    @State private var query: String
-
-    init(editor: ShellDesktopEditor, query: String = "", dismiss: @escaping () -> Void) {
-        self.editor = editor
-        self.dismiss = dismiss
-        _query = State(initialValue: query)
-    }
-
-    private var widgets: [ShellBarLayout.Widget] {
-        (editor.layout?.addable ?? []).filter {
-            query.isEmpty || ShellBarLayout.title(of: $0.name).localizedCaseInsensitiveContains(query)
-                || ShellWidgetSettingsModel.description($0.name).localizedCaseInsensitiveContains(query)
-        }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Add Widget").font(.title2.bold())
-            TextField("Search widgets", text: $query).textFieldStyle(.roundedBorder)
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(widgets) { widget in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(ShellBarLayout.title(of: widget.name))
-                                Text(ShellWidgetSettingsModel.description(widget.name))
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Menu("Add to") {
-                                ForEach(ShellLane.allCases, id: \.self) { lane in
-                                    Button(ShellBarLayout.side(lane, vertical: orientation)) {
-                                        editor.add(widget.name, to: lane)
-                                        dismiss()
-                                    }
-                                }
-                            }
-                            .fixedSize()
-                        }
-                    }
-                }
-            }
-            HStack { Spacer()
-                Button("Cancel", action: dismiss).keyboardShortcut(.cancelAction)
-            }
-        }
-        .padding(20).frame(width: 380, height: 400)
-    }
-
-    private var orientation: Bool? {
-        ShellBarLayout.vertical(editor.barSettings, on: editor.monitors)
     }
 }
 

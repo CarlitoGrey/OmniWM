@@ -52,6 +52,12 @@ struct ShellDesktopEditorMessages: View {
                     }
                 }
             }
+            if let problem = editor.metadataProblem {
+                Section {
+                    Label(problem, systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
+                }
+            }
             failedWrites
         }
     }

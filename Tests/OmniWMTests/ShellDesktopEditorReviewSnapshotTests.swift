@@ -59,7 +59,8 @@ extension ShellDesktopEditorTests {
         let name = "launcher"
         XCTAssertNil(fixture.editor.layout?.lane(of: name))
         let changed = observeSnapshot(fixture.editor)
-        fixture.editor.add(name, to: .center)
+        let added = await fixture.editor.add(name, to: .center)
+        XCTAssertTrue(added)
         await changed.wait(1)
         XCTAssertEqual(fixture.editor.layout?.lane(of: name), .center)
         XCTAssertEqual(fixture.editor.selectedWidget, name)

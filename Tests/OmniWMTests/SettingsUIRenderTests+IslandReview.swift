@@ -90,9 +90,7 @@ extension SettingsUIRenderTests {
         let editor: ShellDesktopEditor
 
         var body: some View {
-            ShellComponentGallery(entries: editor.islandEntries, problem: editor.problem) {
-                await editor.addComponent($0)
-            }
+            ShellWidgetLibrary(editor: editor, target: .island)
         }
     }
 }

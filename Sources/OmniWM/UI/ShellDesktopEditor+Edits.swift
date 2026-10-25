@@ -166,9 +166,14 @@ extension ShellDesktopEditor {
         return true
     }
 
-    func add(_ name: String, to lane: ShellLane) {
-        editLanes { $0.add(name, to: lane) }
-        focus(name)
+    @discardableResult
+    func add(_ name: String, to lane: ShellLane) async -> Bool {
+        let profile = selectedStyle
+        let added = await run { [configuration] in
+            try await configuration.editBar(profile: profile) { $0.add(name, to: lane) }
+        }
+        if added { focus(name) }
+        return added
     }
 
     func remove(_ name: String) {
