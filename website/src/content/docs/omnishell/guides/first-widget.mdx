@@ -11,7 +11,7 @@ import ExampleFile from '../../../../components/docs/ExampleFile.astro';
 OmniShell is available when [building OmniWM from `main`](/developers/building/).
 :::
 
-This guide builds **hello-clock**, a bar widget that shows the local time and an optional date. You need OmniWM running, `omniwmctl` on your `PATH`, and a text editor. Enable **Settings > Workspace Bar** to see the result. Basic programming knowledge is enough; no Luau experience is required.
+This guide builds **hello-clock**, a bar widget that shows the local time and an optional date. You need OmniWM running, `omniwmctl` on your `PATH`, and a text editor. Enable the Workspace Bar in **Settings > Styles & Widgets** to see the result. Basic programming knowledge is enough; no Luau experience is required.
 
 ## 1. Create the widget
 
@@ -43,7 +43,7 @@ Save this file beside `init.luau`, at `~/.config/omniwm/shell/widgets/hello-cloc
 
 <ExampleFile file="widgets/hello-clock/settings.toml" />
 
-This declaration adds **Show date** to the widget's native options editor. The actual value is saved for the active profile and delivered as `ctx.data.settings`; the declaration describes the control and its default. [Components and configuration](/omnishell/reference/components-configuration/) explains the supported option types.
+This declaration adds **Show date** to the widget's native options editor. The actual value is saved for the selected style and delivered as `ctx.data.settings`; the declaration describes the control and its default. [Components and configuration](/omnishell/reference/components-configuration/) explains the supported option types.
 
 Your final folder contains:
 
@@ -55,14 +55,14 @@ Your final folder contains:
 
 ## 4. Put it on the bar
 
-1. Open **Settings > Workspace Bar > Layout > Bar Widgets**.
+1. Open **Settings > Styles & Widgets > Bar**.
 2. Select **Add Widget…**, choose **hello-clock**, and add it to the **Center** group.
-3. Select the new widget and open **Options…**.
+3. Select the new widget to open its options.
 4. Turn **Show date** off, then on.
 
 You should see a clock symbol, the local time, and the date. Turning the option off removes only the date. The existing bar layout stays in place; you can remove the bundled clock separately if you prefer one time display.
 
-Widgets in the top-level `widgets/` folder are available to every profile. Their placement and option values belong to the active profile. See [profiles and palettes](/omnishell/configuration/profiles-palettes/).
+Widgets in the top-level `widgets/` folder are available to every profile. Their placement and option values belong to each profile. See [profiles and palettes](/omnishell/configuration/profiles-palettes/).
 
 ## 5. Check edits and diagnostics
 
@@ -81,6 +81,6 @@ Find `hello-clock` in the result and check its state and error. For editor compl
 | The widget is missing | Enable the Workspace Bar, add `hello-clock` to a lane, and check its exact folder name and `init.luau` filename. |
 | No options appear | Put `settings.toml` beside the effective `init.luau`, then check `shell-widgets` for metadata errors. |
 | An edit fails to render | Read the reported error and fix that line; keep the global `render(ctx)` function. |
-| The date stays hidden | Open this widget's **Options…** in the active profile and turn **Show date** on. |
+| The date stays hidden | Open this widget's options in the active profile and turn **Show date** on. |
 
 Next, [build a menu](/omnishell/guides/menus/) with clickable rows and a popout.

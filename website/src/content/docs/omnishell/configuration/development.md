@@ -41,7 +41,7 @@ Use `require("./helpers")` or `require("@self/helpers")` for a widget’s helper
 
 ## Save and inspect changes
 
-1. Add the widget in **Settings > Workspace Bar > Layout > Bar Widgets**, or configure it as an island root or component. A source file alone does not place it on a surface.
+1. Add the widget in **Settings > Styles & Widgets > Bar**, or configure it as an island root or component. A source file alone does not place it on a surface.
 2. Enable the bar or Dynamic Island to run its live instances. Settings previews use sample data and do not run live integrations or commands.
 3. Save a source, manifest or configuration edit. Check its rendered output and diagnostic state after the reload.
 4. When testing a custom `trigger(ctx, event)` hook, run `omniwmctl shell trigger hello-clock refresh`. The hook receives the name and optional value; it runs on each displayed instance. A widget without the hook returns `not_found`.
@@ -54,7 +54,7 @@ See [Input and motion](/omnishell/reference/input-motion/) for root lifecycle ev
 omniwmctl query shell-widgets
 ```
 
-The query shows widget state and errors, plus mistakes in `shell.toml` and theme files such as unknown keys and invalid values. Use it after creating a package, changing placement, editing options or saving source. The Widgets library also shows effective source, placements and diagnostics.
+The query shows widget state and errors, plus mistakes in `shell.toml` and theme files such as unknown keys and invalid values. Use it after creating a package, changing placement, editing options or saving source. Selecting a widget in **Settings > Styles & Widgets** also shows its effective source and diagnostics.
 
 `omniwm.log(...)` writes to the macOS unified log under the `shell` category. Inspect recent entries in Terminal:
 

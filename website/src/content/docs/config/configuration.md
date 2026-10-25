@@ -22,7 +22,7 @@ Both commands recreate the file from the running settings if it was deleted, so 
 
 ## Settings window
 
-The searchable Settings window groups controls by task. **Desktop** contains Styles, Workspace Bar, Dynamic Island, Widgets, and Menu Bar; **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
+The searchable Settings window groups controls by task. **Desktop** contains Styles & Widgets and Menu Bar; **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
 
 **Start at Login** is managed by macOS, and **System-wide Window Corners** changes a macOS preference. Neither is stored in `settings.toml`.
 

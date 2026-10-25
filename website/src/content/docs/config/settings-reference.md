@@ -275,7 +275,7 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 | `hideInNativeFullscreen` | boolean | `false` | Hides the bar while a native-fullscreen space is active. Effective `fillLeftOfNotch` at a top position always hides there, regardless of this setting. |
 | `height` | float | `24.0` | Bar thickness in points: height for horizontal bars, width for left/right bars. Side bars scroll when content exceeds the usable display height. |
 | `backgroundOpacity` | float | `0.1` | Bar background opacity (`0.0`–`1.0`). |
-| `inactiveIconOpacity` *(optional)* | float | unset | Opacity of unfocused app icons; finite values clamp to `0.0`–`1.0`. Omit to use the built-in appearance; Reset to System Default clears the override. |
+| `inactiveIconOpacity` *(optional)* | float | unset | Opacity of unfocused app icons; finite values clamp to `0.0`–`1.0`. Omit to use the built-in appearance. |
 | `transparentBackground` *(optional)* | boolean | `false` | Hides the bar material, tint, and border while keeping its contents interactive. Takes precedence over `solidBlackBackground`. |
 | `solidBlackBackground` *(optional)* | boolean | `false` | Uses a solid black bar background when `transparentBackground` is false. |
 | `showItemBackgrounds` *(optional)* | boolean | `true` | Shows backgrounds behind workspace groups, floating windows, scratchpads, and stats. |

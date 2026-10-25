@@ -39,8 +39,8 @@ The volume callbacks use `omniwm.run` to issue shell commands. **Volume +5%** an
 
 ## 3. Place and try the menu
 
-1. Open **Settings > Workspace Bar > Layout > Bar Widgets**.
-2. Select **Add Widget…**, choose **quick-menu**, and add it to **Trailing**.
+1. Open **Settings > Styles & Widgets > Bar**.
+2. Select **Add Widget…**, choose **quick-menu**, and add it to **Right**.
 3. Click **Quick menu** on the bar, then **Audio…**.
 4. Try **Volume +5%**, then **Back**.
 5. Choose **Close**, then reopen the button.
@@ -55,9 +55,9 @@ omniwmctl shell toggle quick-menu
 
 ## 4. Reuse the popout in a drawer
 
-1. Open **Settings > Widgets > Drawers** and add a drawer named **quick-drawer**.
+1. Open **Settings > Styles & Widgets > Drawers** and add a drawer named **quick-drawer**.
 2. Choose the **Right** edge and add **quick-menu** to its widgets.
-3. Open it with the command below. To open it at the edge, turn on the drawer's **Hover** option.
+3. Open it with the command below. To open it at the edge, turn on the drawer's **Open on Hover** option.
 
 ```sh
 omniwmctl shell toggle quick-drawer

@@ -13,11 +13,11 @@ A Dynamic Island is a persistent surface whose root widget chooses compact, prev
 
 ## Enable and place an island
 
-Choose **Lake** or **System** in **Settings > Styles**, then open **Settings > Dynamic Island**. Selecting a style changes the shared profile for the bar and island without changing either enable switch.
+Choose **Lake** or **Default** in **Settings > Styles & Widgets**, then open **Island**. Using a style changes the shared profile for the bar and island without changing either enable switch.
 
-Lake’s **Widgets** tab provides **Add Widget…**, per-instance enable switches, **Move**, **Remove**, and **Options…**. The native options editor assigns an instance to Automatic, Main, Side, or Expanded Only placement and exposes its declared options. **Appearance** controls the island’s shape and colors; **Interaction** controls click, right-click, hover, and swipe behavior, with motion tuning under **Advanced Motion**. **Placement** chooses displays, native fullscreen behavior, and advanced surface dimensions.
+Lake’s **Island** tab provides **Add Widget…**, per-instance enable switches, drag to reorder, and **Remove**. Selecting an instance opens its options editor, which assigns it to Automatic, Main, Side, or Expanded Only placement and exposes its declared options. **Appearance** controls the island’s shape and colors; **Actions** and **Hover and Swipe** control click, right-click, hover, and swipe behavior, with motion tuning under **Advanced Motion**. **Placement** chooses displays, native fullscreen behavior, and advanced surface dimensions.
 
-System’s Focus Ribbon builds its content automatically from the active workspace and focused window. Its Widgets tab explains that behavior; it does not use Lake’s component catalog. Both islands can be configured while disabled and run without the Workspace Bar. The native settings file stores the master switch as `[island] enabled = true`; placement belongs to the selected shell profile:
+Default’s Focus Ribbon builds its content automatically from the active workspace and focused window. Its Island tab explains that behavior; it does not use Lake’s component catalog. Both islands can be configured while disabled and run without the Workspace Bar. The native settings file stores the master switch as `[island] enabled = true`; placement belongs to the selected shell profile:
 
 ```toml
 # In a profile folder's shell.toml:
@@ -43,13 +43,13 @@ The island survives opening a popout or drawer and disabling the Workspace Bar. 
 
 Transparent-window click-through still needs a live check on the target macOS system. OmniWM's own mouse handling uses cached visible/actionable rectangles, preserving gaps between capsules; these rectangles conservatively cover rounded corners and path holes.
 
-## System Focus Ribbon
+## Default Focus Ribbon
 
-System also includes **Focus Ribbon**. Turn on **Settings > Dynamic Island > Enable Dynamic Island** to show its compact black island at the top of each display. Navigating Niri windows or switching workspaces expands the same island into a ribbon of that workspace’s window icons, in column order. Short ribbons stay centred; longer ribbons follow the focused window within the list’s edges. Each window has its own icon, including multiple windows from one app, with the focused window’s title beneath the ribbon or its app name when no title is available. The ribbon stays open while the pointer is inside and otherwise collapses 2.6 seconds after the last navigation or pointer exit; click the compact island to reopen it, click an icon to focus that window, or click outside to collapse. It does not take keyboard focus. The island hides in native fullscreen and works when the workspace bar is disabled.
+Default also includes **Focus Ribbon**. Turn on **Settings > Styles & Widgets > Island > Show Dynamic Island** to show its compact black island at the top of each display. Navigating Niri windows or switching workspaces expands the same island into a ribbon of that workspace’s window icons, in column order. Short ribbons stay centred; longer ribbons follow the focused window within the list’s edges. Each window has its own icon, including multiple windows from one app, with the focused window’s title beneath the ribbon or its app name when no title is available. The ribbon stays open while the pointer is inside and otherwise collapses 2.6 seconds after the last navigation or pointer exit; click the compact island to reopen it, click an icon to focus that window, or click outside to collapse. It does not take keyboard focus. The island hides in native fullscreen and works when the workspace bar is disabled.
 
 ## Lake and configured instances
 
-The bundled `lake` profile draws its island in editable Luau. Its bar lanes remain independently configurable: custom bar widgets and an island can run together. The native **Island** switch controls whether the island is present; selecting a profile does not turn it on. The profile uses a short hover dwell to show a preview, a click to expand, native button press feedback, an upward pointer/trackpad gesture to collapse, and outside press or Escape to dismiss. The primary capsule accepts keyboard focus on click in compact, preview and expanded modes. While focused, Left and Right cycle enabled components in configured order; Escape dismisses the expanded content and releases focus. Collapsing with a click or gesture may leave the compact capsule focused until Escape, blur or an outside press.
+The bundled `lake` profile draws its island in editable Luau. Its bar lanes remain independently configurable: custom bar widgets and an island can run together. The native **Show Dynamic Island** switch controls whether the island is present; selecting a profile does not turn it on. The profile uses a short hover dwell to show a preview, a click to expand, native button press feedback, an upward pointer/trackpad gesture to collapse, and outside press or Escape to dismiss. The primary capsule accepts keyboard focus on click in compact, preview and expanded modes. While focused, Left and Right cycle enabled components in configured order; Escape dismisses the expanded content and releases focus. Collapsing with a click or gesture may leave the compact capsule focused until Escape, blur or an outside press.
 
 These choices live in `widgets/lake/init.luau` and `lib/lake/intent.luau`, `policy.luau`, `slots.luau` and `motion.luau`. Replace them independently of `lib/lake/services/` to retain integrations. The profile requests gesture boundaries only; its UI does not run Luau for every pointer move. Native capture and automated tests do not establish perceived motion quality: hover dwell, press feel, trackpad direction and focus restoration still need a live check on the target display.
 
@@ -85,7 +85,7 @@ These change the layer-rendered contents; the persistent island window retains i
 
 Root settings and their validation schema live in `widgets/lake/settings.toml`, while current values are saved in the selected profile's user configuration. The settings view is itself editable Luau in `lib/lake/settings.luau`.
 
-The native **Settings > Dynamic Island** editors provide the same declared widget options and profile controls without requiring the island to be enabled. Use **Advanced Motion** for native motion tuning and **Placement** for display scope and surface dimensions.
+The native **Settings > Styles & Widgets > Island** editors provide the same declared widget options and profile controls without requiring the island to be enabled. Use **Advanced Motion** for native motion tuning and **Placement** for display scope and surface dimensions.
 
 ## Editable Lake components
 

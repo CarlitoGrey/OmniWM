@@ -66,7 +66,7 @@ An expanded island can use `focusable = true`, `keys = {"left", "right", "escape
 
 Root widgets with `trigger(ctx, event)` receive `{name = "reloaded", source = "host"}` when a display instance is first created, and `{name = "displayChanged", source = "host"}` when its display identity or geometry changes. Visibility and focus remain data facts; they do not trigger this hook. The bundled profile preserves its presentation state while hidden. User-triggered events retain their existing name/value form without `source`. Component `init`, `options` and `deinit` remain package-level hooks.
 
-A custom island root can keep the native **Customize Island Widgets…** entry point by implementing `trigger(ctx, event)` and opening its own controls when `ctx.data.island` is present and `event.name == "settings"`. Ignore unrelated trigger names. The native button becomes available after the root loads and declares a trigger handler; the profile owns what its settings controls contain. Keep integrations in component service modules so replacing those controls or the island layout does not replace their data and actions.
+Keep integrations in component service modules so replacing the island layout does not replace their data and actions.
 
 ## Springs, element transitions and native dragging
 
