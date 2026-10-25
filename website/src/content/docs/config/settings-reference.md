@@ -380,6 +380,28 @@ The drop-down (Quake) terminal.
 | `backgroundEffect` | string | `"standardBlur"` | Background material: `standardBlur`, `glassRegular`, `glassClear`. |
 | `backgroundBlurRadius` *(optional)* | integer | `0` | Background blur radius; `0` disables the extra blur. |
 | `monitorMode` *(optional)* | string | `"focusedWindow"` | Which monitor it appears on: `mouseCursor`, `focusedWindow`, `mainMonitor`. |
+| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded) or `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`). |
+
+### quakeTerminal.kitty
+
+Optional overrides for OmniWM's Kitty Quake panel. A missing key keeps the value from Kitty's `quick-access-terminal.conf`; removing a key returns to that file the next time the Kitty panel starts. Ghostty's values above are not used for Kitty.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `autoHide` *(optional)* | boolean | Kitty config | Hides the Kitty panel when it loses focus. |
+| `opacity` *(optional)* | float | Kitty config | Kitty background opacity (`0.0`–`1.0`). Kitty's quick-access default is `0.85`. |
+
+Opacity changes apply live to the running Kitty panel. If Kitty created the panel without transparency support, OmniWM reports that limitation in Settings. Such a panel may need to be closed and reopened once; shell sessions are never restarted automatically.
+
+### quakeTerminal.kitty.placement
+
+Optional. When present, OmniWM positions and sizes the Kitty panel below the OmniShell bar; all three keys are required. Placement changes apply the next time the panel is shown.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `position` | string | `"top"` | Panel position: `top`, `bottom`, `left`, `right`, `center`. |
+| `widthPercent` | float | `100.0` | Width as a percentage of the monitor's available screen area (`10`–`100`). |
+| `heightPercent` | float | `50.0` | Height as a percentage of the monitor's available screen area (`10`–`100`). |
 
 ## scratchpads
 

@@ -235,6 +235,17 @@ final class QuakeTerminalController: NSObject {
         animateOut(hideBehavior: .restoreLatestTarget)
     }
 
+    func hideForProviderSwitch() {
+        animator.invalidate()
+        clipboardPrompts.cancelActivePrompt()
+        restoreTarget = nil
+        pendingRestoreTarget = nil
+        visible = false
+        window?.isAnimating = false
+        window?.orderOut(nil)
+        window?.alphaValue = 1
+    }
+
     private func animateOut(hideBehavior: HideBehavior) {
         guard let window else { return }
         guard visible else { return }

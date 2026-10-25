@@ -21,10 +21,38 @@ struct QuakeTerminalSettingsTab: View {
                     .onChange(of: settings.quakeTerminal.enabled) { _, newValue in
                         controller.setQuakeTerminalEnabled(newValue)
                     }
+
+                Picker("Terminal", selection: Bindable(settings.quakeTerminal).provider) {
+                    ForEach(QuakeTerminalProvider.allCases, id: \.self) { provider in
+                        Text(provider.displayName).tag(provider)
+                    }
+                }
+                .id("Terminal")
+                .onChange(of: settings.quakeTerminal.provider) { _, newValue in
+                    controller.setQuakeTerminalProvider(newValue)
+                }
+
+                if settings.quakeTerminal.provider == .kitty {
+                    SettingsCaption(
+                        localized: "Kitty's quick-access-terminal.conf controls tabs, splits, fonts and anything not overridden below. Overrides apply only to OmniWM's Kitty Quake panel."
+                    )
+                    if settings.quakeTerminal.kitty.placement == nil {
+                        SettingsCaption(
+                            localized: "OmniWM reserves space for the OmniShell top bar. Increase Kitty's configured lines for more terminal rows."
+                        )
+                    }
+                    if let problem = controller.kittyQuickAccessTerminal.problem, problem != .opacityNeedsRestart {
+                        SettingsCaption(problem.message)
+                    }
+                }
             }
             .id("Quake Terminal")
 
-            if settings.quakeTerminal.enabled {
+            if settings.quakeTerminal.enabled, settings.quakeTerminal.provider == .kitty {
+                KittyQuakeSettingsSections(quake: settings.quakeTerminal, controller: controller)
+            }
+
+            if settings.quakeTerminal.enabled, settings.quakeTerminal.provider == .ghostty {
                 Section("Position & Size") {
                     Picker("Position", selection: Bindable(settings.quakeTerminal).position) {
                         ForEach(QuakeTerminalPosition.allCases, id: \.self) { position in
@@ -155,9 +183,11 @@ struct QuakeTerminalSettingsTab: View {
                         .font(.footnote)
                         .foregroundColor(.secondary)
 
-                    SettingsCaption(
-                        localized: "Customize terminal tab and pane shortcuts in ~/.config/ghostty/config.ghostty. Reload with Cmd + Shift + , or relaunch OmniWM."
-                    )
+                    if settings.quakeTerminal.provider == .ghostty {
+                        SettingsCaption(
+                            localized: "Customize terminal tab and pane shortcuts in ~/.config/ghostty/config.ghostty. Reload with Cmd + Shift + , or relaunch OmniWM."
+                        )
+                    }
 
                     Label("Configure hotkey in Hotkeys settings", systemImage: "gearshape")
                         .font(.footnote)

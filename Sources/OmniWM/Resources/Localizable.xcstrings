@@ -172952,6 +172952,70 @@
     },
     "This widget has no panel, so it can't show in a drawer." : {
 
+    },
+    "Terminal" : {
+
+    },
+    "Kitty is not installed. Install the kitty app, or choose Ghostty." : {
+
+    },
+    "Kitty is starting. Press the Quake Terminal shortcut again in a moment." : {
+
+    },
+    "OmniWM could not start Kitty's quick-access terminal." : {
+
+    },
+    "OmniWM could not prepare Kitty's remote control socket." : {
+
+    },
+    "Kitty's quick-access terminal exited with status %lld." : {
+
+    },
+    "Kitty Quake Terminal Unavailable" : {
+
+    },
+    "Kitty did not accept the Quake Terminal command." : {
+
+    },
+    "OmniWM reserves space for the OmniShell top bar. Increase Kitty's configured lines for more terminal rows." : {
+
+    },
+    "Kitty's quick-access-terminal.conf controls tabs, splits, fonts and anything not overridden below. Overrides apply only to OmniWM's Kitty Quake panel." : {
+
+    },
+    "Kitty Placement" : {
+
+    },
+    "Override Kitty Placement" : {
+
+    },
+    "Turning an override off returns that setting to Kitty's quick-access-terminal.conf the next time the Kitty panel starts." : {
+
+    },
+    "Kitty Behavior" : {
+
+    },
+    "Kitty Config" : {
+
+    },
+    "Kitty Appearance" : {
+
+    },
+    "Override Kitty Opacity" : {
+
+    },
+    "Opacity changes apply live as you drag." : {
+
+    }
+,
+    "Placement changes apply the next time Kitty is shown." : {
+
+    },
+    "OmniWM could not prepare Kitty's panel controls." : {
+
+    },
+    "Live opacity needs a new Kitty Quake session. Close the Kitty panel when ready, then reopen it; OmniWM will not restart its shells." : {
+
     }
   },
   "version" : "1.0"

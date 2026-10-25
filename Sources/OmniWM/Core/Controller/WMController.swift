@@ -157,6 +157,21 @@ final class WMController {
         }
     )
     @ObservationIgnored
+    var appliedQuakeTerminalSelection: QuakeTerminalProvider?
+    @ObservationIgnored
+    lazy var kittyQuickAccessTerminal: KittyQuickAccessTerminal = {
+        let terminal = KittyQuickAccessTerminal(
+            environment: .live,
+            socketPath: KittyQuickAccessTerminal.defaultSocketPath(),
+            context: { [weak self] in self?.kittyQuakeControlContext() }
+        )
+        terminal.onToggleFailure = { [weak self] problem in
+            self?.presentKittyQuickAccessFailure(problem)
+        }
+        return terminal
+    }()
+
+    @ObservationIgnored
     private(set) lazy var commandPaletteController: CommandPaletteController = .init(motionPolicy: motionPolicy)
     @ObservationIgnored var windowSwitcherControllerStorage: WindowSwitcherController?
     var windowSwitcherController: WindowSwitcherController {

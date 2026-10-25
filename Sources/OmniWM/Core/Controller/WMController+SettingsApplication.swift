@@ -44,9 +44,8 @@ extension WMController {
         setQuakeTerminalEnabled(settings.quakeTerminal.enabled)
         syncClipboardHistoryService()
 
-        quakeTerminalController.applyGeometryToVisibleWindow()
-        quakeTerminalController.reloadOpacityConfig()
-        quakeTerminalController.reloadBackgroundBlur()
+        applyKittyQuakeSettings()
+        reloadQuakeTerminalAppearance()
         updateWorkspaceBarSettings()
         updateHiddenBarSettings()
         _ = syncMouseWarpPolicy()
