@@ -9,6 +9,7 @@ struct ShellDesktopPreview: View {
     let display: ShellSettingsPreview.Display?
     let sourceGeneration: UInt64
     let fullWidth: Bool
+    var surface: ShellSettingsPreview.Surface = .bar
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.displayScale) private var displayScale
     @State private var image: CGImage?
@@ -20,11 +21,12 @@ struct ShellDesktopPreview: View {
     private struct Context: Equatable {
         let profile: String
         let monitor: Monitor.ID?
+        let island: Bool
     }
 
     private var request: ShellSettingsPreview.Request {
         .init(
-            config: config, surface: .bar, style: style, scale: displayScale, dark: colorScheme == .dark,
+            config: config, surface: surface, style: style, scale: displayScale, dark: colorScheme == .dark,
             fullWidth: fullWidth, sourceGeneration: sourceGeneration,
             display: display
         )
@@ -60,14 +62,22 @@ struct ShellDesktopPreview: View {
         }
         .task(id: request) {
             let value = request
-            let next = Context(profile: value.config.profile, monitor: value.display?.monitor.id)
+            let next = Context(
+                profile: value.config.profile,
+                monitor: value.display?.monitor.id,
+                island: value.surface != .bar
+            )
             if next != context { image = nil }
             context = next
             current = value
             updating = true
             failure = nil
             do {
-                let rendered = try await ShellSettingsPreview.cachedImage(for: value, slot: .init(id: "editor-bar"))
+                let slot = switch value.surface {
+                case .bar: "editor-bar"
+                case .island: "editor-island"
+                }
+                let rendered = try await ShellSettingsPreview.cachedImage(for: value, slot: .init(id: slot))
                 try Task.checkCancellation()
                 guard current == value else { return }
                 image = rendered

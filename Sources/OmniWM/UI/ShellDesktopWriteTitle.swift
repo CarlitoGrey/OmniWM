@@ -22,10 +22,25 @@ enum ShellDesktopWriteTitle {
             } else {
                 parts.append(ShellWidgetSettingsModel.title(key))
             }
+        } else if target.path.first == "island", target.path.count > 2 {
+            let id = target.path[1]
+            parts.append(editor.componentTitle(id))
+            parts.append(option(editor.componentDescriptor(id)?.options[key], fallback: key))
+        } else if target.path.first == "island-root" {
+            parts.append(String(localized: "Island"))
+            parts.append(option(editor.islandRootOptions[key], fallback: key))
         } else {
             parts.append(setting(key))
         }
         return parts.joined(separator: " · ")
+    }
+
+    private static func option(_ option: ShellComponentOption?, fallback: String) -> String {
+        guard let option else { return ShellWidgetSettingsModel.title(fallback) }
+        return String(localized: LocalizedStringResource(
+            String.LocalizationValue(option.title), table: ShellLocalizer.table,
+            bundle: .atURL(Bundle.module.bundleURL)
+        ))
     }
 
     private static func setting(_ key: String) -> String {

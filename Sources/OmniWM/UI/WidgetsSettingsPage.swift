@@ -29,6 +29,13 @@ struct WidgetsSettingsPage: View {
         controller.workspaceBarManager.shellConfiguration
     }
 
+    private var islandTitles: [String: String] {
+        ShellIslandTitles.titles(
+            components: configuration.config.island?.components ?? [],
+            descriptors: configuration.catalog?.descriptors ?? [:]
+        )
+    }
+
     private var results: [ShellWidgetLibraryEntry] {
         entries.filter { entry in
             (surface == "all" || (surface == "bar" ? entry.bar : entry.island))
@@ -120,10 +127,12 @@ struct WidgetsSettingsPage: View {
                         .controlSize(.small)
                         let instances = configuration.config.island?.components.filter { $0.widget == entry.name } ?? []
                         ForEach(instances, id: \.id) { component in
-                            Button("Island Instance: \(component.id)") {
+                            Button(
+                                "Island Instance: \(islandTitles[component.id] ?? ShellBarLayout.title(of: entry.name))"
+                            ) {
                                 navigation.request(SettingsRoute(
-                                    section: .island,
-                                    tab: "widgets",
+                                    section: .styles,
+                                    tab: "island",
                                     itemID: component.id
                                 ))
                             }

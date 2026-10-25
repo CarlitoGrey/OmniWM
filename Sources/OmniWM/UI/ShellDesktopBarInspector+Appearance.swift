@@ -167,7 +167,8 @@ struct ShellDesktopAllStyles: View {
         Section("All styles") {
             SettingsCaption(localized: "These controls apply to every style, including the active style.")
             Toggle("Enable Workspace Bar", isOn: Binding(get: { editor.barEnabled }, set: editor.setBarEnabled))
-            Toggle("Enable Dynamic Island", isOn: Binding(get: { editor.islandEnabled }, set: editor.setIslandEnabled))
+            Toggle("Show Dynamic Island", isOn: Binding(get: { editor.islandEnabled }, set: editor.setIslandEnabled))
+                .disabled(editor.islandToggleDisabled)
             if !editor.barEnabled {
                 SettingsCaption(localized: "Set up your bar now. It appears when you turn it on.")
             }

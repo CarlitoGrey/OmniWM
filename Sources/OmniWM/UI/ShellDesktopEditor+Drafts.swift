@@ -16,17 +16,46 @@ extension ShellDesktopEditor {
     }
 
     func beginTextDraft(widget: String, key option: String) {
-        let key = ShellEditorDraft.Key(widget: widget, option: option)
-        guard drafts[key] == nil, let value = textValue(widget: widget, option: option) else { return }
+        beginText(ShellEditorDraft.Key(widget: widget, option: option))
+    }
+
+    func beginComponentTextDraft(_ id: String, key option: String) {
+        beginText(.component(id, option: option))
+    }
+
+    func beginIslandRootTextDraft(key option: String) {
+        guard let root = island?.root else { return }
+        beginText(.islandRoot(root, option: option))
+    }
+
+    private func beginText(_ key: ShellEditorDraft.Key) {
+        guard drafts[key] == nil, let value = textValue(key) else { return }
         setDraft(ShellEditorDraft(key: key, profile: selectedStyle, original: value, value: value))
     }
 
-    private func textValue(widget: String, option: String) -> ShellEditorDraft.Value? {
-        guard let setting = schema(for: widget)?.options[option] else { return nil }
-        return switch values(for: widget)[option] ?? setting.defaultValue {
+    private func textOption(_ key: ShellEditorDraft
+        .Key) -> (setting: ShellComponentOption, value: ShellComponentValue?)?
+    {
+        if let id = key.component {
+            guard let component = component(id), let setting = componentDescriptor(id)?.options[key.option] else {
+                return nil
+            }
+            return (setting, component.options[key.option])
+        }
+        if let root = key.islandRoot {
+            guard root == island?.root, let setting = islandRootOptions[key.option] else { return nil }
+            return (setting, islandRootValues[key.option])
+        }
+        guard let setting = schema(for: key.widget)?.options[key.option] else { return nil }
+        return (setting, values(for: key.widget)[key.option])
+    }
+
+    private func textValue(_ key: ShellEditorDraft.Key) -> ShellEditorDraft.Value? {
+        guard let option = textOption(key) else { return nil }
+        return switch option.value ?? option.setting.defaultValue {
         case let .strings(lines)?: .lines(lines)
         case let .string(text)?: .text(text)
-        case _ where setting.kind == .strings: .lines([])
+        case _ where option.setting.kind == .strings: .lines([])
         default: .text("")
         }
     }
@@ -46,7 +75,7 @@ extension ShellDesktopEditor {
             case .clocks: snapshot.map { .clocks(ShellWidgetSettingsModel.clocks(config: $0.config)) }
             case .weather: await (try? configuration.sharedWeather()).map { .weather(.init($0)) }
             case .text,
-                 .lines: textValue(widget: key.widget, option: key.option)
+                 .lines: textValue(key)
             }
             guard let fresh, !fresh.matches(draft.original), let current = drafts[key], current.id == draft.id,
                   !current.dirty, !current.saving
@@ -116,22 +145,31 @@ extension ShellDesktopEditor {
     private func persist(_ draft: ShellEditorDraft) async throws {
         let widget = draft.key.widget
         let option = draft.key.option
+        let value: ShellComponentValue
         switch draft.value {
         case let .clocks(clocks):
-            try await configuration.setWidgetOptions(clocks, widget: widget, key: option, profile: draft.profile)
+            return try await configuration.setWidgetOptions(clocks, widget: widget, key: option, profile: draft.profile)
         case let .weather(weather):
-            try await configuration.setWeather(weather.stored)
-        case let .text(text):
-            try await configuration.setWidgetValue(.string(text), widget: widget, key: option, profile: draft.profile)
-        case let .lines(lines):
-            try await configuration.setWidgetValue(
-                .strings(lines.filter { !$0.isEmpty }), widget: widget, key: option, profile: draft.profile
-            )
+            return try await configuration.setWeather(weather.stored)
+        case let .text(text): value = .string(text)
+        case let .lines(lines): value = .strings(lines.filter { !$0.isEmpty })
+        }
+        if let id = draft.key.component {
+            _ = try await configuration.island(.set(id: id, key: option, value: value), profile: draft.profile)
+        } else if let root = draft.key.islandRoot {
+            _ = try await configuration.islandCommit(.rootSetting(key: option, value: value), profile: draft.profile) {
+                guard $0.island?.root == root else {
+                    throw ShellComponentCatalog
+                        .Failure(String(localized: "The island root changed before this draft was saved"))
+                }
+            }
+        } else {
+            try await configuration.setWidgetValue(value, widget: widget, key: option, profile: draft.profile)
         }
     }
 
     private func fits(_ draft: ShellEditorDraft) -> Bool {
-        guard let limit = schema(for: draft.key.widget)?.options[draft.key.option]?.maxLength else { return true }
+        guard let limit = textOption(draft.key)?.setting.maxLength else { return true }
         return switch draft.value {
         case let .text(text): text.count <= limit
         case let .lines(lines): lines.allSatisfy { $0.count <= limit }

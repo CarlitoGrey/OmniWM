@@ -646,9 +646,6 @@
     "Dynamic Island" : {
 
     },
-    "Enable Island" : {
-
-    },
     "Full Width" : {
       "localizations" : {
         "ar" : {
@@ -166672,9 +166669,6 @@
     "Add a rule to choose how an app’s windows are managed." : {
 
     },
-    "Add a widget to begin." : {
-
-    },
     "Add the CLI directory to your PATH to use omniwmctl in Terminal." : {
 
     },
@@ -166720,9 +166714,6 @@
     "App Appearance" : {
 
     },
-    "Apply Weather Location" : {
-
-    },
     "Apps" : {
 
     },
@@ -166757,9 +166748,6 @@
         }
       }
     },
-    "Build Your Island" : {
-
-    },
     "CLI Location" : {
 
     },
@@ -166773,12 +166761,6 @@
 
     },
     "Check app health and record a problem or performance capture." : {
-
-    },
-    "Choose Default for Focus Ribbon or Lake for an island with customizable widgets." : {
-
-    },
-    "Choose a Style…" : {
 
     },
     "Choose a widget" : {
@@ -166853,9 +166835,6 @@
     "Customize the workspace overview and its controls." : {
 
     },
-    "Customize your island, with or without a workspace bar." : {
-
-    },
     "Desktop" : {
 
     },
@@ -166902,9 +166881,6 @@
 
     },
     "Enable Background Effect" : {
-
-    },
-    "Enable Dynamic Island" : {
 
     },
     "Enable the Workspace Bar or Dynamic Island to load this drawer and register its shortcut." : {
@@ -167150,9 +167126,6 @@
     "Options…" : {
 
     },
-    "Order and placement are saved for this style. Each instance has its own options." : {
-
-    },
     "Organize workspaces and choose their layouts and home displays." : {
 
     },
@@ -167166,9 +167139,6 @@
 
     },
     "Prepare a report and choose the evidence you want to share." : {
-
-    },
-    "Preview Unavailable" : {
 
     },
     "Previous Widget" : {
@@ -167223,9 +167193,6 @@
 
     },
     "Settings File" : {
-
-    },
-    "Shared weather data for bar widgets, the calendar, and the island." : {
 
     },
     "Shell Development" : {
@@ -167355,9 +167322,6 @@
     "Widget Library" : {
 
     },
-    "Widget Removed" : {
-
-    },
     "Widget Source" : {
 
     },
@@ -167368,9 +167332,6 @@
 
     },
     "World Clock Locations" : {
-
-    },
-    "Your Widgets" : {
 
     },
     "Your scratchpad windows." : {
@@ -172753,9 +172714,6 @@
     "Check the highlighted values before saving." : {
 
     },
-    "Choose a style, then arrange its bar widgets and adjust its look." : {
-
-    },
     "Display Overrides" : {
 
     },
@@ -172871,6 +172829,52 @@
 
     },
     "Loading style…" : {
+
+    },
+    "%@ %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld"
+          }
+        }
+      }
+    },
+    "Choose a style, then arrange its bar and island and adjust its look." : {
+
+    },
+    "Default includes Focus Ribbon; Lake includes an island with customizable widgets." : {
+
+    },
+    "Hover and Swipe" : {
+
+    },
+    "Island Settings" : {
+
+    },
+    "Island settings unavailable" : {
+
+    },
+    "No widgets added." : {
+
+    },
+    "Order, placement and options are saved for this style." : {
+
+    },
+    "Remove from Island" : {
+
+    },
+    "Sample data. Your desktop uses live information." : {
+
+    },
+    "Show Dynamic Island" : {
+
+    },
+    "This style has no Dynamic Island." : {
+
+    },
+    "The island root changed before this draft was saved" : {
 
     }
   },

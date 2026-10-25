@@ -194,15 +194,22 @@ extension ShellDesktopEditor {
     }
 
     func perform(_ operation: @escaping @MainActor () async throws -> Void) {
-        Task {
-            guard await writes.drain() else {
-                problem = String(localized: "A change could not be saved. Retry or discard it first.")
-                return
-            }
-            do {
-                try await operation()
-                await reload()
-            } catch { problem = error.localizedDescription }
+        Task { await run(operation) }
+    }
+
+    @discardableResult
+    func run(_ operation: @escaping @MainActor () async throws -> Void) async -> Bool {
+        guard await writes.drain() else {
+            problem = String(localized: "A change could not be saved. Retry or discard it first.")
+            return false
+        }
+        do {
+            try await operation()
+            await reload()
+            return true
+        } catch {
+            problem = error.localizedDescription
+            return false
         }
     }
 }

@@ -8,6 +8,27 @@ struct ShellEditorSnapshot: Equatable, Sendable {
     let layout: ShellBarLayout
     let schemas: [String: ShellRootSettings]
     let themes: [String]
+    let island: ShellConfigurationCatalog?
+    let islandProblem: String?
+    let descriptors: [String: ShellComponentDescriptor]
+    let componentTitles: [String: String]
+
+    init(
+        config: ShellConfig, layout: ShellBarLayout, schemas: [String: ShellRootSettings], themes: [String],
+        island: ShellConfigurationCatalog?, islandProblem: String? = nil
+    ) {
+        self.config = config
+        self.layout = layout
+        self.schemas = schemas
+        self.themes = themes
+        self.island = island
+        self.islandProblem = islandProblem
+        descriptors = island?.descriptors ?? [:]
+        componentTitles = ShellIslandTitles.titles(
+            components: config.island?.components ?? [],
+            descriptors: descriptors
+        )
+    }
 }
 
 @MainActor
@@ -30,7 +51,9 @@ final class ShellEditorSnapshotCache {
         let previous = entries[config.profile].flatMap {
             $0.metadata == metadata && $0.snapshot.config.directories == config.directories ? $0.snapshot : nil
         }
-        if let previous, previous.config == config, entries[config.profile]?.generation == generation {
+        if let previous, previous.islandProblem == nil, previous.config == config,
+           entries[config.profile]?.generation == generation
+        {
             return previous
         }
         let listing = try await writer.perform { directory in
@@ -42,8 +65,24 @@ final class ShellEditorSnapshotCache {
                 directories: config.directories
             )
         }
-        let snapshot = ShellEditorSnapshot(config: config, layout: listing.0, schemas: schemas, themes: listing.1)
+        let island = await islandMetadata(for: config, reusing: previous, loader: catalog)
+        let snapshot = ShellEditorSnapshot(
+            config: config, layout: listing.0, schemas: schemas, themes: listing.1,
+            island: island.catalog, islandProblem: island.problem
+        )
         entries[config.profile] = Entry(generation: generation, metadata: metadata, snapshot: snapshot)
         return snapshot
+    }
+
+    private func islandMetadata(
+        for config: ShellConfig, reusing previous: ShellEditorSnapshot?, loader: ShellConfigurationCatalogLoader
+    ) async -> (catalog: ShellConfigurationCatalog?, problem: String?) {
+        guard let root = config.island?.root else { return (nil, nil) }
+        if let previous, previous.config.island?.root == root, previous.islandProblem == nil {
+            return (previous.island, nil)
+        }
+        do { return (try await loader.load(directories: config.directories, root: root), nil) } catch {
+            return (nil, error.localizedDescription)
+        }
     }
 }

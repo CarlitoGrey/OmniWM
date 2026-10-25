@@ -297,12 +297,12 @@ enum SettingsSearchIndex {
         setting("Auto-Hide", section: .styles, tab: "behavior"),
         setting("Excluded Apps", section: .styles, tab: "apps"),
         setting("Icon Overrides", section: .styles, tab: "apps"),
-        setting("Enable Island", section: .island, tab: "placement"),
-        setting("Island Widgets", section: .island, tab: "widgets"),
-        setting("Component Regions", section: .island, tab: "widgets"),
-        setting("Island Appearance", section: .island, tab: "appearance"),
-        setting("Island Interaction", section: .island, tab: "interaction"),
-        setting("Island Motion", section: .island, tab: "interaction"),
+        setting("Show Dynamic Island", section: .styles, tab: "island", anchor: "placement"),
+        setting("Island Widgets", section: .styles, tab: "island"),
+        setting("Component Regions", section: .styles, tab: "island"),
+        setting("Island Appearance", section: .styles, tab: "island", anchor: "appearance"),
+        setting("Island Interaction", section: .styles, tab: "island", anchor: "interaction"),
+        setting("Island Motion", section: .styles, tab: "island", anchor: "interaction"),
         setting("Style Profile", section: .styles),
         setting("Color Palette", section: .styles),
         setting("Wallpaper Colors", section: .styles),
@@ -322,12 +322,11 @@ extension SettingsSearchIndex {
     static func tabTitle(_ tab: String) -> String {
         switch tab {
         case "lanes": String(localized: "Bar Widgets")
+        case "island": String(localized: "Dynamic Island")
         case "placement": String(localized: "Placement")
         case "appearance": String(localized: "Appearance")
         case "behavior": String(localized: "Behavior")
         case "apps": String(localized: "Apps")
-        case "widgets": String(localized: "Widgets")
-        case "interaction": String(localized: "Interaction")
         case "status": String(localized: "macOS Status Item")
         case "hidden": String(localized: "Hidden Bar")
         default: tab.capitalized
@@ -347,9 +346,12 @@ extension SettingsSearchIndex {
                 "wallpaper",
                 "custom bar",
                 "workspace bar",
-                "widgets"
+                "widgets",
+                "dynamic island",
+                "lake",
+                "focus ribbon",
+                "components"
             ]
-        case .island: ["shell", "dynamic island", "lake", "focus ribbon", "components"]
         case .widgets: ["shell", "widget", "clock", "calendar", "weather", "media", "volume", "drawer"]
         case .menuBar: ["status bar", "hidden bar", "menu bar", "icons"]
         case .layouts: ["spacing", "gaps", "margins", "niri", "dwindle", "columns", "tiling"]

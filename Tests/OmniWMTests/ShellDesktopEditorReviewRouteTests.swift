@@ -103,7 +103,9 @@ extension ShellDesktopEditorTests {
         XCTAssertEqual(navigation.searchText, "Clock")
         navigation.request(requested)
         await fixture.editor.open(navigation.route)
-        XCTAssertEqual(fixture.editor.pendingTransition, .widget("clock"))
+        XCTAssertEqual(fixture.editor.pendingTransition, .destination(.init(
+            surface: .bar, widget: "clock", component: nil, group: nil
+        )))
     }
 
     func testFocusAndDropReflectTheSelectedWidgetWithoutClearingSearch() async throws {

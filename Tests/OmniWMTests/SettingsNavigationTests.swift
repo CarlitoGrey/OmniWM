@@ -10,12 +10,12 @@ final class SettingsNavigationTests: XCTestCase {
         let destinations = SettingsSectionGroup.allCases.flatMap(\.sections)
         XCTAssertEqual(Set(destinations), Set(SettingsSection.allCases))
         XCTAssertEqual(destinations.count, Set(destinations).count)
-        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .island, .widgets, .menuBar])
+        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .widgets, .menuBar])
     }
 
     func testSearchFindsShellTasksAndIndividualControls() throws {
         XCTAssertTrue(SettingsSearchIndex.results(for: "custom bar").contains { $0.route.section == .styles })
-        XCTAssertTrue(SettingsSearchIndex.results(for: "dynamic island").contains { $0.route.section == .island })
+        XCTAssertTrue(SettingsSearchIndex.results(for: "dynamic island").contains { $0.route.section == .styles })
         let border = try XCTUnwrap(SettingsSearchIndex.results(for: "Border Width")
             .first { $0.title == String(localized: "Border Width") })
         XCTAssertEqual(border.route, SettingsRoute(section: .appearance, tab: "borders", anchor: "Border Width"))
@@ -30,6 +30,21 @@ final class SettingsNavigationTests: XCTestCase {
         )
         XCTAssertTrue(SettingsSearchIndex.results(for: "zqvnomatch").isEmpty)
         XCTAssertTrue(SettingsSearchIndex.results(for: "  ").isEmpty)
+    }
+
+    func testIslandSearchTargetsTheEditorSurfaceAndPreservesItsGroups() throws {
+        for (title, anchor) in [
+            ("Show Dynamic Island", "placement"), ("Island Widgets", nil), ("Component Regions", nil),
+            ("Island Appearance", "appearance"), ("Island Interaction", "interaction"),
+            ("Island Motion", "interaction")
+        ] as [(String, String?)] {
+            let result = try XCTUnwrap(SettingsSearchIndex.results(for: title).first { $0.title == title })
+            XCTAssertEqual(result.route, SettingsRoute(section: .styles, tab: "island", anchor: anchor))
+        }
+        XCTAssertEqual(SettingsSearchIndex.tabTitle("island"), String(localized: "Dynamic Island"))
+        for tab in ["lanes", "placement", "appearance", "behavior", "apps"] {
+            XCTAssertTrue(SettingsSearchIndex.entries.contains { $0.route.section == .styles && $0.route.tab == tab })
+        }
     }
 
     func testWidgetSearchCarriesItsConfiguredItemTarget() throws {
@@ -120,7 +135,7 @@ final class SettingsNavigationTests: XCTestCase {
         XCTAssertEqual(navigation.route, local)
         XCTAssertTrue(intercepted.isEmpty)
         navigation.searchText = "weather"
-        let destination = SettingsRoute(section: .island, tab: "appearance")
+        let destination = SettingsRoute(section: .widgets, anchor: "Drawers")
         navigation.request(destination)
         XCTAssertEqual(intercepted, [destination])
         XCTAssertEqual(navigation.route, local)

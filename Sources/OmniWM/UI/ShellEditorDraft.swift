@@ -9,6 +9,22 @@ struct ShellEditorDraft: Equatable, Identifiable {
         let option: String
 
         static let weather = Key(widget: "", option: "weather")
+
+        static func component(_ id: String, option: String) -> Key {
+            Key(widget: "island:" + id, option: option)
+        }
+
+        static func islandRoot(_ root: String, option: String) -> Key {
+            Key(widget: "island-root:" + root, option: option)
+        }
+
+        var component: String? {
+            widget.hasPrefix("island:") ? String(widget.dropFirst("island:".count)) : nil
+        }
+
+        var islandRoot: String? {
+            widget.hasPrefix("island-root:") ? String(widget.dropFirst("island-root:".count)) : nil
+        }
     }
 
     struct Weather: Equatable {

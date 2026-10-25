@@ -101,8 +101,8 @@ final class SettingsUIRenderTests: XCTestCase {
                         root, fixture: fixture, windowClass: windowClass,
                         section: section,
                         name: "settings-\(section.rawValue)-\(windowClass.suffix)",
-                        requiredText: [String(localized: "Search settings"), section.subtitle, contentLabel(section)]
-                            + paneLabels(section)
+                        requiredText: [String(localized: "Search settings"), section.subtitle, contentLabel(section)],
+                        requiredObservations: paneLabels(section)
                     )
                     XCTAssertNil(fixture.controller.workspaceBarManager.shellHost, section.rawValue)
                     XCTAssertEqual(
@@ -185,7 +185,9 @@ final class SettingsUIRenderTests: XCTestCase {
 
     func render<Content: View>(
         _ content: Content, fixture: Fixture, windowClass: WindowClass, section: SettingsSection? = nil,
-        name: String, requiredText: [String], forbiddenText: [String] = [], scrollEditorForm: Bool = false,
+        name: String, requiredText: [String], requiredObservations: [String] = [],
+        forbiddenText: [String] = [], scrollEditorForm: Bool = false,
+        editorFormScrollOffset: CGFloat? = nil,
         beforeCapture: (@MainActor (CGFloat) async throws -> Void)? = nil
     ) async throws {
         let appearance = try XCTUnwrap(NSAppearance(named: windowClass.dark ? .darkAqua : .aqua))
@@ -241,28 +243,37 @@ final class SettingsUIRenderTests: XCTestCase {
         await display(window, appearance: appearance)
         let viewport = hosting.convert(window.contentLayoutRect, from: nil)
         XCTAssertEqual(viewport.size, windowClass.size, name)
-        if scrollEditorForm {
-            try positionEditorForm(in: hosting)
+        if scrollEditorForm || editorFormScrollOffset != nil {
+            try positionEditorForm(in: hosting, offset: editorFormScrollOffset)
             await display(window, appearance: appearance)
         }
         let bitmap = try await capture(window)
         XCTAssertEqual(bitmap.pixelsWide, Int(windowClass.size.width * window.backingScaleFactor), name)
         XCTAssertEqual(bitmap.pixelsHigh, Int(windowClass.size.height * window.backingScaleFactor), name)
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["en-US"]
-        request.usesLanguageCorrection = true
-        request.customWords = ["OmniWM", "Niri", "Dwindle", "Luau", "OmniShell"]
-        try VNImageRequestHandler(cgImage: try XCTUnwrap(bitmap.cgImage)).perform([request])
-        let texts = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+        let renderedImage = try XCTUnwrap(bitmap.cgImage)
+        var texts = try recognizedText(in: renderedImage)
         XCTAssertFalse(texts.isEmpty, "\(name): no native content was produced")
-        let renderedText = normalizedText(texts.joined(separator: " "))
+        var renderedText = normalizedText(texts.joined(separator: " "))
+        if section == .styles, requiredText.contains(where: { !renderedText.contains(normalizedText($0)) })
+            || !containsObservations(requiredObservations, in: texts)
+        {
+            let sidebar = 220 * window.backingScaleFactor
+            let detail = try XCTUnwrap(renderedImage.cropping(to: CGRect(
+                x: sidebar, y: 0, width: CGFloat(bitmap.pixelsWide) - sidebar, height: CGFloat(bitmap.pixelsHigh)
+            )))
+            texts += try recognizedText(in: detail)
+            renderedText = normalizedText(texts.joined(separator: " "))
+        }
         for text in requiredText {
             XCTAssertTrue(
                 renderedText.contains(normalizedText(text)),
                 "\(name): missing \(text); rendered \(texts)"
             )
         }
+        XCTAssertTrue(
+            containsObservations(requiredObservations, in: texts),
+            "\(name): missing individual observations \(requiredObservations); rendered \(texts)"
+        )
         for text in forbiddenText {
             XCTAssertFalse(
                 renderedText.contains(normalizedText(text)),
@@ -290,7 +301,7 @@ final class SettingsUIRenderTests: XCTestCase {
         withExtendedLifetime(window) {}
     }
 
-    private func positionEditorForm(in hosting: NSView) throws {
+    private func positionEditorForm(in hosting: NSView, offset requested: CGFloat? = nil) throws {
         func scrollViews(in view: NSView) -> [NSScrollView] {
             let current = (view as? NSScrollView).map { [$0] } ?? []
             return current + view.subviews.flatMap { scrollViews(in: $0) }
@@ -303,7 +314,7 @@ final class SettingsUIRenderTests: XCTestCase {
         let document = try XCTUnwrap(scroll.documentView)
         let clip = scroll.contentView
         let limit = max(0, document.bounds.height - clip.bounds.height)
-        let offset = min(hosting.bounds.width < 1000 ? 300 : 180, limit)
+        let offset = min(requested ?? (hosting.bounds.width < 1000 ? 300 : 180), limit)
         let original = clip.bounds.origin
         clip.scroll(to: CGPoint(x: original.x, y: document.isFlipped ? offset : limit - offset))
         scroll.reflectScrolledClipView(clip)
@@ -313,27 +324,18 @@ final class SettingsUIRenderTests: XCTestCase {
     private func preparePreviews(
         fixture: Fixture, section: SettingsSection?, dark: Bool, scale: CGFloat
     ) async throws {
-        guard let section, [.styles, .island].contains(section) else { return }
+        guard section == .styles else { return }
         let configuration = fixture.controller.workspaceBarManager.shellConfiguration
-        let profiles = section == .styles ? configuration.profiles : [configuration.config.profile]
+        let profiles = configuration.profiles
         for profile in profiles {
             let config = try await configuration.previewConfig(profile: profile)
-            if section != .island {
-                _ = try await ShellSettingsPreview.cachedImage(for: .init(
-                    config: config, surface: .bar,
-                    style: ShellSettingsPreview.style(settings: fixture.settings.workspaceBar, config: config),
-                    scale: scale, dark: dark,
-                    fullWidth: config.barOverride?.settings.fullWidth ?? fixture.settings.workspaceBar.fullWidth,
-                    sourceGeneration: configuration.sourceGeneration
-                ))
-            }
-            if section == .island, config.profile == configuration.config.profile, config.island != nil {
-                _ = try await ShellSettingsPreview.cachedImage(for: .init(
-                    config: config, surface: .island(expanded: false), style: ShellBarStyle(),
-                    scale: scale, dark: dark, fullWidth: config.barOverride?.settings.fullWidth ?? false,
-                    sourceGeneration: configuration.sourceGeneration
-                ))
-            }
+            _ = try await ShellSettingsPreview.cachedImage(for: .init(
+                config: config, surface: .bar,
+                style: ShellSettingsPreview.style(settings: fixture.settings.workspaceBar, config: config),
+                scale: scale, dark: dark,
+                fullWidth: config.barOverride?.settings.fullWidth ?? fixture.settings.workspaceBar.fullWidth,
+                sourceGeneration: configuration.sourceGeneration
+            ))
         }
     }
 
@@ -342,6 +344,22 @@ final class SettingsUIRenderTests: XCTestCase {
             throw XCTSkip("Native settings rendering requires OMNIWM_RUN_SETTINGS_UI_RENDER_TESTS=1")
         }
         _ = try XCTUnwrap(CGPreflightScreenCaptureAccess() ? true : nil, "Screen Recording permission is required")
+    }
+
+    private func recognizedText(in image: CGImage) throws -> [String] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["en-US"]
+        request.usesLanguageCorrection = true
+        request.customWords = ["OmniWM", "Niri", "Dwindle", "Luau", "OmniShell"]
+        try VNImageRequestHandler(cgImage: image).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+    }
+
+    private func containsObservations(_ required: [String], in texts: [String]) -> Bool {
+        let observations = Set(texts.map(normalizedText))
+        let combined = normalizedText(required.joined(separator: " "))
+        return required.allSatisfy { observations.contains(normalizedText($0)) || observations.contains(combined) }
     }
 
     private func normalizedText(_ text: String) -> String {
@@ -386,7 +404,7 @@ final class SettingsUIRenderTests: XCTestCase {
 
     private func paneLabels(_ section: SettingsSection) -> [String] {
         switch section {
-        case .island: [String(localized: "Interaction"), String(localized: "Placement")]
+        case .styles: [String(localized: "Bar"), String(localized: "Island")]
         default: []
         }
     }
@@ -396,7 +414,6 @@ final class SettingsUIRenderTests: XCTestCase {
         case .general: String(localized: "App Language")
         case .appearance: String(localized: "App Appearance")
         case .styles: String(localized: "Bar Widgets")
-        case .island: String(localized: "Enable Dynamic Island")
         case .widgets: String(localized: "Widget Library")
         case .menuBar: String(localized: "Show Workspace")
         case .workspaces: String(localized: "Layout Algorithm")

@@ -23,7 +23,16 @@ struct ShellDesktopTextDraft: View {
             default: break
             }
         }
-        switch editor.values(for: widget)[option] ?? editor.schema(for: widget)?.options[option]?.defaultValue {
+        let value: ShellComponentValue?
+        if let id = key.component {
+            value = editor.component(id)?.options[option] ?? editor.componentDescriptor(id)?.options[option]?
+                .defaultValue
+        } else if key.islandRoot != nil {
+            value = editor.islandRootValues[option] ?? editor.islandRootOptions[option]?.defaultValue
+        } else {
+            value = editor.values(for: widget)[option] ?? editor.schema(for: widget)?.options[option]?.defaultValue
+        }
+        switch value {
         case let .string(text)?: return text
         case let .strings(lines)?: return lines.joined(separator: "\n")
         default: return ""
@@ -54,12 +63,18 @@ struct ShellDesktopTextDraft: View {
             }
             .frame(minWidth: 140, maxWidth: 300)
         }
-        .task(id: key) { editor.beginTextDraft(widget: widget, key: option) }
+        .task(id: key) { begin() }
     }
 
     private func update(_ text: String) {
-        editor.beginTextDraft(widget: widget, key: option)
+        begin()
         editor.updateDraft(key, multiline ? .lines(text.components(separatedBy: "\n")) : .text(text))
+    }
+
+    private func begin() {
+        if let id = key.component { editor.beginComponentTextDraft(id, key: option) }
+        else if key.islandRoot != nil { editor.beginIslandRootTextDraft(key: option) }
+        else { editor.beginTextDraft(widget: widget, key: option) }
     }
 }
 

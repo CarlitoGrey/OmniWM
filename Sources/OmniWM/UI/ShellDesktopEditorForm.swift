@@ -8,6 +8,30 @@ struct ShellDesktopEditorForm: View {
 
     var body: some View {
         Form {
+            ShellDesktopEditorMessages(editor: editor)
+            if editor.snapshot != nil {
+                ShellDesktopLanes(editor: editor)
+                if let widget = editor.selectedWidget {
+                    ShellDesktopWidgetInspector(editor: editor, widget: widget)
+                } else {
+                    ShellDesktopBarInspector(editor: editor)
+                }
+            } else if editor.problem == nil {
+                Section {
+                    ProgressView("Loading style…").frame(maxWidth: .infinity)
+                }
+            }
+            ShellDesktopAllStyles(editor: editor)
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct ShellDesktopEditorMessages: View {
+    let editor: ShellDesktopEditor
+
+    var body: some View {
+        Group {
             if let problem = editor.problem {
                 Section {
                     HStack(alignment: .top) {
@@ -29,21 +53,7 @@ struct ShellDesktopEditorForm: View {
                 }
             }
             failedWrites
-            if editor.snapshot != nil {
-                ShellDesktopLanes(editor: editor)
-                if let widget = editor.selectedWidget {
-                    ShellDesktopWidgetInspector(editor: editor, widget: widget)
-                } else {
-                    ShellDesktopBarInspector(editor: editor)
-                }
-            } else if editor.problem == nil {
-                Section {
-                    ProgressView("Loading style…").frame(maxWidth: .infinity)
-                }
-            }
-            ShellDesktopAllStyles(editor: editor)
         }
-        .formStyle(.grouped)
     }
 
     @ViewBuilder

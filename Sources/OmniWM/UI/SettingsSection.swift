@@ -4,7 +4,7 @@
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, styles, island, widgets, menuBar
+    case general, appearance, styles, widgets, menuBar
     case workspaces, layouts, monitors, appRules, overview, windowSwitcher
     case hotkeys, mouseTrackpad, quakeTerminal, diagnostics, reportIssue, advanced
 
@@ -54,13 +54,7 @@ enum SettingsSection: String, CaseIterable, Identifiable {
             Presentation(
                 String(localized: "Styles & Widgets"),
                 "square.grid.2x2",
-                String(localized: "Choose a style, then arrange its bar widgets and adjust its look.")
-            )
-        case .island:
-            Presentation(
-                String(localized: "Dynamic Island"),
-                "capsule",
-                String(localized: "Customize your island, with or without a workspace bar.")
+                String(localized: "Choose a style, then arrange its bar and island and adjust its look.")
             )
         case .widgets:
             Presentation(
@@ -170,7 +164,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var sections: [SettingsSection] {
         switch self {
         case .app: [.general, .appearance]
-        case .desktop: [.styles, .island, .widgets, .menuBar]
+        case .desktop: [.styles, .widgets, .menuBar]
         case .windows: [.workspaces, .layouts, .monitors, .appRules, .overview, .windowSwitcher]
         case .input: [.hotkeys, .mouseTrackpad]
         case .tools: [.quakeTerminal]

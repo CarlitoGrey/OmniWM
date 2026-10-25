@@ -37,7 +37,9 @@ extension ShellDesktopEditorTests {
         let key = await dirtyText(fixture.editor)
         await fixture.editor.open(SettingsRoute(section: .styles, tab: "appearance"))
         XCTAssertEqual(fixture.editor.selectedWidget, "omniwm")
-        XCTAssertEqual(fixture.editor.pendingTransition, .widget(nil))
+        XCTAssertEqual(fixture.editor.pendingTransition, .destination(.init(
+            surface: .bar, widget: nil, component: nil, group: "appearance"
+        )))
         XCTAssertTrue(fixture.editor.draft(key)?.dirty == true)
         await fixture.editor.resolve(.discard)
         XCTAssertNil(fixture.editor.selectedWidget)
@@ -113,7 +115,9 @@ extension ShellDesktopEditorTests {
         let destination = SettingsRoute(section: .styles, itemID: "clock")
         navigation.request(destination)
         await fixture.editor.open(navigation.route)
-        XCTAssertEqual(fixture.editor.pendingTransition, .widget("clock"))
+        XCTAssertEqual(fixture.editor.pendingTransition, .destination(.init(
+            surface: .bar, widget: "clock", component: nil, group: nil
+        )))
         await fixture.editor.resolve(.cancel)
         XCTAssertEqual(fixture.editor.selectedWidget, "omniwm")
         XCTAssertTrue(fixture.editor.draft(key)?.dirty == true)
@@ -121,6 +125,8 @@ extension ShellDesktopEditorTests {
         let previous = navigation.route
         navigation.request(destination)
         if navigation.route != previous { await fixture.editor.open(navigation.route) }
-        XCTAssertEqual(fixture.editor.pendingTransition, .widget("clock"))
+        XCTAssertEqual(fixture.editor.pendingTransition, .destination(.init(
+            surface: .bar, widget: "clock", component: nil, group: nil
+        )))
     }
 }

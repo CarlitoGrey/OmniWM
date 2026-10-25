@@ -4,7 +4,7 @@
 import AppKit
 import SwiftUI
 
-struct ShellSettingsPreview: View {
+enum ShellSettingsPreview {
     enum Surface: Equatable, Sendable {
         case bar
         case island(expanded: Bool)
@@ -27,69 +27,6 @@ struct ShellSettingsPreview: View {
 
         var barFullWidth: Bool {
             display?.resolved.fullWidth ?? fullWidth
-        }
-    }
-
-    let config: ShellConfig
-    var surface = Surface.bar
-    var style = ShellBarStyle()
-    var fullWidth: Bool?
-    var sourceGeneration: UInt64 = 0
-    var display: Display?
-    var slot: ShellSettingsPreviewCache.Slot?
-    var onRendered: ((CGImage) -> Void)?
-
-    @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.displayScale) private var displayScale
-    @State private var image: CGImage?
-    @State private var failure: String?
-
-    private var request: Request {
-        Request(
-            config: config,
-            surface: surface,
-            style: style,
-            scale: displayScale,
-            dark: colorScheme == .dark,
-            fullWidth: fullWidth ?? display?.resolved.fullWidth ?? config.barOverride?.settings.fullWidth ?? false,
-            sourceGeneration: sourceGeneration,
-            display: display
-        )
-    }
-
-    var body: some View {
-        Group {
-            if let image {
-                Image(decorative: image, scale: displayScale)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(12)
-            } else if let failure {
-                ContentUnavailableView(
-                    "Preview Unavailable",
-                    systemImage: "exclamationmark.triangle",
-                    description: Text(failure)
-                )
-            } else {
-                ProgressView()
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.background.secondary, in: .rect(cornerRadius: 10))
-        .task(id: request) {
-            let value = request
-            image = nil
-            failure = nil
-            do {
-                let rendered = try await ShellSettingsPreviewCache.shared.image(for: value, slot: slot)
-                try Task.checkCancellation()
-                image = rendered
-                onRendered?(rendered)
-            } catch is CancellationError {
-            } catch {
-                guard !Task.isCancelled else { return }
-                failure = (error as? ShellScriptFailure)?.message ?? error.localizedDescription
-            }
         }
     }
 

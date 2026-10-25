@@ -49,8 +49,6 @@ struct SettingsDetailView: View {
             )
         case .styles:
             ShellDesktopEditorPage(settings: settings, controller: controller)
-        case .island:
-            DynamicIslandSettingsPage(settings: settings, controller: controller)
         case .widgets:
             WidgetsSettingsPage(settings: settings, controller: controller)
         case .menuBar:

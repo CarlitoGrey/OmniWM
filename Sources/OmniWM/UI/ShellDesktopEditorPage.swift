@@ -6,6 +6,7 @@ import SwiftUI
 
 struct ShellDesktopEditorPage: View {
     @State private var editor: ShellDesktopEditor
+    @State private var expandedPreview = false
     @Environment(SettingsNavigationModel.self) private var navigation
     @Environment(\.shellDesktopEditorReady) private var ready
 
@@ -24,8 +25,32 @@ struct ShellDesktopEditorPage: View {
         VStack(spacing: 10) {
             ShellDesktopStyleStrip(editor: editor)
             scope
-            preview
-            ShellDesktopEditorForm(editor: editor)
+            TabView(selection: Binding(
+                get: { editor.surface == .bar ? "bar" : "island" },
+                set: { next in Task { await editor.selectSurface(next == "bar" ? .bar : .island) } }
+            )) {
+                Tab("Bar", systemImage: "rectangle.topthird.inset.filled", value: "bar") {
+                    if editor.surface == .bar {
+                        VStack(spacing: 10) {
+                            preview
+                            ShellDesktopEditorForm(editor: editor)
+                        }
+                    }
+                }
+                Tab("Island", systemImage: "capsule", value: "island") {
+                    if editor.surface == .island {
+                        GeometryReader { geometry in
+                            VStack(spacing: 8) {
+                                islandPreview(height: min(
+                                    expandedPreview ? 180 : 110,
+                                    max(64, geometry.size.height * 0.32)
+                                ))
+                                ShellIslandEditorForm(editor: editor)
+                            }
+                        }
+                    }
+                }
+            }
         }
         .padding(.top, 8)
         .task {
@@ -69,9 +94,12 @@ struct ShellDesktopEditorPage: View {
                     Button("Use Style") { Task { await editor.useStyle() } }
                         .buttonStyle(.borderedProminent)
                 }
-                if editor.selectedWidget != nil {
+                if editor.surface == .bar, editor.selectedWidget != nil {
                     Spacer(minLength: 4)
                     Button("Bar Settings") { Task { await editor.selectWidget(nil) } }
+                } else if editor.surface == .island, editor.selectedComponent != nil {
+                    Spacer(minLength: 4)
+                    Button("Island Settings") { Task { await editor.selectComponent(nil) } }
                 }
             }
             if let snapshot = editor.snapshot {
@@ -130,6 +158,33 @@ struct ShellDesktopEditorPage: View {
                 .font(.caption).foregroundStyle(.secondary)
         }
         .padding(.horizontal, 20)
+    }
+
+    @ViewBuilder private func islandPreview(height: CGFloat) -> some View {
+        if let snapshot = editor.snapshot, editor.island != nil {
+            VStack(spacing: 4) {
+                HStack {
+                    Text("Preview").font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Picker("Preview", selection: $expandedPreview) {
+                        Text("Compact").tag(false)
+                        Text("Expanded").tag(true)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+                ShellDesktopPreview(
+                    config: snapshot.config, style: ShellBarStyle(), display: nil,
+                    sourceGeneration: editor.configuration.sourceGeneration,
+                    fullWidth: editor.islandFullWidth, surface: .island(expanded: expandedPreview)
+                )
+                .frame(height: height)
+                Text("Sample data. Your desktop uses live information.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 20)
+        }
     }
 }
 

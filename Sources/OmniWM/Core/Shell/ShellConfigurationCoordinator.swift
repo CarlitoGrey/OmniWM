@@ -343,7 +343,7 @@ extension ShellConfigurationCoordinator {
     func editorSnapshot(profile: String) async throws -> ShellEditorSnapshot {
         let snapshot = try await previewConfig(profile: profile)
         if snapshot == config, let barLayout, metadataScope == MetadataScope(config) {
-            return ShellEditorSnapshot(config: snapshot, layout: barLayout, schemas: widgetSchemas, themes: themes)
+            return .init(config: snapshot, layout: barLayout, schemas: widgetSchemas, themes: themes, island: catalog)
         }
         return try await editorSnapshots.snapshot(
             for: snapshot, metadata: inputs?.metadata, generation: previewGeneration,

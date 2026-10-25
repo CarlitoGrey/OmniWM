@@ -52,13 +52,9 @@ extension ShellDesktopEditorTests {
             await fixture.editor.resolve(.discard)
             XCTAssertNil(fixture.editor.pendingTransition)
             XCTAssertNil(fixture.editor.draft(key))
-            switch transition {
-            case .style: XCTAssertEqual(fixture.editor.selectedStyle, "nocturne")
-            case .widget: XCTAssertEqual(fixture.editor.selectedWidget, "clock")
-            case .useStyle: XCTAssertEqual(fixture.editor.scope, .active)
-            case .leave(.some): XCTAssertEqual(navigation.route, destination)
-            case .leave(nil): XCTAssertEqual(closed.count, 1)
-            }
+            assertCompletedTransition(
+                transition, fixture: fixture, navigation: navigation, closed: closed, destination: destination
+            )
             let lake = try await fixture.configuration.previewConfig(profile: "lake")
             XCTAssertNotEqual(
                 ShellWidgetSettingsModel.values(widget: "omniwm", config: lake)["iconColor"],
@@ -108,13 +104,9 @@ extension ShellDesktopEditorTests {
                 ShellWidgetSettingsModel.values(widget: "omniwm", config: lake)["iconColor"],
                 .string("#123456FF")
             )
-            switch transition {
-            case .style: XCTAssertEqual(fixture.editor.selectedStyle, "nocturne")
-            case .widget: XCTAssertEqual(fixture.editor.selectedWidget, "clock")
-            case .useStyle: XCTAssertEqual(fixture.editor.scope, .active)
-            case .leave(.some): XCTAssertEqual(navigation.route, destination)
-            case .leave(nil): XCTAssertEqual(closed.count, 1)
-            }
+            assertCompletedTransition(
+                transition, fixture: fixture, navigation: navigation, closed: closed, destination: destination
+            )
             fixture.editor.detach()
         }
     }
@@ -251,5 +243,21 @@ extension ShellDesktopEditorTests {
         XCTAssertNotNil(retained?.error)
         XCTAssertEqual(try Data(contentsOf: file), original)
         XCTAssertNotNil(fixture.editor.writes.failure(for: target))
+    }
+
+    private func assertCompletedTransition(
+        _ transition: ShellDesktopEditor.Transition, fixture: Fixture, navigation: SettingsNavigationModel,
+        closed: Events, destination: SettingsRoute
+    ) {
+        switch transition {
+        case .style: XCTAssertEqual(fixture.editor.selectedStyle, "nocturne")
+        case .widget: XCTAssertEqual(fixture.editor.selectedWidget, "clock")
+        case .useStyle: XCTAssertEqual(fixture.editor.scope, .active)
+        case .leave(.some): XCTAssertEqual(navigation.route, destination)
+        case .leave(nil): XCTAssertEqual(closed.count, 1)
+        case .surface,
+             .component,
+             .destination: XCTFail("Unexpected selection transition")
+        }
     }
 }

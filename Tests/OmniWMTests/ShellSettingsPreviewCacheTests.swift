@@ -315,9 +315,11 @@ final class ShellSettingsPreviewCacheTests: XCTestCase {
         )
     }
 
-    private func request(_ sourceGeneration: UInt64 = 0) -> ShellSettingsPreview.Request {
+    private func request(
+        _ sourceGeneration: UInt64 = 0, surface: ShellSettingsPreview.Surface = .bar
+    ) -> ShellSettingsPreview.Request {
         .init(
-            config: ShellConfig(), surface: .bar, style: .init(), scale: 1,
+            config: ShellConfig(), surface: surface, style: .init(), scale: 1,
             dark: false, fullWidth: false, sourceGeneration: sourceGeneration
         )
     }
@@ -424,5 +426,60 @@ final class ShellSettingsPreviewCacheTests: XCTestCase {
             if signalled { return }
             await withCheckedContinuation { waiter = $0 }
         }
+    }
+}
+
+@MainActor
+extension ShellSettingsPreviewCacheTests {
+    func testSurfaceAndExpandedStateKeepRequestsAndCachedImagesSeparate() async throws {
+        let renderer = Renderer()
+        let cache = ShellSettingsPreviewCache(render: renderer.render)
+        let requests = [
+            request(surface: .bar), request(surface: .island(expanded: false)),
+            request(surface: .island(expanded: true))
+        ]
+        let images = try [image(4), image(8), image(12)]
+        for first in requests.indices {
+            for second in requests.indices where first != second {
+                XCTAssertNotEqual(requests[first], requests[second])
+            }
+            cache.insert(images[first], for: requests[first])
+        }
+        for index in requests.indices {
+            let cached = try await cache.image(for: requests[index])
+            XCTAssertTrue(cached === images[index])
+        }
+        XCTAssertEqual(cache.count, 3)
+        XCTAssertEqual(renderer.count, 0)
+    }
+
+    func testBarToIslandCancellationDrainsTheOldSurfaceAndPublishesOnlyTheSelectedImage() async throws {
+        let renderer = Renderer()
+        let cache = ShellSettingsPreviewCache(render: renderer.render)
+        let barRequest = request(surface: .bar)
+        let islandRequest = request(surface: .island(expanded: false))
+        let bar = await submit(cache, barRequest, slot: .init(id: "editor-bar"))
+        await renderer.waitForCalls(1)
+        bar.cancel()
+        await assertCancelled(bar)
+        await renderer.waitForCancellations(1)
+        let island = await submit(cache, islandRequest, slot: .init(id: "editor-island"))
+        XCTAssertEqual(renderer.requests, [barRequest])
+        XCTAssertEqual(cache.count, 0)
+        let abandonedImage = try image(4)
+        let selectedImage = try image(8)
+        renderer.finish(0, result: .success(abandonedImage))
+        await renderer.waitForCalls(2)
+        XCTAssertEqual(renderer.requests, [barRequest, islandRequest])
+        XCTAssertEqual(renderer.maximumActive, 1)
+        XCTAssertEqual(cache.count, 0)
+        renderer.finish(1, result: .success(selectedImage))
+        let delivered = try await island.value
+        let cached = try await cache.image(for: islandRequest, slot: .init(id: "editor-island"))
+        XCTAssertTrue(delivered === selectedImage)
+        XCTAssertTrue(cached === selectedImage)
+        XCTAssertFalse(delivered === abandonedImage)
+        XCTAssertEqual(cache.count, 1)
+        XCTAssertEqual(renderer.count, 2)
     }
 }
