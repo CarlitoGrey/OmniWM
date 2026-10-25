@@ -11,6 +11,7 @@ actor ShellWidgetSourceLoader {
         let directories: [URL]
         let profile: String
         var components: [ShellComponentInstance]?
+        private let libraryDirectories: [URL]
 
         init(
             name: String, shellDirectory: URL, sourceURL: URL, directories: [URL], profile: String,
@@ -18,14 +19,15 @@ actor ShellWidgetSourceLoader {
         ) {
             self.name = name
             self.sourceURL = sourceURL
+            self.directories = directories
             self.profile = profile
             self.components = components
             if let bundled = ShellDefaults.bundled, sourceURL == ShellConfig.bundledWidget(name) {
                 self.shellDirectory = bundled
-                self.directories = [bundled]
+                self.libraryDirectories = [bundled]
             } else {
                 self.shellDirectory = shellDirectory
-                self.directories = directories
+                self.libraryDirectories = directories
             }
         }
 
@@ -43,7 +45,7 @@ actor ShellWidgetSourceLoader {
         }
 
         var libraries: [URL] {
-            directories.map { $0.appendingPathComponent("lib", isDirectory: true) }
+            libraryDirectories.map { $0.appendingPathComponent("lib", isDirectory: true) }
                 .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         }
     }
