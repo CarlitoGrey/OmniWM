@@ -102,6 +102,27 @@ final class HiddenBarMenuGuardTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testMenuBarFrameUsesThicknessNotchAndVisibleFrameGap() {
+        let frame = CGRect(x: -1680, y: 1000, width: 1680, height: 1050)
+        let reservations: [(gap: CGFloat, safeAreaTop: CGFloat, height: CGFloat)] = [
+            (0, 0, 24), (0, 38, 38), (40, 38, 40)
+        ]
+        for (gap, safeAreaTop, height) in reservations {
+            let visibleFrame = CGRect(
+                x: frame.minX, y: frame.minY + 50, width: frame.width, height: frame.height - 50 - gap
+            )
+            let expected = CGRect(x: frame.minX, y: frame.maxY - height, width: frame.width, height: height)
+            XCTAssertEqual(
+                MenuBarItemService.menuBarFrame(
+                    frame: frame, visibleFrame: visibleFrame, safeAreaTop: safeAreaTop, thickness: 24
+                ),
+                ScreenCoordinateSpace.toWindowServer(rect: expected),
+                "gap=\(gap), safeAreaTop=\(safeAreaTop)"
+            )
+        }
+    }
+
     func testStatusItemsOnNotchedAndOffsetDisplaysDoNotDeferRehide() {
         let menuBars = [
             CGRect(x: 0, y: 0, width: 2560, height: 24),
