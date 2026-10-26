@@ -136,4 +136,25 @@ final class SpatialCameraViewportTests: XCTestCase {
         viewport.updateMagnify(delta: 19)
         XCTAssertEqual(viewport.current.scale, 1.0, accuracy: 0.0001)
     }
+
+    func testFullInwardMagnifyCanZoomBackIn() {
+        let viewport = SpatialCameraViewport()
+        viewport.beginGesture(anchor: .zero)
+        viewport.updateMagnify(delta: -1)
+        XCTAssertGreaterThan(viewport.current.scale, 0)
+
+        viewport.updateMagnify(delta: .nan)
+        XCTAssertTrue(viewport.current.scale.isFinite)
+
+        viewport.updateMagnify(delta: 99)
+        XCTAssertEqual(viewport.current.scale, 1.0, accuracy: 0.0001)
+    }
+
+    func testNegativeTouchSpanKeepsScalePositive() {
+        let viewport = SpatialCameraViewport()
+        viewport.beginGesture(anchor: .zero)
+        viewport.updateTouchSpan(distance: 100, center: .zero)
+        viewport.updateTouchSpan(distance: -1000, center: .zero)
+        XCTAssertGreaterThan(viewport.current.scale, 0)
+    }
 }

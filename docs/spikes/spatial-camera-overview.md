@@ -79,7 +79,7 @@ When the user is in normal 1:1 window management (overview overlay not yet activ
   $$d_0 = \|\vec{p}_2 - \vec{p}_1\|, \quad \vec{c}_0 = \frac{\vec{p}_1 + \vec{p}_2}{2}$$
 - During continuous tracking:
   $$s_{\text{raw}} = \frac{d}{d_0}, \quad \Delta \vec{c} = \vec{c} - \vec{c}_0$$
-- When $s_{\text{raw}} < 0.98$ and fingers are moving inward (pinch-out gesture), OmniWM latches the spatial camera gesture, immediately revealing the overlay camera viewport.
+- When $s_{\text{raw}} < 0.98$ and fingers are moving inward (pinch-in gesture), OmniWM latches the spatial camera gesture, immediately revealing the overlay camera viewport.
 
 #### Pipeline B: Active Overview View Ingestion (Pinch & Pan in Overview)
 Once the overview panel is active and tracking:
@@ -106,9 +106,10 @@ CGAffineTransform(translationX: anchor.x + translation.x, y: anchor.y + translat
 ```
 
 #### Rubber-Banding Resistance
-Outside the nominal range $s \in [s_{\min}, s_{\max}]$ (e.g., $0.20 \dots 1.00$), rational hyperbolic damping is applied:
-$$\text{overflow} = s_{\text{raw}} - s_{\max}, \quad s_{\text{clamped}} = s_{\max} + \frac{\text{overflow} \cdot r}{1 + \text{overflow}}$$
-where $r \approx 0.35$ is the rubber-band resistance coefficient.
+Outside the nominal range $s \in [s_{\min}, s_{\max}]$ (e.g., $0.20 \dots 1.00$), rational hyperbolic damping is applied from the nearest bound:
+$$\text{overflow} = s_{\text{raw}} - s_{\max}, \quad s_{\text{clamped}} = s_{\max} + \frac{\text{overflow} \cdot r}{1 + \text{overflow}} \quad (s_{\text{raw}} > s_{\max})$$
+$$\text{underflow} = s_{\min} - s_{\text{raw}}, \quad s_{\text{clamped}} = s_{\min} - \frac{\text{underflow} \cdot r}{1 + \text{underflow}} \quad (s_{\text{raw}} < s_{\min})$$
+where $r \approx 0.35$ is the rubber-band resistance coefficient. The raw gesture scale is floored at $0.01$ before damping, so the lower branch stays positive.
 
 ---
 

@@ -55,6 +55,7 @@ final class SpatialCameraViewport: @unchecked Sendable {
     private(set) var isTracking = false
     private var initialTouchSpan: CGFloat?
     private var initialScale: CGFloat = 1.0
+    private static let minimumGestureScale: CGFloat = 0.01
     private var gestureScale: CGFloat = 1.0
 
     init(config: SpatialCameraConfig = .init(), initial: SpatialCameraTransform = .identity) {
@@ -72,7 +73,8 @@ final class SpatialCameraViewport: @unchecked Sendable {
     func updateMagnify(delta: CGFloat, anchor: CGPoint? = nil) {
         guard isTracking else { return }
         if let anchor { rebaseAnchor(to: anchor) }
-        gestureScale *= 1.0 + delta
+        guard delta.isFinite else { return }
+        gestureScale = max(gestureScale * (1.0 + delta), Self.minimumGestureScale)
         current.scale = applyRubberBanding(gestureScale)
     }
 
@@ -90,7 +92,8 @@ final class SpatialCameraViewport: @unchecked Sendable {
             initialScale = gestureScale
             return
         }
-        gestureScale = initialScale * distance / baseline
+        guard distance.isFinite else { return }
+        gestureScale = max(initialScale * distance / baseline, Self.minimumGestureScale)
         current.scale = applyRubberBanding(gestureScale)
     }
 
