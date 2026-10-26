@@ -71,7 +71,7 @@ Currently, pinch gestures (`NSEvent.EventType.magnify`) and two-finger double ta
 
 A spatial camera requires continuous tracking of both **scale** ($s$) and **focal center translation** $(dx, dy)$. Two complementary ingestion pipelines are used:
 
-#### Pipeline A: Global Multitouch Recognition (Pinch-Out from 1:1 Desktop)
+#### Pipeline A: Global Multitouch Recognition (Pinch-In from 1:1 Desktop)
 When the user is in normal 1:1 window management (overview overlay not yet active), AppKit does not route `.magnify` events to OmniWM because OmniWM is not the key/active application.
 - `MultitouchGestureSource` receives raw two-finger touch contacts:
   $$\vec{p}_1 = (x_1, y_1), \quad \vec{p}_2 = (x_2, y_2)$$
