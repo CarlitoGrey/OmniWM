@@ -738,7 +738,9 @@ To try one with a Homebrew or GitHub Releases install:
 2. Quit OmniWM, then download the newest [canary build](https://github.com/OmniNull/OmniWM/releases?q=canary) and replace `OmniWM.app` in `/Applications` with the app from its ZIP
 3. Relaunch OmniWM. It uses your existing settings
 
-OmniWM's update check only tracks stable releases, so download newer canaries the same way. To return to stable, quit OmniWM. For a Homebrew install, run `brew reinstall --cask omniwm`; for a direct download, replace the app with the [latest release](https://github.com/OmniNull/OmniWM/releases/latest). If stable cannot read settings saved by a canary, quit OmniWM and restore your copy. When reporting a canary bug, include its release link.
+**Unreleased:** Canary builds check only for newer published Canary releases. Stable builds continue to check only stable releases. Updates stay manual: download from the release page, or use `brew upgrade --cask omniwm@canary` if you installed that Homebrew cask and its new version is available. Older Canary builds need one manual update to gain Canary update checks.
+
+To return to stable, quit OmniWM. If you installed `omniwm@canary`, run `brew uninstall --cask omniwm@canary` followed by `brew install --cask omniwm`. For an existing `omniwm` Homebrew install, run `brew reinstall --cask omniwm`; for a direct download, replace the app with the [latest release](https://github.com/OmniNull/OmniWM/releases/latest). If stable cannot read settings saved by a canary, quit OmniWM and restore your copy. When reporting a canary bug, include its release link.
 
 ## Updates
 

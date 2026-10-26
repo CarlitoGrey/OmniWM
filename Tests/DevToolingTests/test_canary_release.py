@@ -372,6 +372,31 @@ class CanaryWorkflowTests(unittest.TestCase):
                 return step
         self.fail(f"Missing canary workflow step: {name}")
 
+    def test_published_tag_matches_the_identity_given_to_packaging(self):
+        step = self.step("Build, sign and notarize the canary app")
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "Scripts").mkdir()
+            package = root / "Scripts/package-app.sh"
+            package.write_text('#!/bin/bash\nprintf "%s" "$OMNIWM_CANARY_TAG" > "$TAG_CAPTURE"\n')
+            package.chmod(0o755)
+            output = root / "output"
+            captured = root / "tag"
+            subprocess.run(["bash", "-c", script], cwd=root, check=True, capture_output=True, env={
+                **os.environ,
+                "GITHUB_RUN_ID": "100",
+                "GITHUB_RUN_ATTEMPT": "2",
+                "GITHUB_OUTPUT": str(output),
+                "TAG_CAPTURE": str(captured),
+            })
+            values = dict(line.split("=", 1) for line in output.read_text().splitlines())
+            self.assertEqual(values["tag"], captured.read_text())
+            self.assertEqual(values["tag"], f"canary-{values['stamp']}-100-2")
+        publish = self.step("Publish the canary prerelease")
+        self.assertIn("          TAG: ${{ steps.build.outputs.tag }}", publish.splitlines())
+        self.assertNotIn('TAG="canary-', publish)
+
     def test_forced_rebuild_still_requires_passing_ci(self):
         gate = self.step("Require passing CI for the checked-out commit")
         self.assertEqual(re.findall(r"^        if: (.+)$", gate, re.MULTILINE), [
