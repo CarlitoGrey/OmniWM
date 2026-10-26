@@ -6,7 +6,7 @@ import SwiftUI
 
 struct MenuHeader: View {
     private var appVersion: String {
-        Bundle.main.appVersion ?? "0.3.1"
+        Bundle.main.appDisplayVersion ?? "0.3.1"
     }
 
     var body: some View {
