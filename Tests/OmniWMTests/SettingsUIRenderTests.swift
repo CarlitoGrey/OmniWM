@@ -183,6 +183,48 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
+    func testTabbedPagesOpenedInVisibleWindowKeepTabsLegible() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let searchResult = try XCTUnwrap(SettingsSearchIndex.results(for: "gap").first {
+                $0.route.section == .layouts && $0.route.tab == "spacing"
+            })
+            let destinations: [(search: String, route: SettingsRoute, tabs: [String])] = [
+                ("gap", searchResult.route, ["Spacing", "Niri", "Dwindle"]),
+                ("", SettingsRoute(section: .appearance), ["App & Motion", "Window Borders"]),
+                ("", SettingsRoute(section: .styles), ["Bar", "Island", "Drawers"]),
+                ("", SettingsRoute(section: .menuBar), ["macOS Status Item", "Hidden Bar"]),
+                ("", SettingsRoute(section: .monitors), ["Arrangement", "Behavior"]),
+                ("", SettingsRoute(section: .mouseTrackpad), ["Trackpad", "Mouse & Focus"])
+            ]
+            for windowClass in windowClasses {
+                for destination in destinations {
+                    let navigation = SettingsNavigationModel()
+                    navigation.searchText = destination.search
+                    let root = SettingsView(
+                        settings: fixture.settings, controller: fixture.controller,
+                        windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+                    )
+                    let name = "settings-open-\(destination.route.section.rawValue)-\(windowClass.suffix)"
+                    try await render(
+                        root, fixture: fixture, windowClass: windowClass, name: name,
+                        requiredText: [],
+                        requiredObservations: destination.tabs.map { String(localized: String.LocalizationValue($0)) },
+                        beforeCapture: { _ in navigation.request(destination.route) }
+                    )
+                    XCTAssertEqual(navigation.route, destination.route, name)
+                    XCTAssertEqual(navigation.searchText, "", name)
+                }
+            }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
     func render<Content: View>(
         _ content: Content, fixture: Fixture, windowClass: WindowClass, section: SettingsSection? = nil,
         name: String, requiredText: [String], requiredObservations: [String] = [],
