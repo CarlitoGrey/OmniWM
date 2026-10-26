@@ -13,15 +13,13 @@ struct LayoutSettingsPage: View {
     }
 
     var body: some View {
-        TabView(selection: selection) {
-            Tab("Spacing", systemImage: "square.dashed", value: "spacing") {
-                SpacingSettingsPage(settings: settings, controller: controller)
-            }
-            Tab("Niri", systemImage: "rectangle.split.3x1", value: "niri") {
-                NiriSettingsTab(settings: settings, controller: controller)
-            }
-            Tab("Dwindle", systemImage: "square.split.2x2", value: "dwindle") {
-                DwindleSettingsTab(settings: settings, controller: controller)
+        SettingsTabs(selection: selection, tabs: [
+            ("Spacing", "spacing"), ("Niri", "niri"), ("Dwindle", "dwindle")
+        ]) { tab in
+            switch tab {
+            case "niri": NiriSettingsTab(settings: settings, controller: controller)
+            case "dwindle": DwindleSettingsTab(settings: settings, controller: controller)
+            default: SpacingSettingsPage(settings: settings, controller: controller)
             }
         }
         .padding(.horizontal, 20)

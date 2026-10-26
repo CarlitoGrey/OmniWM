@@ -25,40 +25,36 @@ struct ShellDesktopEditorPage: View {
         VStack(spacing: 10) {
             ShellDesktopStyleStrip(editor: editor)
             scope
-            TabView(selection: Binding(
-                get: { editor.surface },
-                set: { next in Task { await editor.selectSurface(next) } }
-            )) {
-                Tab("Bar", systemImage: "rectangle.topthird.inset.filled", value: ShellDesktopEditor.Surface.bar) {
-                    if editor.surface == .bar {
-                        VStack(spacing: 10) {
-                            preview
-                            ShellDesktopEditorForm(editor: editor)
+            SettingsTabs(
+                selection: Binding(
+                    get: { editor.surface },
+                    set: { next in Task { await editor.selectSurface(next) } }
+                ),
+                tabs: [("Bar", .bar), ("Island", .island), ("Drawers", .drawers)]
+            ) { surface in
+                switch surface {
+                case .bar:
+                    VStack(spacing: 10) {
+                        preview
+                        ShellDesktopEditorForm(editor: editor)
+                    }
+                case .island:
+                    GeometryReader { geometry in
+                        VStack(spacing: 8) {
+                            islandPreview(height: min(
+                                expandedPreview ? 180 : 110,
+                                max(64, geometry.size.height * 0.32)
+                            ))
+                            ShellIslandEditorForm(editor: editor)
                         }
                     }
-                }
-                Tab("Island", systemImage: "capsule", value: ShellDesktopEditor.Surface.island) {
-                    if editor.surface == .island {
-                        GeometryReader { geometry in
-                            VStack(spacing: 8) {
-                                islandPreview(height: min(
-                                    expandedPreview ? 180 : 110,
-                                    max(64, geometry.size.height * 0.32)
-                                ))
-                                ShellIslandEditorForm(editor: editor)
-                            }
-                        }
-                    }
-                }
-                Tab("Drawers", systemImage: "rectangle.stack", value: ShellDesktopEditor.Surface.drawers) {
-                    if editor.surface == .drawers {
-                        GeometryReader { geometry in
-                            VStack(spacing: 8) {
-                                drawerPreview(height: min(
-                                    ShellSettingsPreview.drawerHeight, max(64, geometry.size.height * 0.3)
-                                ))
-                                ShellDrawerEditorForm(editor: editor)
-                            }
+                case .drawers:
+                    GeometryReader { geometry in
+                        VStack(spacing: 8) {
+                            drawerPreview(height: min(
+                                ShellSettingsPreview.drawerHeight, max(64, geometry.size.height * 0.3)
+                            ))
+                            ShellDrawerEditorForm(editor: editor)
                         }
                     }
                 }

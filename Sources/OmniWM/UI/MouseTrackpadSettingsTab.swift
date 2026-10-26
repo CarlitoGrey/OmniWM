@@ -22,21 +22,20 @@ struct MouseTrackpadSettingsTab: View {
     }
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { navigation.route.tab ?? "trackpad" },
-            set: { navigation.selectTab($0) }
-        )) {
-            Tab("Trackpad", systemImage: "hand.draw", value: "trackpad") {
-                Form {
-                    TrackpadGesturesSettingsPanel(settings: settings, monitors: connectedMonitors)
-                    macOSGestureSection
-                }
-                .formStyle(.grouped)
-            }
-            Tab("Mouse & Focus", systemImage: "computermouse", value: "mouse") {
+        SettingsTabs(
+            selection: Binding(get: { navigation.route.tab ?? "trackpad" }, set: { navigation.selectTab($0) }),
+            tabs: [("Trackpad", "trackpad"), ("Mouse & Focus", "mouse")]
+        ) { tab in
+            if tab == "mouse" {
                 Form {
                     mouseMoveAndResizeSection
                     focusFollowsMouseSection
+                }
+                .formStyle(.grouped)
+            } else {
+                Form {
+                    TrackpadGesturesSettingsPanel(settings: settings, monitors: connectedMonitors)
+                    macOSGestureSection
                 }
                 .formStyle(.grouped)
             }
