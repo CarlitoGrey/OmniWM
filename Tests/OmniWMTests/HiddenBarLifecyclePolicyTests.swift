@@ -338,6 +338,9 @@ final class HiddenBarLifecyclePolicyTests: XCTestCase {
     func testReconcealmentWaitsForNativePanelToClose() async {
         let controller = WindowAdmissionTestSupport.controller(prefix: "HiddenBarNativePanelGuard")
         let hiddenBar = controller.hiddenBarController
+        addTeardownBlock { [weak hiddenBar] in
+            XCTAssertNil(hiddenBar)
+        }
         controller.settings.hiddenBar.rehideIntervalSeconds = 5
         let startedAt = ContinuousClock().now
         var now = startedAt
@@ -348,10 +351,10 @@ final class HiddenBarLifecyclePolicyTests: XCTestCase {
             bounds: CGRect(x: 2150, y: 24, width: 280, height: 180)
         )
         hiddenBar.reconcealment.menuGuardNow = { now }
-        hiddenBar.reconcealment.menuGuardSleeper = { delay in
+        hiddenBar.reconcealment.menuGuardSleeper = { [weak hiddenBar] delay in
             now = now.advanced(by: delay)
             if startedAt.duration(to: now) >= .seconds(8), panelOpen {
-                XCTAssertFalse(hiddenBar.temporarilyRevealedBundleIDsForTests.isEmpty)
+                XCTAssertEqual(hiddenBar?.temporarilyRevealedBundleIDsForTests.isEmpty, false)
                 panelOpen = false
             }
             await Task.yield()

@@ -92,19 +92,23 @@ final class MenuBarItemService {
         guard !stopped else { return nil }
         let epoch = self.epoch
         let menuBarFrames = NSScreen.screens.map { screen in
-            let height = max(
-                NSStatusBar.system.thickness,
-                max(screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY)
+            Self.menuBarFrame(
+                frame: screen.frame, visibleFrame: screen.visibleFrame,
+                safeAreaTop: screen.safeAreaInsets.top, thickness: NSStatusBar.system.thickness
             )
-            return ScreenCoordinateSpace.toWindowServer(rect: CGRect(
-                x: screen.frame.minX, y: screen.frame.maxY - height, width: screen.frame.width, height: height
-            ))
         }
         let menuOpen = await Task.detached(priority: .userInitiated) {
             HiddenBarMenuGuard.isAnyMenuOpen(menuOwnerPIDs: ownerPIDs, menuBarFrames: menuBarFrames)
         }.value
         guard !Task.isCancelled, isCurrent(epoch) else { return nil }
         return menuOpen
+    }
+
+    static func menuBarFrame(frame: CGRect, visibleFrame: CGRect, safeAreaTop: CGFloat, thickness: CGFloat) -> CGRect {
+        let height = max(thickness, max(safeAreaTop, frame.maxY - visibleFrame.maxY))
+        return ScreenCoordinateSpace.toWindowServer(rect: CGRect(
+            x: frame.minX, y: frame.maxY - height, width: frame.width, height: height
+        ))
     }
 
     func stop() {
