@@ -76,9 +76,11 @@ The full schema is documented key by key in the [Settings Reference](/config/set
 | [`[niri]`](/config/settings-reference/#niri) | Scrolling (Niri) layout options |
 | [`[dwindle]`](/config/settings-reference/#dwindle) | Dwindle (BSP) layout options |
 | [`[borders]`](/config/settings-reference/#borders) | Focused-window border |
-| [`[overview]`](/config/settings-reference/#overview) | Overview zoom and colors |
+| [`[overview]`](/config/settings-reference/#overview) | Overview visibility, zoom, input and colors |
 | [`[windowSwitcher]`](/config/settings-reference/#windowswitcher) | Command-Tab / Option-Tab window switcher |
+| [`[keyboardModes]`](/config/settings-reference/#keyboardmodes) | Shortcut pause timeout |
 | [`[workspaceBar]`](/config/settings-reference/#workspacebar) | Workspace bar appearance and behavior |
+| [`[island]`](/config/settings-reference/#island) | Dynamic Island master switch |
 | [`[gestures]`](/config/settings-reference/#gestures) | Mouse and trackpad gestures |
 | [`[statusBar]`](/config/settings-reference/#statusbar) | Menu bar icon extras |
 | [`[hiddenBar]`](/config/settings-reference/#hiddenbar) | Menu bar icon concealment |

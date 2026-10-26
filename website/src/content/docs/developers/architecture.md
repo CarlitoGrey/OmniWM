@@ -15,7 +15,7 @@ This guide is for contributors who want to understand OmniWM's internals. It is 
 
 ### SwiftPM Targets
 
-OmniWM is built with Swift Package Manager (the pinned Swift 6.5-dev snapshot, strict concurrency, language mode v6). There are eleven production targets, one test target, and one binary target, with a clear dependency graph:
+OmniWM is built with Swift Package Manager (the pinned Swift 6.5-dev snapshot, strict concurrency, language mode v6). There are twelve production targets, one test target, and one binary target, with a clear dependency graph:
 
 ```
 OmniWMApp                          (@main entry point)
@@ -26,6 +26,7 @@ OmniWMApp                          (@main entry point)
     ├── OmniWMAudioTap             (C gain renderer for per-app volume taps)
     ├── OmniWMScriptHost           (C++ Luau shell host)
     │   └── OmniWMLuau             (vendored Luau VM and compiler, MIT)
+    ├── OmniWMMaterialColor        (C++ Material Color Utilities bridge for wallpaper palettes)
     ├── OmniWMShellCore            (noncopyable shell layout and diff core)
     ├── TOML                       (swift-toml — the only third-party package)
     └── GhosttyKit                 (binary xcframework)
@@ -40,6 +41,7 @@ OmniWMTests                        (test target)
 ├── OmniWMAudioTap
 ├── OmniWMCtl
 ├── OmniWMLayerCorners
+├── OmniWMMaterialColor
 ├── OmniWMScriptHost
 └── OmniWMShellCore
 ```
@@ -53,11 +55,12 @@ OmniWMTests                        (test target)
 | `OmniWMNowPlaying` | Objective-C dynamic library the Now Playing adapter loads to read and control media | None |
 | `OmniWMLuau` | Vendored Luau VM and compiler (MIT) | None |
 | `OmniWMScriptHost` | C++ Luau shell host: VM containment, CPU and memory budgets, the `ui` prelude, rendering and the wire format | OmniWMLuau |
+| `OmniWMMaterialColor` | C++ Material Color Utilities bridge for wallpaper palettes | None |
 | `OmniWMShellCore` | Noncopyable layout and diff core for shell widget trees | None |
 | `OmniWMCtl` | CLI tool (`omniwmctl`) | OmniWMIPC |
-| `OmniWM` | Core window manager library | OmniWMIPC, OmniWMLayerCorners, OmniWMLauncherSPI, OmniWMAudioTap, OmniWMScriptHost, OmniWMShellCore, GhosttyKit, TOML, system frameworks |
+| `OmniWM` | Core window manager library | OmniWMIPC, OmniWMLayerCorners, OmniWMLauncherSPI, OmniWMAudioTap, OmniWMMaterialColor, OmniWMScriptHost, OmniWMShellCore, GhosttyKit, TOML, system frameworks |
 | `OmniWMApp` | Executable wrapper with SwiftUI scene | OmniWM |
-| `OmniWMTests` | Test target (fixtures copied as a resource bundle) | OmniWM, OmniWMAudioTap, OmniWMCtl, OmniWMLayerCorners, OmniWMScriptHost, OmniWMShellCore |
+| `OmniWMTests` | Test target (fixtures copied as a resource bundle) | OmniWM, OmniWMAudioTap, OmniWMCtl, OmniWMLayerCorners, OmniWMMaterialColor, OmniWMScriptHost, OmniWMShellCore |
 
 ### Source Directory Map
 
@@ -106,7 +109,7 @@ Sources/
 │   │   ├── LockScreen/              Lock screen detection
 │   │   └── Support/                 Utility types & extensions
 │   ├── IPC/                         IPC server, connections, routing, broker
-│   ├── QuakeTerminal/               Drop-down terminal, Ghostty integration
+│   ├── QuakeTerminal/               Drop-down terminal, Ghostty and Kitty integration
 │   └── UI/                          SwiftUI/AppKit settings, bars, palette, status, stats
 ├── OmniWMApp/                       @main entry + settings redirect
 ├── OmniWMCtl/                       CLI parser, IPC client, renderer, completion
@@ -116,13 +119,14 @@ Sources/
 ├── OmniWMAudioTap/                  C per-app volume gain renderer
 ├── OmniWMNowPlaying/                Objective-C Now Playing library
 ├── OmniWMLuau/                      Vendored Luau VM and compiler
+├── OmniWMMaterialColor/             C++ Material Color Utilities bridge
 ├── OmniWMScriptHost/                C++ Luau shell host
 └── OmniWMShellCore/                 Shell layout and diff core
 ```
 
 ### External Dependencies
 
-OmniWM has a single third-party Swift package and otherwise builds on system frameworks:
+OmniWM uses a single third-party Swift package, vendored Luau and Material Color Utilities sources, and system frameworks:
 
 - **`swift-toml`** — the only third-party Swift package; used by `Core/Config/SettingsTOMLCodec.swift` and `SettingsTOMLMigration.swift` to decode, encode, and migrate `settings.toml`.
 - **Key system frameworks**: AppKit/SwiftUI, Accessibility/ApplicationServices, Carbon/CoreHID, Core Graphics/Core Text/QuartzCore/ScreenCaptureKit, IOKit (including `hidsystem` and `pwr_mgt`), ServiceManagement, and os. The Luau shell's `ui.shader` compiles and draws Metal fragment shaders (`Core/Shell/ShellShader.swift`, `ShellShaderDrawer.swift`); MetalKit is link-time only, and the Ghostty surface reaches Metal through a `CAMetalLayer`.
@@ -726,7 +730,7 @@ Native focus ownership and border projection are intentionally separate. `render
 
 **Hotkeys** (`Sources/OmniWM/Core/Input/`)
 
-`ActionCatalog` is the source of truth for action metadata and shortcut assignability. `buildSpecs()` assembles `ActionSpec`s from focused extensions, including repeated workspace, column, window, and scratchpad bindings. Each spec has a title, search keywords, category, layout compatibility, default binding, and visibility. `HotkeyBinding`/`HotkeyBindingRegistry` persist exactly one binding per spec that is not `.unassignable`. `HotkeyBindingRegistry.resolve` matches the persisted list against the current defaults and rejects unknown, missing, or duplicate action IDs rather than repairing the file; each accepted trigger is still normalized through `canonicalizeTrigger`. Unassignable specs are never persisted but remain available to non-hotkey command surfaces such as IPC.
+`ActionCatalog` is the source of truth for action metadata and shortcut assignability. `buildSpecs()` assembles `ActionSpec`s from focused extensions, including repeated workspace, column, window, and scratchpad bindings. Each spec has a title, search keywords, category, layout compatibility, default binding, and visibility. `HotkeyBinding`/`HotkeyBindingRegistry` persist bindings for assignable specs. `HotkeyBindingRegistry.resolve` rejects unknown, unassignable, or duplicate action IDs. Omitted entries from `defaultBindings` become `Unassigned`; dynamic assignable action IDs appear in the resolved list only when persisted. Each accepted trigger is still normalized through `canonicalizeTrigger`. Unassignable specs are never persisted but remain available to non-hotkey command surfaces such as IPC.
 
 `HotkeyCenter` (`Hotkeys.swift`) installs one Carbon `InstallEventHandler` and registers each binding via `RegisterEventHotKey`, plus a virtual-hyper synthesis path. On a press it emits a `HotkeyInvocation` through `onCommand`; the invocation carries the semantic `HotkeyCommand` and optional `PhysicalHotkeyTrigger` metadata (`keyCode`, modifiers, and repeat state). `WMController` wires it to `eventIntake.enqueue(.hotkeyInvocation(invocation))`, so physical commands enter the same ordered intake pipeline as other world-mutating events and commands (falling back to `CommandHandler.handleHotkeyInvocation` only if intake is closed).
 
@@ -935,7 +939,7 @@ The per-frame **display link** is owned by `LayoutRefreshController` (not by `An
 | Feature | Key Files | Description |
 |---------|-----------|-------------|
 | **Overview** | `Core/Overview/OverviewController.swift`, `OverviewLayerRenderer.swift`, `OverviewThumbnailCapture.swift` | Expose-style workspace overview with retained Core Animation layers and per-window ScreenCaptureKit streams. Search, structural hotkeys, interactive gestures, and drag placement. |
-| **Quake Terminal** | `QuakeTerminal/QuakeTerminalController.swift` | Drop-down terminal on GhosttyKit. Each tab is a tree of split panes (`QuakeTerminalTab` → `QuakeSplitContainer`/`SplitNode`), each a `GhosttySurfaceView` (CAMetalLayer-backed). Edge placements slide and fade; Center and custom frames fade in place. Registers as a `.quake` surface. |
+| **Quake Terminal** | `QuakeTerminal/QuakeTerminalController.swift`, `QuakeTerminal/KittyQuickAccessTerminal.swift` | Selects embedded Ghostty or Kitty's quick-access terminal. Ghostty tabs are trees of split panes (`QuakeTerminalTab` → `QuakeSplitContainer`/`SplitNode`), each a `GhosttySurfaceView` (CAMetalLayer-backed); edge placements slide and fade, while Center and custom frames fade in place. Ghostty registers as a `.quake` surface. Kitty uses a dedicated quick-access instance. `KittyQuickAccessTerminal` manages panel overrides through the Kitty remote-control helper using `KittyQuakeControlRequest`. |
 | **Command Palette** | `UI/CommandPalette/CommandPaletteController.swift` | Substring search with tiered ranking over windows, application menus, and clipboard history. |
 | **Menu Anywhere** | `UI/MenuAnywhere/MenuAnywhereController.swift` | Pops the frontmost app's menu bar as a native `NSMenu` at the cursor, via `MenuExtractor` (ObjC runtime AX-tree walk). |
 | **Workspace Bar** | `UI/WorkspaceBar/WorkspaceBarManager.swift` | Per-monitor workspace bars — now **driven by `SurfaceReconciler`** via `apply([DesiredBarSurface])`, not self-polling. |
