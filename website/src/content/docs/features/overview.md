@@ -5,7 +5,7 @@ sidebar:
   order: 3
 ---
 
-Press `Option + Shift + O` and all of your workspaces' windows fly into a scrollable overview of thumbnails. Workspaces with no windows are hidden. Configure the 50–150% baseline zoom plus backdrop and window-border colors in **Settings → Overview**.
+Press `Option + Shift + O` and all of your workspaces' windows fly into a scrollable overview of thumbnails. Workspaces with no windows are hidden. Configure the 50–150% zoom, scrolling controls, and backdrop and window-border colors in **Settings → Overview**.
 
 Turn Overview off in Settings. Its shortcut, mouse button, gesture, and commands then stop opening it; saved input assignments return when it is re-enabled.
 
@@ -15,8 +15,8 @@ Turn Overview off in Settings. Its shortcut, mouse button, gesture, and commands
 - Grouped windows share one preview card. Use its arrows or click the position indicator to choose a window by title. Small Dwindle cards use a compact count picker. Browsing changes the preview; the chosen window becomes active when you dismiss Overview to it.
 - `Arrow Keys` navigate spatially; `Left` / `Right` stay within the current workspace. `Tab` / `Shift + Tab` cycle forward or backward through matching windows, and keyboard navigation automatically scrolls the selected thumbnail into view.
 - `Enter` focuses the selected window; pressing and releasing a thumbnail without dragging it focuses that window. `Escape`, the configured Overview shortcut, and clicking the backdrop also dismiss Overview and focus the current selection; `Escape` does not clear search first.
-- Mouse and trackpad scrolling follow the system Natural Scrolling setting.
-- `Alt (Option) + Shift + Mouse Scroll` temporarily zooms the current overview; the next opening starts from the configured baseline.
+- Mouse and trackpad scrolling follow the system Natural Scrolling setting. **Invert Scrolling Direction** under **Settings → Overview → Input** reverses it for both; **Mouse Wheel Speed** changes wheel scrolling without changing trackpad speed.
+- `Alt (Option) + Shift + Mouse Scroll` changes the zoom. Closing Overview saves that zoom for the next opening.
 - If another application takes focus, Overview dismisses without stealing focus back.
 - With the Overview gesture enabled in **Settings → Mouse & Trackpad**, a three- or four-finger swipe up tracks your fingers like Mission Control: release past halfway or flick to open, release early to cancel, and swipe down to close. With OmniWM animations disabled or macOS Reduce Motion enabled, swipes open and close Overview without the finger-tracked transition.
 

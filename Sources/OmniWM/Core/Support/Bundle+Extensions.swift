@@ -8,6 +8,13 @@ extension Bundle {
         infoDictionary?["CFBundleShortVersionString"] as? String
     }
 
+    var canaryReleaseTag: String? {
+        guard let tag = infoDictionary?["OMNIWMCanaryTag"] as? String,
+              GitHubRelease.isCanaryTag(tag)
+        else { return nil }
+        return tag
+    }
+
     var releaseVersion: ReleaseVersion? {
         appVersion.flatMap(ReleaseVersion.init)
     }
