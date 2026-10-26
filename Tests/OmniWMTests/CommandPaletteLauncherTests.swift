@@ -25,6 +25,8 @@ final class CommandPaletteLauncherTests: XCTestCase {
         var completions: [@MainActor @Sendable (String?) -> Void] = []
         var recorded: [String] = []
         var failures: [String] = []
+        var removalRequests: [LauncherEntry] = []
+        var removalReplies: [@MainActor (Bool) -> Void] = []
     }
 
     private func makeFixture(mode: CommandPaletteMode, recorder: Recorder) -> CommandPaletteFocusFixture {
@@ -49,6 +51,10 @@ final class CommandPaletteLauncherTests: XCTestCase {
             environment.revealInFinder = { recorder.revealed.append($0) }
             environment.recordLauncherLaunch = { _, targetID, _, _ in recorder.recorded.append(targetID) }
             environment.presentCommandFailure = { recorder.failures.append($0) }
+            environment.confirmLauncherEntryRemoval = { entry, _, reply in
+                recorder.removalRequests.append(entry)
+                recorder.removalReplies.append(reply)
+            }
         }
     }
 
@@ -86,6 +92,118 @@ final class CommandPaletteLauncherTests: XCTestCase {
         XCTAssertGreaterThan(recorder.fileStops, 0)
         fixture.palette.show(wmController: fixture.controller)
         XCTAssertEqual(recorder.fileSubmissions.map(\.query), ["", ""])
+    }
+
+    func testRevealOfSavedShellCommandDoesNotRunIt() throws {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        var entry = LauncherEntry()
+        entry.name = "Saved command"
+        entry.command = "false"
+        fixture.controller.settings.launcher.entries = [entry]
+        _ = try fixture.show()
+        fixture.palette.selectLauncherFilter(.saved)
+        XCTAssertEqual(fixture.palette.selectedItemID, .launcherEntry(entry.id))
+        XCTAssertNil(fixture.palette.resolvedSelectionAction(for: .reveal))
+        XCTAssertNotNil(fixture.palette.resolvedSelectionAction(for: .primary))
+    }
+
+    func testSavedListNavigationDoesNotUsePreviousGridColumnCount() throws {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        let entries = (0 ..< 10).map { index in
+            var entry = LauncherEntry()
+            entry.name = "Entry \(index)"
+            entry.command = "true"
+            return entry
+        }
+        fixture.controller.settings.launcher.entries = entries
+        _ = try fixture.show()
+        fixture.palette.selectLauncherFilter(.saved)
+        fixture.palette.launcherColumnCount = 7
+        XCTAssertTrue(fixture.palette.handleLauncherKeyDown(try key(kVK_DownArrow, ""), relevantModifiers: []))
+        XCTAssertEqual(fixture.palette.selectedItemID, .launcherEntry(entries[1].id))
+    }
+
+    func testRemovingSavedAppRestoresItsDiscoveredResult() throws {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        var entry = LauncherEntry()
+        entry.kind = .application
+        entry.path = ApplicationCatalogFilter.finderPath
+        entry.name = "Saved Finder"
+        fixture.controller.settings.launcher.entries = [entry]
+        _ = try fixture.show()
+        let item = LauncherApplicationResult(
+            bundleURL: URL(fileURLWithPath: entry.path), bundleIdentifier: "com.apple.finder", displayName: "Finder"
+        )
+        recorder.appSubmissions[0].publish(
+            fixture.palette.launcherRequestGeneration, [LauncherSection(id: .all, title: "", items: [item])], []
+        )
+        XCTAssertTrue(fixture.palette.displayedApplicationSections.isEmpty)
+        fixture.palette.removeLauncherEntry(entry.id)
+        XCTAssertEqual(recorder.removalRequests, [entry])
+        XCTAssertEqual(fixture.controller.settings.launcher.entries, [entry])
+        XCTAssertTrue(fixture.palette.displayedApplicationSections.isEmpty)
+        XCTAssertTrue(fixture.palette.isPresentingModalPrompt)
+        fixture.palette.windowDidResignKey(Notification(name: NSWindow.didResignKeyNotification))
+        XCTAssertTrue(fixture.palette.isVisible)
+        recorder.removalReplies[0](false)
+        XCTAssertEqual(fixture.controller.settings.launcher.entries, [entry])
+        XCTAssertFalse(fixture.palette.isPresentingModalPrompt)
+        fixture.palette.removeLauncherEntry(entry.id)
+        recorder.removalReplies[1](true)
+        XCTAssertTrue(fixture.controller.settings.launcher.entries.isEmpty)
+        XCTAssertFalse(fixture.palette.isPresentingModalPrompt)
+        XCTAssertEqual(fixture.palette.currentSelectionList(), [.application(.all, item.id)])
+    }
+
+    func testSettingsCanConfirmRemovalWhilePaletteIsClosed() {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        var entry = LauncherEntry()
+        entry.name = "Saved command"
+        entry.command = "true"
+        let settings = fixture.controller.settings
+        settings.launcher.entries = [entry]
+        fixture.palette.removeLauncherEntry(entry.id, settings: settings)
+        XCTAssertEqual(recorder.removalRequests, [entry])
+        XCTAssertEqual(settings.launcher.entries, [entry])
+        recorder.removalReplies[0](true)
+        XCTAssertTrue(settings.launcher.entries.isEmpty)
+    }
+
+    func testConfirmationDoesNotRemoveAnEntryChangedWhilePromptWasOpen() throws {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        var entry = LauncherEntry()
+        entry.name = "Saved command"
+        entry.command = "true"
+        fixture.controller.settings.launcher.entries = [entry]
+        _ = try fixture.show()
+        fixture.palette.removeLauncherEntry(entry.id)
+        entry.command = "printf updated"
+        fixture.controller.settings.launcher.entries = [entry]
+        recorder.removalReplies[0](true)
+        XCTAssertEqual(fixture.controller.settings.launcher.entries, [entry])
+        XCTAssertFalse(fixture.palette.isPresentingModalPrompt)
+    }
+
+    func testRemovalAlertNamesTheEntryAndHasSafeCancelAndExplicitRemove() {
+        var entry = LauncherEntry()
+        entry.name = "Build Project"
+        let alert = LauncherEntryRemovalPrompt.makeAlert(entry: entry)
+        XCTAssertEqual(alert.messageText, "Remove “Build Project”?")
+        XCTAssertEqual(alert.buttons.map(\.title), [String(localized: "Cancel"), String(localized: "Remove")])
+        XCTAssertEqual(alert.buttons[0].keyEquivalent, "\u{1b}")
+        XCTAssertTrue(alert.buttons[1].hasDestructiveAction)
+        XCTAssertTrue(alert.buttons[1].keyEquivalent.isEmpty)
+        XCTAssertNil(alert.window.defaultButtonCell)
     }
 
     func testStalePublicationIsIgnoredAndCurrentOneSelectsFirstResult() throws {

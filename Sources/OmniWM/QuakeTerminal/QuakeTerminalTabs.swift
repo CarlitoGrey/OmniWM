@@ -48,6 +48,10 @@ final class QuakeTerminalTabs: QuakeTerminalTabBarDelegate {
         window = nil
     }
 
+    var launcherSurfaces: [GhosttySurfaceView] {
+        tabs.flatMap { $0.splitContainer.allSurfaceViews() }.filter(\.keepsCommandOutput)
+    }
+
     var isEmpty: Bool {
         tabs.isEmpty
     }
@@ -77,8 +81,8 @@ final class QuakeTerminalTabs: QuakeTerminalTabBarDelegate {
     }
 
     @discardableResult
-    func createTab() -> QuakeTerminalTab? {
-        guard let view = makeSurfaceView?() else { return nil }
+    func createTab(surfaceView: GhosttySurfaceView? = nil) -> QuakeTerminalTab? {
+        guard let view = surfaceView ?? makeSurfaceView?() else { return nil }
 
         let splitContainer = QuakeSplitContainer(initialView: view)
         let tab = QuakeTerminalTab(splitContainer: splitContainer)

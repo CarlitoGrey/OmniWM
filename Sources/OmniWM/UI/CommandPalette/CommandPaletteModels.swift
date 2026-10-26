@@ -73,6 +73,8 @@ enum CommandPaletteSelectionID: Hashable {
     case clipboard(UUID)
     case command(String)
     case application(LauncherSectionID, String)
+    case launcherEntry(UUID)
+    case executable(String)
     case file(LauncherSectionID, String)
 }
 

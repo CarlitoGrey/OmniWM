@@ -1,0 +1,104 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
+
+import AppKit
+
+@MainActor
+extension CommandPaletteController {
+    var launcherSavedEntries: [LauncherEntry] {
+        guard launcherFilter == .all || launcherFilter == .saved,
+              let settings = wmController?.settings else { return [] }
+        let query = searchText == "/" ? "" : searchText
+        return settings.launcher.entries.filter { $0.matches(query) }.sorted {
+            $0.name.localizedStandardCompare($1.name) == .orderedAscending
+        }
+    }
+
+    var launcherExecutables: [LauncherExecutable] {
+        guard launcherFilter == .cli else { return [] }
+        return LauncherExecutableCatalog.shared.matching(searchText)
+    }
+
+    var displayedApplicationSections: [LauncherSection<LauncherApplicationResult>] {
+        guard launcherFilter == .all || launcherFilter == .apps else { return [] }
+        guard launcherFilter == .all, !savedApplicationIdentifiers.isEmpty else { return applicationSections }
+        return applicationSections.compactMap { section in
+            let items = section.items.filter { !savedApplicationIdentifiers.contains($0.bundleIdentifier ?? "") }
+            return items.isEmpty ? nil : LauncherSection(id: section.id, title: section.title, items: items)
+        }
+    }
+
+    func selectLauncherFilter(_ filter: LauncherFilter) {
+        guard filter != launcherFilter else { return }
+        launcherFilter = filter
+        selectedApplicationChip = nil
+        startLauncherSearch()
+    }
+
+    func refreshLauncher() {
+        guard let wmController else { return }
+        ApplicationCatalogService.shared.refreshIfNeeded(
+            refreshMetadata: true, extraFolders: wmController.settings.launcher.appFolders
+        )
+        LauncherExecutableCatalog.shared.refresh(configuration: wmController.settings.launcher, force: true)
+        startLauncherSearch()
+    }
+
+    func showLauncherSettings(entry: LauncherEntry? = nil, runOnly: Bool = false) {
+        guard let wmController else { return }
+        dismiss(reason: .selection)
+        SettingsWindowController.shared.show(
+            settings: wmController.settings, controller: wmController,
+            section: entry == nil ? .launcher : nil,
+            launcherRequest: entry.map { .init(entry: $0, runOnly: runOnly) }
+        )
+    }
+
+    func addLauncherEntry(_ kind: LauncherEntry.Kind) {
+        var entry = LauncherEntry()
+        entry.kind = kind
+        showLauncherSettings(entry: entry)
+    }
+
+    func removeLauncherEntry(_ id: UUID, settings: SettingsStore? = nil) {
+        guard !isPresentingModalPrompt, let settings = settings ?? wmController?.settings,
+              let entry = settings.launcher.entries.first(where: { $0.id == id }) else { return }
+        let fromPalette = isVisible
+        if fromPalette { isPresentingModalPrompt = true }
+        environment
+            .confirmLauncherEntryRemoval(
+                entry,
+                fromPalette ? presentation.panel : NSApp.keyWindow
+            ) { [weak self] confirmed in
+                guard let self else { return }
+                if fromPalette {
+                    self.restoreKeyWindowAfterModalPrompt()
+                    self.isPresentingModalPrompt = false
+                }
+                guard confirmed, settings.launcher.entries.contains(entry) else { return }
+                settings.launcher.entries.removeAll { $0.id == id }
+                if self.isVisible {
+                    self.refreshSavedApplicationIdentifiers(settings: settings)
+                    self.updateSelectionAfterFilterChange()
+                }
+            }
+    }
+
+    func refreshSavedApplicationIdentifiers(settings: SettingsStore) {
+        savedApplicationIdentifiers = Set(settings.launcher.entries.filter { $0.kind == .application }.compactMap {
+            ApplicationCatalogFilter.resolvedBundleURL(LauncherPaths.expanded($0.path))
+                .flatMap { Bundle(url: $0)?.bundleIdentifier }
+        })
+    }
+
+    func publishLauncherTools() {
+        guard isVisible, selectedMode == .applications, launcherFilter == .cli,
+              !LauncherExecutableCatalog.shared.isLoading else { return }
+        launcherPublishedGeneration = launcherRequestGeneration
+        updateSelectionAfterFilterChange()
+        if let pending = pendingLauncherSelection, pending.generation == launcherRequestGeneration {
+            pendingLauncherSelection = nil
+            selectCurrent(trigger: pending.trigger)
+        }
+    }
+}

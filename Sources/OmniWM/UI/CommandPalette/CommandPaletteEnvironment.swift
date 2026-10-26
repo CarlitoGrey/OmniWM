@@ -72,6 +72,10 @@ private enum CommandPalettePasteKeyCode {
 
 @MainActor
 struct CommandPaletteEnvironment {
+    var confirmLauncherEntryRemoval: (LauncherEntry, NSWindow?, @escaping @MainActor (Bool) -> Void) -> Void = {
+        LauncherEntryRemovalPrompt.confirm($0, from: $1, completion: $2)
+    }
+
     var requestWindowMarkName: () -> String? = { CommandPaletteMarkNamePrompt.requestName() }
     var chooseWindowMarkNameToRemove: ([String]) -> String? = { markNames in
         CommandPaletteMarkRemovalPrompt.requestName(from: markNames)
@@ -139,7 +143,10 @@ struct CommandPaletteEnvironment {
         }
         let firstSubmissionForOpening = service.onCatalogChanged == nil
         service.onCatalogChanged = publishSnapshot
-        service.refreshIfNeeded(refreshMetadata: firstSubmissionForOpening)
+        service.refreshIfNeeded(
+            refreshMetadata: firstSubmissionForOpening,
+            extraFolders: settings.launcher.appFolders
+        )
         publishSnapshot()
     }
 

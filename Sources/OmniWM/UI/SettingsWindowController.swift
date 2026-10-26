@@ -18,7 +18,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         updateCoordinator: (any AppUpdateCoordinating)? = nil,
         section: SettingsSection? = nil,
         presentMonitorSetup: Bool = false,
-        appRuleDraft: AppRuleDraft? = nil
+        appRuleDraft: AppRuleDraft? = nil,
+        launcherRequest: LauncherEditorRequest? = nil
     ) {
         let updateCoordinator = updateCoordinator ?? controller.statusBarController?.settingsMenuModel?
             .updateCoordinator
@@ -28,6 +29,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         } else if let section {
             navigation.section = section
         }
+        if let launcherRequest { navigation.presentLauncherEntry(launcherRequest) }
         if let appRuleDraft {
             navigation.presentRuleDraft(appRuleDraft)
         }

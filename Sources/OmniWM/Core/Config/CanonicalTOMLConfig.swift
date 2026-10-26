@@ -22,6 +22,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     var gestures: SettingsExport.Gestures
     var statusBar: SettingsExport.StatusBar
     var hiddenBar: SettingsExport.HiddenBar
+    var launcher: LauncherConfiguration
     var clipboard: SettingsExport.Clipboard
     var quakeTerminal: SettingsExport.QuakeTerminal
     var scratchpads: SettingsExport.Scratchpads
@@ -95,6 +96,7 @@ extension CanonicalTOMLConfig {
         gestures = try container.decode(SettingsExport.Gestures.self, forKey: .gestures)
         statusBar = try container.decode(SettingsExport.StatusBar.self, forKey: .statusBar)
         hiddenBar = try container.decode(SettingsExport.HiddenBar.self, forKey: .hiddenBar)
+        launcher = try container.decodeIfPresent(LauncherConfiguration.self, forKey: .launcher) ?? .init()
         clipboard = try container.decode(SettingsExport.Clipboard.self, forKey: .clipboard)
         quakeTerminal = try container.decode(SettingsExport.QuakeTerminal.self, forKey: .quakeTerminal)
         scratchpads = try container.decode(SettingsExport.Scratchpads.self, forKey: .scratchpads)
@@ -153,6 +155,7 @@ extension CanonicalTOMLConfig {
         gestures = export.gestures
         statusBar = export.statusBar
         hiddenBar = export.hiddenBar
+        launcher = export.launcher
         clipboard = export.clipboard
         quakeTerminal = export.quakeTerminal
         scratchpads = export.scratchpads
@@ -205,6 +208,7 @@ extension CanonicalTOMLConfig {
             animationsEnabled: general.animationsEnabled,
             animationSpeed: AnimationSpeed.normalized(general.animationSpeed ?? 1),
             language: general.language,
+            launcher: launcher,
             clipboard: clipboard,
             quakeTerminal: quakeTerminal,
             appearanceMode: appearance.mode,

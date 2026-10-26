@@ -15,7 +15,7 @@ The palette has six modes:
 - **Menu** — `Cmd + 2`
 - **Clipboard** — `Cmd + 3`
 - **Commands** — `Cmd + 4`
-- **Applications** — `Cmd + 5`
+- **Launcher** — `Cmd + 5`
 - **Files** — `Cmd + 6`
 
 `Tab` / `Shift + Tab` cycle forward or backward through the available modes.
@@ -25,7 +25,7 @@ The palette has six modes:
 - `Up` / `Down` move the selection.
 - `Enter` activates the selected result.
 - In Windows mode, `Shift + Enter` summons the selected window to the right of the focused one when available, or moves it into an empty current workspace, including floating windows. Floating windows cannot be summoned right.
-- In Applications and Files, `Cmd + Enter` reveals the selection in Finder.
+- In Launcher and Files, `Cmd + Enter` reveals an app or file target in Finder.
 - `Escape` dismisses the palette.
 
 Windows from macOS-hidden apps remain searchable and carry a **Hidden** badge; selecting one unhides its app and focuses that exact window. In Menu mode, results always show keyboard shortcuts when available.
@@ -40,11 +40,27 @@ Commands mode lists OmniWM actions by category, including actions without a shor
 
 Select a compatible command and press `Enter` to run it. Commands that require a different layout remain visible with a dimmed row and cannot be run until that layout is active.
 
-## Applications and Files
+## Launcher
 
-Applications and Files open as browse grids. Use the view menu to switch either mode between grid and list; the choice is remembered separately for each mode. Type to search the current mode. Applications come from the system's registered app catalog, including alternate app names. Files are searched through the macOS metadata index and can be narrowed with type chips. Before typing, Files shows recent documents and, when the local prediction cache is readable, suggested documents.
+Launcher combines applications and saved commands or scripts. Its filters are **All**, **Apps**, **Saved**, and **CLI Tools**. All searches apps and saved entries together; automatically discovered CLI tools appear only in CLI Tools. Apps has the existing grid/list view and category filters.
 
-`Enter` opens the selected app or file. `Cmd + Enter` reveals it in Finder. Typed searches are ranked with the decoded macOS Spotlight scoring rules where available, while browsing without a query lists suggestions and apps alphabetically; Spotlight's full app prediction and semantic suggestion models are not available to OmniWM.
+Use the **Add** menu to add an Application, Command, or Script, or open **Settings > Launcher** to manage entries. Give an entry a name, then choose its working folder, terminal, and shell. **Advanced Options** contains search keywords, entry type, and a custom shell executable. Commands support Nushell, fish, zsh, and Bash; command text uses the selected shell's syntax. Scripts can use their shebang or an explicit interpreter. Add arguments individually to preserve spaces and quotation marks, and choose a working directory when needed.
+
+**Run Now** runs the current saved-entry draft while keeping the editor open; **Save** persists your edits. The one-off CLI flow keeps **Run** and **Save Entry** separate. Removing a saved entry asks for confirmation and leaves app and script files on disk.
+
+Each entry can use the default terminal, the built-in Ghostty Quake Terminal, Terminal, Ghostty, iTerm2, kitty, or Background execution. Terminal commands open fresh sessions with output retained after completion. The built-in choice requires the Ghostty Quake provider to be enabled. Terminal and iTerm2 may request macOS Automation access. Background runs show their completion, exit status, and bounded output in Launcher settings.
+
+CLI discovers executable files from the selected shell's PATH, with standard Homebrew/Nix locations and configured extra folders included. Select a result to set arguments, directory, and terminal, then Run or Save Entry. Shell aliases and functions are not listed as CLI executables. Refresh Launcher after changing shell startup configuration or installing tools.
+
+App discovery combines macOS's registered app catalog with standard app folders, active Nix profile application directories, and folders added in Launcher settings. Default Homebrew cask, nix-darwin, and Home Manager app folders are covered, including symlinks and Finder aliases. Homebrew formula apps kept only inside a keg need an added app folder or saved app entry. OmniWM scans these selected locations rather than traversing the Nix store or Homebrew Cellar.
+
+`Enter` opens an app or runs a saved entry. A running app focuses its recent managed window. Saved entries offer Edit and Remove in their context menu. The existing `applications` IPC mode name still opens Launcher.
+
+## Files
+
+Files opens as a browse grid, with a remembered grid/list choice. Type to search the macOS metadata index, use type chips to narrow results, and press `Enter` to open or `Cmd + Enter` to reveal the selection. Before typing, Files shows recent documents and, when the local prediction cache is readable, suggested documents.
+
+Typed app/file searches use the available macOS Spotlight ranking integration. Without a query, app browsing lists suggestions and apps alphabetically.
 
 ## How search ranks results
 

@@ -18,10 +18,10 @@ extension CommandPaletteController {
             actionFeedbackText = markActionFeedback(for: .noSelectedWindow)
             return
         }
-        isPresentingMarkPrompt = true
+        isPresentingModalPrompt = true
         defer {
-            restoreKeyWindowAfterMarkPrompt()
-            isPresentingMarkPrompt = false
+            restoreKeyWindowAfterModalPrompt()
+            isPresentingModalPrompt = false
         }
         let outcome = makeMarkInteraction(for: wmController, selectedItem: item).setSelectedWindowMark()
         guard outcome != .cancelled else { return }
@@ -35,10 +35,10 @@ extension CommandPaletteController {
             actionFeedbackText = markActionFeedback(for: .noSelectedWindow)
             return
         }
-        isPresentingMarkPrompt = true
+        isPresentingModalPrompt = true
         defer {
-            restoreKeyWindowAfterMarkPrompt()
-            isPresentingMarkPrompt = false
+            restoreKeyWindowAfterModalPrompt()
+            isPresentingModalPrompt = false
         }
         let outcome = makeMarkInteraction(for: wmController, selectedItem: item)
             .removeMarkFromSelectedWindow(item.id)

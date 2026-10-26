@@ -40,6 +40,7 @@ extension SettingsStore {
             animationsEnabled: animationsEnabled,
             animationSpeed: animationSpeed,
             language: language,
+            launcher: launcher,
             clipboard: clipboard.export(),
             quakeTerminal: quakeTerminal.export(),
             appearanceMode: appearanceMode,

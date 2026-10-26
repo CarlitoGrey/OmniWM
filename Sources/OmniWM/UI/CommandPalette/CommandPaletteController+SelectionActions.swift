@@ -14,6 +14,17 @@ extension CommandPaletteController {
             pendingLauncherSelection = (launcherRequestGeneration, trigger)
             return
         }
+        if selectedMode == .applications, case let .executable(path)? = selectedItemID,
+           let executable = launcherExecutables.first(where: { $0.path == path })
+        {
+            if trigger == .reveal {
+                dismiss(reason: .selection)
+                environment.revealInFinder(URL(fileURLWithPath: path))
+            } else {
+                showLauncherSettings(entry: executable.entry, runOnly: true)
+            }
+            return
+        }
         let previousSelectionID = selectedItemID
         if selectedMode == .windows {
             refreshWindowItems()
@@ -78,6 +89,12 @@ extension CommandPaletteController {
         guard isVisible, isLauncherMode, launcherPublishedGeneration == launcherRequestGeneration else { return }
         selectLauncherItem(selection, activate: false)
         switch action {
+        case .edit:
+            guard let id = UUID(uuidString: selection.itemID),
+                  let entry = launcherSavedEntries.first(where: { $0.id == id }) else { return }
+            showLauncherSettings(entry: entry)
+        case .remove:
+            if let id = UUID(uuidString: selection.itemID) { removeLauncherEntry(id) }
         case .open:
             selectCurrent()
         case .reveal:

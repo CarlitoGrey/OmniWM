@@ -10,11 +10,11 @@ extension CommandPaletteController {
     }
 
     var launcherViewStyle: LauncherViewStyle {
-        selectedMode == .applications ? applicationViewStyle : fileViewStyle
+        selectedMode == .applications ? (launcherFilter == .apps ? applicationViewStyle : .list) : fileViewStyle
     }
 
     var launcherChips: [LauncherChip] {
-        selectedMode == .applications ? applicationChips : fileChips
+        selectedMode == .applications ? (launcherFilter == .apps ? applicationChips : []) : fileChips
     }
 
     var selectedLauncherChipID: String? {
@@ -29,11 +29,15 @@ extension CommandPaletteController {
 
     var selectedLauncherItem: LauncherSelection? {
         switch selectedItemID {
+        case let .launcherEntry(id):
+            return LauncherSelection(sectionID: .saved, itemID: id.uuidString)
+        case let .executable(path):
+            return LauncherSelection(sectionID: .executables, itemID: path)
         case let .application(sectionID, itemID) where selectedMode == .applications,
              let .file(sectionID, itemID) where selectedMode == .files:
-            LauncherSelection(sectionID: sectionID, itemID: itemID)
+            return LauncherSelection(sectionID: sectionID, itemID: itemID)
         default:
-            nil
+            return nil
         }
     }
 
@@ -49,6 +53,12 @@ extension CommandPaletteController {
 
     var selectedLauncherURL: URL? {
         switch selectedItemID {
+        case let .executable(path):
+            return URL(fileURLWithPath: path)
+        case let .launcherEntry(id):
+            guard let entry = launcherSavedEntries.first(where: { $0.id == id }),
+                  !entry.path.isEmpty else { return nil }
+            return URL(fileURLWithPath: LauncherPaths.expanded(entry.path))
         case let .application(sectionID, itemID) where selectedMode == .applications:
             return applicationSections.first(where: { $0.id == sectionID })?
                 .items.first(where: { $0.id == itemID })?.bundleURL
@@ -60,6 +70,8 @@ extension CommandPaletteController {
     }
 
     func resetLauncherState(settings: SettingsStore) {
+        launcherFilter = .all
+        refreshSavedApplicationIdentifiers(settings: settings)
         applicationSections = []
         fileSections = []
         applicationChips = []
@@ -108,6 +120,20 @@ extension CommandPaletteController {
         pendingLauncherSelection = nil
         selectedItemID = nil
 
+        if selectedMode == .applications, launcherFilter == .saved || launcherFilter == .cli {
+            environment.stopApplicationSearch()
+            isApplicationLoading = false
+            if launcherFilter == .cli {
+                let catalog = LauncherExecutableCatalog.shared
+                catalog.onChanged = { [weak self] in self?.publishLauncherTools() }
+                catalog.refresh(configuration: wmController.settings.launcher)
+                publishLauncherTools()
+            } else {
+                launcherPublishedGeneration = generation
+                updateSelectionAfterFilterChange()
+            }
+            return
+        }
         if selectedMode == .applications {
             isApplicationLoading = applicationSections.isEmpty
             environment.submitApplicationSearch(
@@ -168,9 +194,15 @@ extension CommandPaletteController {
     func selectLauncherItem(_ selection: LauncherSelection, activate: Bool) {
         guard isLauncherMode, launcherPublishedGeneration == launcherRequestGeneration else { return }
         launcherResultsFocused = true
-        selectedItemID = selectedMode == .applications
-            ? .application(selection.sectionID, selection.itemID)
-            : .file(selection.sectionID, selection.itemID)
+        if selection.sectionID == .saved, let id = UUID(uuidString: selection.itemID) {
+            selectedItemID = .launcherEntry(id)
+        } else if selection.sectionID == .executables {
+            selectedItemID = .executable(selection.itemID)
+        } else {
+            selectedItemID = selectedMode == .applications
+                ? .application(selection.sectionID, selection.itemID)
+                : .file(selection.sectionID, selection.itemID)
+        }
         if activate { selectCurrent() }
     }
 

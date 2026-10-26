@@ -6,7 +6,7 @@ import Foundation
 enum ApplicationCatalogFilter {
     static let finderPath = "/System/Library/CoreServices/Finder.app"
 
-    static func roots(home: String) -> [String] {
+    static func roots(home: String, extraFolders: [String] = []) -> [String] {
         [
             "/Applications",
             "/System/Applications",
@@ -14,24 +14,34 @@ enum ApplicationCatalogFilter {
             "/AppleInternal/Applications",
             "/System/Library/CoreServices/Applications",
             home + "/Applications",
-            "/Users/Shared"
-        ]
+            "/Users/Shared",
+            home + "/.nix-profile/Applications",
+            home + "/.local/state/nix/profile/Applications",
+            "/etc/profiles/per-user/" + URL(fileURLWithPath: home).lastPathComponent + "/Applications",
+            "/run/current-system/Applications",
+            "/run/current-system/sw/Applications",
+            "/nix/var/nix/profiles/default/Applications"
+        ] + extraFolders.map(LauncherPaths.expanded)
     }
 
-    static func isCatalogPath(_ path: String, home: String) -> Bool {
+    static func isCatalogPath(_ path: String, home: String, extraFolders: [String] = []) -> Bool {
         guard path.hasSuffix(".app") else { return false }
         if path == finderPath { return true }
         let parent = (path as NSString).deletingLastPathComponent
         if parent == home + "/Downloads" { return true }
-        let roots = roots(home: home)
+        let roots = roots(home: home, extraFolders: extraFolders)
         if roots.contains(parent) { return true }
         let grandparent = (parent as NSString).deletingLastPathComponent
         return roots.contains(grandparent) && !isBundleDirectory(parent)
     }
 
-    static func scannedBundlePaths(home: String, fileManager: FileManager = .default) -> [String] {
+    static func scannedBundlePaths(
+        home: String,
+        extraFolders: [String] = [],
+        fileManager: FileManager = .default
+    ) -> [String] {
         var paths: [String] = []
-        for root in roots(home: home) {
+        for root in roots(home: home, extraFolders: extraFolders) {
             guard let entries = try? fileManager.contentsOfDirectory(atPath: root) else { continue }
             for entry in entries where !entry.hasPrefix(".") {
                 let path = (root as NSString).appendingPathComponent(entry)
@@ -50,7 +60,25 @@ enum ApplicationCatalogFilter {
                 paths += children.filter { $0.hasSuffix(".app") }.map { (path as NSString).appendingPathComponent($0) }
             }
         }
-        return paths.map { URL(fileURLWithPath: $0).resolvingSymlinksInPath().path }
+        return paths
+    }
+
+    static func resolvedBundleURL(_ path: String) -> URL? {
+        var url = URL(fileURLWithPath: path)
+        if isFinderAlias(url) {
+            guard let target = try? URL(resolvingAliasFileAt: url, options: [.withoutUI, .withoutMounting]) else {
+                return nil
+            }
+            url = target
+        }
+        url = url.resolvingSymlinksInPath()
+        guard url.pathExtension.lowercased() == "app", Bundle(url: url)?.bundleIdentifier != nil else { return nil }
+        return url
+    }
+
+    static func isFinderAlias(_ url: URL) -> Bool {
+        guard let values = try? url.resourceValues(forKeys: [.isAliasFileKey, .isSymbolicLinkKey]) else { return false }
+        return values.isAliasFile == true && values.isSymbolicLink != true
     }
 
     private static func isBundleDirectory(_ path: String) -> Bool {

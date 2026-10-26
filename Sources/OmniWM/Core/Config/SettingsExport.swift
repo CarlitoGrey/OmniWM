@@ -52,6 +52,8 @@ struct SettingsExport: Equatable {
     var animationSpeed: Double
     var language: String?
 
+    var launcher = LauncherConfiguration()
+
     var clipboard: Clipboard
 
     var quakeTerminal: QuakeTerminal

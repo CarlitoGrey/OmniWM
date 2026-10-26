@@ -194,6 +194,10 @@ final class SettingsStore {
         didSet { scheduleSave() }
     }
 
+    var launcher = LauncherConfiguration() {
+        didSet { scheduleSave() }
+    }
+
     let clipboard = ClipboardSettings()
 
     let quakeTerminal = QuakeTerminalSettings()
@@ -465,6 +469,7 @@ extension SettingsStore {
         animationSpeed = export.animationSpeed
         language = export.language
         clipboard.apply(export.clipboard)
+        launcher = export.launcher
 
         quakeTerminal.apply(export.quakeTerminal, baseline: SettingsStore.defaultExport.quakeTerminal)
 

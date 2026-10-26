@@ -89,7 +89,7 @@ final class CommandPaletteActionExecutor {
         let generation: UInt64
     }
 
-    private let environment: CommandPaletteEnvironment
+    let environment: CommandPaletteEnvironment
     private let focusSession: CommandPaletteFocusSession
     private var pendingAction: PendingFocusAction?
     private var activationObserver: NSObjectProtocol?
@@ -120,6 +120,7 @@ final class CommandPaletteActionExecutor {
         case pasteClipboard(WMController, UUID, CommandPaletteClipboardPasteTarget?, Bool)
         case command(WMController, HotkeyCommand, CommandPaletteFocusTarget?)
         case openApplication(WMController, LauncherApplicationResult, String)
+        case launchEntry(WMController, LauncherEntry, String)
         case openFile(WMController, LauncherFileResult, String)
         case revealApplication(URL)
         case revealFile(URL)
@@ -156,40 +157,14 @@ final class CommandPaletteActionExecutor {
             pasteClipboard(wmController, id: id, target: target, withoutFormatting: withoutFormatting)
         case let .command(wmController, command, target):
             performCommand(command, controller: wmController, target: target)
-        case let .openApplication(wmController, item, query):
-            if let pid = environment.runningApplicationForResult(item),
-               let handle = environment.mostRecentWindowForPID(wmController, pid),
-               environment.navigateToApplicationWindow(wmController, handle)
-            {
-                environment.recordLauncherLaunch(wmController, item.id, query, item.displayName)
-                return nil
-            }
-            environment.openApplication(item.bundleURL) { [weak self] failure in
-                self?.completeLauncherOpen(failure, wmController, item.id, query, item.displayName)
-            }
-        case let .openFile(wmController, item, query):
-            environment.openFile(item.fileURL) { [weak self] failure in
-                self?.completeLauncherOpen(failure, wmController, item.id, query, item.displayName)
-            }
-        case let .revealApplication(url),
-             let .revealFile(url):
-            environment.revealInFinder(url)
+        case .openApplication,
+             .launchEntry,
+             .openFile,
+             .revealApplication,
+             .revealFile:
+            performLauncherAction(action)
         }
         return nil
-    }
-
-    private func completeLauncherOpen(
-        _ failure: String?,
-        _ wmController: WMController,
-        _ targetID: String,
-        _ query: String,
-        _ displayName: String
-    ) {
-        if let failure {
-            environment.presentCommandFailure(failure)
-        } else {
-            environment.recordLauncherLaunch(wmController, targetID, query, displayName)
-        }
     }
 
     private func pasteClipboard(

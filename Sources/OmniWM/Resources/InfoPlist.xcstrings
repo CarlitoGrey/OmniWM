@@ -31,7 +31,7 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OmniWM shows the macOS log out, restart and shut down confirmations from shell widgets."
+            "value" : "OmniWM opens command sessions in your chosen terminal and shows the macOS log out, restart and shut down confirmations from shell widgets."
           }
         },
         "es" : {

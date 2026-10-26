@@ -83,6 +83,67 @@ final class SettingsUIRenderTests: XCTestCase {
         }
     }
 
+    func testLauncherSettingsAndSharedEntryEditorRenderNatively() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        var entry = LauncherEntry()
+        entry.name = "Build Project"
+        entry.command = "swift build"
+        fixture.settings.launcher.entries = [entry]
+        do {
+            for windowClass in windowClasses {
+                let navigation = SettingsNavigationModel()
+                navigation.section = .launcher
+                try await render(
+                    SettingsView(
+                        settings: fixture.settings,
+                        controller: fixture.controller,
+                        windowCornerPreferences: fixture.corners,
+                        updateCoordinator: nil,
+                        navigation: navigation
+                    ),
+                    fixture: fixture, windowClass: windowClass, section: .launcher,
+                    name: "launcher-\(windowClass.suffix)",
+                    requiredText: [
+                        "Saved Entries",
+                        "Build Project",
+                        "Execution Defaults",
+                        "Discovery and Advanced Options"
+                    ]
+                )
+            }
+            for kind in LauncherEntry.Kind.allCases {
+                var draft = entry
+                draft.kind = kind
+                draft.path = kind == .application ? "/Applications/Ghostty.app" : "/usr/bin/printf"
+                if kind == .script || kind == .executable { draft.arguments = ["%s", "hello world"] }
+                if kind == .script { draft.interpreter = "/bin/sh" }
+                for dark in [true, false] {
+                    try await render(
+                        LauncherEntryEditor(
+                            entry: draft, runOnly: kind == .executable, configuration: fixture.settings.launcher,
+                            save: { _ in }, run: { _ in }
+                        ),
+                        fixture: fixture, windowClass: WindowClass(size: CGSize(width: 620, height: 600), dark: dark),
+                        section: .launcher, name: "launcher-entry-\(kind.rawValue)-\(dark ? "dark" : "light")",
+                        requiredText: [
+                            kind == .executable ? "Run CLI" : "Launcher Entry",
+                            "Build Project",
+                            "Advanced Options",
+                            "Cancel",
+                            kind == .executable ? "Save Entry" : "Save"
+                        ]
+                    )
+                }
+            }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
     func testEverySettingsDestinationRendersNativeContentAtBothWindowClasses() async throws {
         try requireNativeRendering()
         let fixture = try Fixture()
@@ -111,6 +172,42 @@ final class SettingsUIRenderTests: XCTestCase {
                     )
                 }
             }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testLauncherPaletteShowsFiltersAndSavedCommands() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        var entry = LauncherEntry()
+        entry.name = "Build Project"
+        entry.command = "swift build"
+        fixture.settings.launcher.entries = [entry]
+        var environment = CommandPaletteEnvironment()
+        environment.submitApplicationSearch = { _, _, _, generation, publish in
+            publish(generation, [LauncherSection(id: .all, title: "Apps", items: [
+                LauncherApplicationResult(
+                    bundleURL: URL(fileURLWithPath: ApplicationCatalogFilter.finderPath),
+                    bundleIdentifier: "com.apple.finder",
+                    displayName: "Finder"
+                )
+            ])], [])
+        }
+        environment.stopApplicationSearch = {}
+        let palette = CommandPaletteController(motionPolicy: fixture.controller.motionPolicy, environment: environment)
+        palette.show(wmController: fixture.controller, mode: .applications)
+        defer { palette.dismiss(reason: .cancel) }
+        do {
+            try await render(
+                CommandPaletteView(controller: palette, motionPolicy: fixture.controller.motionPolicy),
+                fixture: fixture, windowClass: WindowClass(size: CGSize(width: 760, height: 420), dark: true),
+                section: .launcher, name: "launcher-palette",
+                requiredText: ["All", "Apps", "Saved", "CLI Tools", "Add", "Build Project", "Finder"]
+            )
         } catch {
             await fixture.close()
             throw error
@@ -423,6 +520,7 @@ final class SettingsUIRenderTests: XCTestCase {
         case .windowSwitcher: String(localized: "Enable Window Switcher")
         case .hotkeys: String(localized: "System Hyper Trigger")
         case .mouseTrackpad: String(localized: "Trackpad")
+        case .launcher: String(localized: "Saved Entries")
         case .quakeTerminal: String(localized: "Enable Quake Terminal")
         case .diagnostics: String(localized: "Health")
         case .reportIssue: String(localized: "Title")

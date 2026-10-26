@@ -118,7 +118,8 @@ struct QuakeGhosttyConfigBuilder: Sendable {
 
     func build(
         opacity: Double,
-        backgroundEffect: QuakeTerminalBackgroundEffect
+        backgroundEffect: QuakeTerminalBackgroundEffect,
+        explicitCommand: Bool = false
     ) -> ghostty_config_t? {
         guard let config = operations.makeConfig() else { return nil }
 
@@ -138,7 +139,7 @@ struct QuakeGhosttyConfigBuilder: Sendable {
             try withConfigFile(content: Self.overrideContent(
                 opacity: opacity,
                 backgroundEffect: backgroundEffect
-            )) { url in
+            ) + (explicitCommand ? "\ninitial-command =\n" : "")) { url in
                 operations.loadFile(config, url.path)
             }
             operations.finalize(config)
@@ -160,6 +161,21 @@ struct QuakeGhosttyConfigBuilder: Sendable {
         background-blur = \(backgroundEffect.ghosttyBackgroundBlurValue)
 
         """
+    }
+
+    func keepingCommandOutput(in config: ghostty_config_t) -> ghostty_config_t? {
+        guard let copy = ghostty_config_clone(config) else { return nil }
+        do {
+            try withConfigFile(content: "wait-after-command = true\n") { url in
+                operations.loadFile(copy, url.path)
+            }
+            operations.finalize(copy)
+            return copy
+        } catch {
+            operations.freeConfig(copy)
+            Log.terminal.error("Failed to preserve command output: \(error)")
+            return nil
+        }
     }
 
     private func withConfigFile<T>(

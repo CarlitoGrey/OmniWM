@@ -117,7 +117,7 @@ extension CommandPaletteController {
         }
 
         let range = ranges[rangeIndex]
-        let columns = max(1, launcherColumnCount)
+        let columns = launcherViewStyle == .list ? 1 : max(1, launcherColumnCount)
         let localIndex = currentIndex - range.start
         let column = localIndex % columns
         let targetIndex: Int
@@ -147,7 +147,7 @@ extension CommandPaletteController {
         direction: Int
     ) -> Int {
         let range = ranges[rangeIndex]
-        let columns = max(1, launcherColumnCount)
+        let columns = launcherViewStyle == .list ? 1 : max(1, launcherColumnCount)
         let localIndex = currentIndex - range.start
         let row = localIndex / columns
         let column = localIndex % columns
@@ -171,7 +171,9 @@ extension CommandPaletteController {
 
     private func launcherSectionRanges() -> [(start: Int, count: Int)] {
         let counts = selectedMode == .applications
-            ? applicationSections.map(\.items.count)
+            ?
+            (launcherFilter == .cli ? [launcherExecutables.count] : [launcherSavedEntries.count] +
+                displayedApplicationSections.map(\.items.count))
             : fileSections.map(\.items.count)
         var start = 0
         return counts.compactMap { count in

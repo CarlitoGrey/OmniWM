@@ -99,10 +99,11 @@ final class QuakeGhosttyRuntime {
         _ = setlocale(LC_NUMERIC, "C")
     }
 
-    private func makeGhosttyConfig() -> ghostty_config_t? {
+    private func makeGhosttyConfig(explicitCommand: Bool = false) -> ghostty_config_t? {
         ghosttyConfigBuilder.build(
             opacity: settings.quakeTerminal.opacity,
-            backgroundEffect: settings.quakeTerminal.backgroundEffect
+            backgroundEffect: settings.quakeTerminal.backgroundEffect,
+            explicitCommand: explicitCommand
         )
     }
 
@@ -111,7 +112,10 @@ final class QuakeGhosttyRuntime {
         guard let newConfig = makeGhosttyConfig() else { return }
 
         controller.prepareForGhosttyConfigurationUpdate()
-        ghostty_app_update_config(ghosttyApp, newConfig)
+        guard applyConfiguration(newConfig, app: ghosttyApp, controller: controller) else {
+            ghostty_config_free(newConfig)
+            return
+        }
         if let ghosttyConfig {
             ghostty_config_free(ghosttyConfig)
         }
@@ -125,7 +129,24 @@ final class QuakeGhosttyRuntime {
             reloadConfiguration(for: controller)
             return
         }
-        ghostty_app_update_config(ghosttyApp, ghosttyConfig)
+        _ = applyConfiguration(ghosttyConfig, app: ghosttyApp, controller: controller)
+    }
+
+    private func applyConfiguration(
+        _ config: ghostty_config_t, app: ghostty_app_t, controller: QuakeTerminalController
+    ) -> Bool {
+        let surfaces = controller.launcherSurfaces
+        if surfaces.isEmpty {
+            ghostty_app_update_config(app, config)
+            return true
+        }
+        guard let held = ghosttyConfigBuilder.keepingCommandOutput(in: config) else { return false }
+        defer { ghostty_config_free(held) }
+        ghostty_app_update_config(app, config)
+        for view in surfaces {
+            if let surface = view.ghosttySurface { ghostty_surface_update_config(surface, held) }
+        }
+        return true
     }
 
     func receiveAppearance(_ appearance: QuakeGhosttyAppearance, for controller: QuakeTerminalController) {
@@ -174,11 +195,32 @@ final class QuakeGhosttyRuntime {
         ghostty_app_tick(ghosttyApp)
     }
 
-    func makeSurfaceView(for controller: QuakeTerminalController) -> GhosttySurfaceView? {
+    func makeSurfaceView(
+        for controller: QuakeTerminalController,
+        launch: LauncherLaunchRequest? = nil,
+        hasSurfaces: Bool = true
+    ) -> GhosttySurfaceView? {
         guard let ghosttyApp else { return nil }
+        let previousConfig = ghosttyConfig
+        var launchConfig: ghostty_config_t?
+        if launch != nil, !hasSurfaces {
+            guard let config = makeGhosttyConfig(explicitCommand: true) else { return nil }
+            launchConfig = config
+            ghostty_app_update_config(ghosttyApp, config)
+        }
         let context = GhosttySurfaceCallbackContext(controller: controller)
-        let view = GhosttySurfaceView(ghosttyApp: ghosttyApp, callbackContext: context)
-        guard view.ghosttySurface != nil else { return nil }
+        let view = GhosttySurfaceView(ghosttyApp: ghosttyApp, callbackContext: context, launch: launch)
+        guard view.ghosttySurface != nil else {
+            if let launchConfig {
+                if let previousConfig { ghostty_app_update_config(ghosttyApp, previousConfig) }
+                ghostty_config_free(launchConfig)
+            }
+            return nil
+        }
+        if let launchConfig {
+            ghosttyConfig = launchConfig
+            if let previousConfig { ghostty_config_free(previousConfig) }
+        }
         return view
     }
 }

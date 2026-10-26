@@ -18,6 +18,7 @@ final class SettingsNavigationModel {
     private var pendingRuleDraft: AppRuleDraft?
     private(set) var hasPendingMonitorSetupPresentation = false
     let ruleEditorState = AppRulesEditorState()
+    var launcherEditorRequest: LauncherEditorRequest?
     var searchText = ""
     @ObservationIgnored var leaveGuard: (@MainActor (SettingsRoute?) -> Bool)?
     @ObservationIgnored var closeWindow: (@MainActor () -> Void)?
@@ -63,7 +64,13 @@ final class SettingsNavigationModel {
         route = destination
     }
 
+    func presentLauncherEntry(_ request: LauncherEditorRequest) {
+        launcherEditorRequest = request
+        self.request(SettingsRoute(section: .launcher))
+    }
+
     func cancelNavigation() {
+        if section != .launcher { launcherEditorRequest = nil }
         if pendingRoute?.section == .monitors || route.section != .monitors {
             hasPendingMonitorSetupPresentation = false
         }

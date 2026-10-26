@@ -12,7 +12,7 @@ final class CommandPaletteModeActionContractTests: XCTestCase {
             (.menu, "openCommandPalette.menu", "Command Palette: Menu"),
             (.clipboard, "openCommandPalette.clipboard", "Command Palette: Clipboard"),
             (.commands, "openCommandPalette.commands", "Command Palette: Commands"),
-            (.applications, "openCommandPalette.applications", "Command Palette: Applications"),
+            (.applications, "openCommandPalette.applications", "Command Palette: Launcher"),
             (.files, "openCommandPalette.files", "Command Palette: Files")
         ]
         XCTAssertEqual(expected.map(\.0), IPCCommandPaletteMode.allCases)

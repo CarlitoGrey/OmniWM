@@ -113,7 +113,7 @@ struct CommandPaletteView: View {
         } else if controller.selectedMode == .menu && controller.isMenuLoading {
             CommandPaletteLoadingView(text: String(localized: "Loading menu items..."))
         } else if controller.selectedMode == .applications && controller.isApplicationLoading
-            && controller.applicationSections.isEmpty
+            && controller.applicationSections.isEmpty && controller.launcherSavedEntries.isEmpty
         {
             CommandPaletteLoadingView(text: String(localized: "Loading applications…"))
         } else if controller.selectedMode == .files && controller.isFileLoading && controller.fileSections.isEmpty {
@@ -243,7 +243,7 @@ struct CommandPaletteView: View {
         case .commands:
             String(localized: "Enter runs the selected command.")
         case .applications:
-            String(localized: "Enter opens the selected application.")
+            String(localized: "Enter launches an entry or configures a CLI tool.")
         case .files:
             String(localized: "Enter opens the selected file.")
         }
