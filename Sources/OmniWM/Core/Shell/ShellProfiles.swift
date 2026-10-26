@@ -128,10 +128,10 @@ enum ShellProfiles {
 
     private static func write(_ updated: String, over original: String, in shellDirectory: URL) throws -> Bool {
         guard updated != original else { return false }
-        try SettingsFileAccess.writeAtomically(
-            Data(updated.utf8),
-            at: shellDirectory.appendingPathComponent("shell.toml")
+        let target = try SettingsFileAccess.settingsTarget(
+            for: shellDirectory.appendingPathComponent("shell.toml")
         )
+        try SettingsFileAccess.writeAtomically(Data(updated.utf8), at: target)
         return true
     }
 
