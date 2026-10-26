@@ -12,14 +12,7 @@ Building OmniWM requires an **Apple Silicon Mac running macOS 27**, **Xcode 27**
 
 Install Xcode from [Apple Developer Downloads](https://developer.apple.com/download/all/), open it, and finish its first-launch setup. In **Xcode → Settings → Locations → Command Line Tools**, select Xcode 27. The standalone Command Line Tools package is not a substitute for this Xcode installation.
 
-Install [swiftly](https://www.swift.org/install/macos/), then install the pinned toolchain from the checkout and confirm it:
-
-```bash
-swiftly install
-swift --version
-```
-
-The result must report the Swift 6.5 development snapshot named in `.swift-version`.
+Install [swiftly](https://www.swift.org/install/macos/) to manage the pinned Swift toolchain.
 
 ### 2. Fork, Clone, and Create a Branch
 
@@ -34,6 +27,15 @@ git switch -c my-change upstream/main
 ```
 
 Use a descriptive branch name in place of `my-change`. Each contribution should start from `main` and focus on one problem.
+
+From the repository directory, install and confirm the pinned toolchain:
+
+```bash
+swiftly install
+swift --version
+```
+
+The result must report the Swift 6.5 development snapshot named in `.swift-version`.
 
 ### 3. Set Up Dependencies
 
@@ -176,7 +178,7 @@ GitHub's **OmniWM CI** workflow reports **Tooling** (flake check, formatting, li
 
 Start with `make doctor` and the first error reported by the failing command.
 
-- **Wrong Swift version:** select Xcode 27 in its Locations settings, complete its first-launch setup, and check `xcrun swift --version` again.
+- **Wrong Swift version:** from the repository directory, run `swiftly install` and check `swift --version` against `.swift-version`. Ensure swiftly's `bin` directory is on `PATH`. Use `make doctor` to check the Swift toolchain and selected Xcode installation separately.
 - **Missing dependencies:** run `make setup`. If an existing GhosttyKit fails its checksum, move your custom framework aside before running setup again; the helper will not replace it for you.
 - **Permissions requested again:** check the signing identity with `make doctor`, rebuild with the same valid certificate, and grant Dev's permissions again when prompted. Stable and Dev permissions are separate.
 - **Switching stops because OmniWM is still running:** quit that copy from its menu, then retry. The helper does not force-kill it or install over a running copy.
