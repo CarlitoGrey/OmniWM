@@ -152,6 +152,53 @@ final class ShellWidgetSourceLoaderTests: XCTestCase {
         XCTAssertEqual(source.profile, "look")
     }
 
+    func testBundledFallbackResolvesConfiguredComponentsWithoutUsingUserLibraries() async throws {
+        let shell = temporaryShell()
+        defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
+        let bundled = try XCTUnwrap(ShellDefaults.bundled)
+        let root = try XCTUnwrap(ShellConfig.bundledWidget("apple-menu"))
+        try write("custom", shell, "widgets/custom/component.luau")
+        try write("views = ['compact']\nuses = ['base']", shell, "widgets/custom/component.toml")
+        try write("base", shell, "look/widgets/base/component.luau")
+        try write("views = ['compact']", shell, "look/widgets/base/component.toml")
+        try write("error('broken user library')", shell, "lib/menu-button.luau")
+        try write("user only", shell, "look/lib/user-only.luau")
+        let captured = ShellWidgetSourceLoader.Input(
+            name: "apple-menu", shellDirectory: shell, sourceURL: root,
+            directories: [shell, shell.appendingPathComponent("look"), bundled], profile: "look",
+            components: [.init(id: "personal", widget: "custom")]
+        )
+        let loader = ShellWidgetSourceLoader()
+        let prepared = try await loader.prepare(captured)
+        let source = prepared.source
+        XCTAssertEqual(source.chunk, "@widgets/apple-menu/init.luau")
+        XCTAssertTrue(source.isIslandRoot)
+        XCTAssertEqual(source.profile, "look")
+        XCTAssertEqual(source.components.map(\.id), ["personal"])
+        XCTAssertEqual(source.componentDescriptors.map(\.widget), ["base", "custom"])
+        let modules = Dictionary(uniqueKeysWithValues: source.modules.map { ($0.path, $0.source) })
+        XCTAssertEqual(modules["widgets/custom/component.luau"], "custom")
+        XCTAssertEqual(modules["widgets/base/component.luau"], "base")
+        XCTAssertEqual(
+            modules["lib/menu-button.luau"],
+            try String(contentsOf: bundled.appendingPathComponent("lib/menu-button.luau"), encoding: .utf8)
+        )
+        XCTAssertNil(modules["lib/user-only.luau"])
+        let custom = shell.appendingPathComponent("widgets/custom", isDirectory: true)
+        let base = shell.appendingPathComponent("look/widgets/base", isDirectory: true)
+        XCTAssertEqual(source.assetPackages["custom"], custom)
+        XCTAssertEqual(source.assetPackages["base"], base)
+        let watched = ShellWidgetSourceLoader.packageDirectories(captured, components: source.componentDescriptors)
+        XCTAssertTrue(watched.contains(custom))
+        XCTAssertTrue(watched.contains(base))
+        for manifest in ["widgets/custom/component.toml", "look/widgets/base/component.toml"] {
+            XCTAssertNotNil(prepared.fingerprint[shell.appendingPathComponent(manifest).path])
+        }
+        try write("views = ['compact', 'expanded']", shell, "look/widgets/base/component.toml")
+        let updated = try await loader.prepare(captured)
+        XCTAssertNotEqual(prepared.fingerprint, updated.fingerprint)
+    }
+
     func testSourceByteLimitAppliesToMainAndEveryMountedModule() throws {
         let shell = temporaryShell()
         defer { try? FileManager.default.removeItem(at: shell.deletingLastPathComponent()) }
