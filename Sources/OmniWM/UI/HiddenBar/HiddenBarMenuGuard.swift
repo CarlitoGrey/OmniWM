@@ -9,13 +9,13 @@ enum HiddenBarMenuGuard {
         let layer: Int
         let ownerPID: pid_t
         let title: String?
-        var bounds: CGRect = .zero
+        let bounds: CGRect
     }
 
     static func isMenuOpen(
         windows: [WindowInfo],
         menuOwnerPIDs: Set<pid_t>,
-        menuBarFrames: [CGRect] = []
+        menuBarFrames: [CGRect]
     ) -> Bool {
         guard !menuOwnerPIDs.isEmpty else { return false }
         let popUpLevel = Int(CGWindowLevelForKey(.popUpMenuWindow))

@@ -10,8 +10,8 @@ final class HiddenBarMenuGuardTests: XCTestCase {
     func testPopUpWindowOwnedByMenuOwnerDetected() {
         XCTAssertTrue(
             HiddenBarMenuGuard.isMenuOpen(
-                windows: [.init(layer: popUpLevel, ownerPID: 500, title: nil)],
-                menuOwnerPIDs: [500]
+                windows: [.init(layer: popUpLevel, ownerPID: 500, title: nil, bounds: .zero)],
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
@@ -20,31 +20,34 @@ final class HiddenBarMenuGuardTests: XCTestCase {
         XCTAssertFalse(
             HiddenBarMenuGuard.isMenuOpen(
                 windows: [
-                    .init(layer: popUpLevel, ownerPID: 42, title: nil),
-                    .init(layer: popUpLevel, ownerPID: 42, title: nil)
+                    .init(layer: popUpLevel, ownerPID: 42, title: nil, bounds: .zero),
+                    .init(layer: popUpLevel, ownerPID: 42, title: nil, bounds: .zero)
                 ],
-                menuOwnerPIDs: [500]
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
 
-    func testStatusAndNormalLayersIgnored() {
-        XCTAssertFalse(
-            HiddenBarMenuGuard.isMenuOpen(
-                windows: [
-                    .init(layer: 25, ownerPID: 500, title: nil),
-                    .init(layer: 0, ownerPID: 500, title: nil)
-                ],
-                menuOwnerPIDs: [500]
-            )
-        )
+    func testStatusWindowsWithEmptyBoundsOrInsideMenuBarIgnored() {
+        let menuBar = CGRect(x: 0, y: 0, width: 2560, height: 24)
+        for bounds in [
+            CGRect(x: 2150, y: 24, width: 0, height: 180),
+            CGRect(x: 2400, y: 0, width: 28, height: 24)
+        ] {
+            XCTAssertFalse(HiddenBarMenuGuard.isMenuOpen(
+                windows: [.init(
+                    layer: Int(CGWindowLevelForKey(.statusWindow)), ownerPID: 500, title: nil, bounds: bounds
+                )],
+                menuOwnerPIDs: [500], menuBarFrames: [menuBar]
+            ))
+        }
     }
 
     func testLevelBelowPopUpDetected() {
         XCTAssertTrue(
             HiddenBarMenuGuard.isMenuOpen(
-                windows: [.init(layer: popUpLevel - 1, ownerPID: 500, title: nil)],
-                menuOwnerPIDs: [500]
+                windows: [.init(layer: popUpLevel - 1, ownerPID: 500, title: nil, bounds: .zero)],
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
@@ -52,8 +55,8 @@ final class HiddenBarMenuGuardTests: XCTestCase {
     func testTitledPopUpWindowIgnored() {
         XCTAssertFalse(
             HiddenBarMenuGuard.isMenuOpen(
-                windows: [.init(layer: popUpLevel, ownerPID: 500, title: "Item-0")],
-                menuOwnerPIDs: [500]
+                windows: [.init(layer: popUpLevel, ownerPID: 500, title: "Item-0", bounds: .zero)],
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
@@ -61,8 +64,8 @@ final class HiddenBarMenuGuardTests: XCTestCase {
     func testEmptyTitleCountsAsCandidate() {
         XCTAssertTrue(
             HiddenBarMenuGuard.isMenuOpen(
-                windows: [.init(layer: popUpLevel, ownerPID: 500, title: "")],
-                menuOwnerPIDs: [500]
+                windows: [.init(layer: popUpLevel, ownerPID: 500, title: "", bounds: .zero)],
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
@@ -149,8 +152,8 @@ final class HiddenBarMenuGuardTests: XCTestCase {
     func testEmptyOwnerSetShortCircuits() {
         XCTAssertFalse(
             HiddenBarMenuGuard.isMenuOpen(
-                windows: [.init(layer: popUpLevel, ownerPID: 500, title: nil)],
-                menuOwnerPIDs: []
+                windows: [.init(layer: popUpLevel, ownerPID: 500, title: nil, bounds: .zero)],
+                menuOwnerPIDs: [], menuBarFrames: []
             )
         )
     }
@@ -159,10 +162,10 @@ final class HiddenBarMenuGuardTests: XCTestCase {
         XCTAssertTrue(
             HiddenBarMenuGuard.isMenuOpen(
                 windows: [
-                    .init(layer: popUpLevel, ownerPID: 42, title: nil),
-                    .init(layer: popUpLevel, ownerPID: 500, title: nil)
+                    .init(layer: popUpLevel, ownerPID: 42, title: nil, bounds: .zero),
+                    .init(layer: popUpLevel, ownerPID: 500, title: nil, bounds: .zero)
                 ],
-                menuOwnerPIDs: [500]
+                menuOwnerPIDs: [500], menuBarFrames: []
             )
         )
     }
