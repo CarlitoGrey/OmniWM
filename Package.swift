@@ -139,7 +139,10 @@ let package = Package(
                 .swiftLanguageMode(.v6),
                 .treatAllWarnings(as: .error),
                 .interoperabilityMode(.C),
-                .unsafeFlags(["-Xfrontend", "-disable-autolink-framework", "-Xfrontend", "FoundationModels"])
+                .unsafeFlags([
+                    "-Xfrontend", "-disable-autolink-framework", "-Xfrontend", "FoundationModels",
+                    "-Xfrontend", "-disable-round-trip-debug-types"
+                ])
             ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
