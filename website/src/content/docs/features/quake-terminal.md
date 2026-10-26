@@ -1,17 +1,31 @@
 ---
 title: Quake Terminal
-description: A drop-down terminal powered by Ghostty's libghostty, summoned anywhere with a single hotkey.
+description: Summon an embedded Ghostty terminal or Kitty's quick-access terminal with a single hotkey.
 sidebar:
   order: 1
 ---
 
-OmniWM ships a true quake/sticky terminal you can summon over any workspace. It is a real embedded terminal built on Ghostty's [libghostty](https://ghostty.org) — not a wrapper around another terminal app — and it supports multiple tabs and splits within tabs.
+OmniWM's Quake terminal can be summoned over any workspace. By default, it runs an embedded terminal built on Ghostty's [libghostty](https://ghostty.org), with multiple tabs and splits within tabs. When building from `main`, you can also choose Kitty's quick-access terminal.
 
 Toggle it with `` Option + ` `` (backtick) by default; the binding is configurable in Settings under Keyboard Shortcuts, alongside the rest of the [keyboard shortcuts](/guides/keyboard-shortcuts/).
 
+## Kitty provider
+
+:::note[Unreleased]
+The Kitty provider is available when building from `main`.
+:::
+
+Install the Kitty app, then open **Settings → Quake Terminal** and choose **Kitty** in the **Terminal** picker. The same global shortcut toggles a dedicated Kitty quick-access terminal instance.
+
+Kitty's `quick-access-terminal.conf` supplies its configuration, including fonts, tabs, splits and keybindings. In OmniWM's Settings, you can override the panel's placement, auto-hide on focus loss and background opacity. Unset overrides follow Kitty's configuration when a new quick-access process starts. Turning an override off keeps its last applied value in the running process; start a new Kitty quick-access process to restore that setting from Kitty's file. Hiding and showing the panel reuses the current process. Placement changes apply the next time it is shown.
+
+Opacity changes apply live. If the panel was created without transparency support, Settings explains that it needs to be closed and reopened; OmniWM does not restart its shell sessions automatically. See the [Kitty settings reference](/config/settings-reference/#quaketerminalkitty) for TOML keys.
+
+The sections below describe the embedded Ghostty provider and its shortcuts.
+
 ## Position and size
 
-Configure the terminal in **Settings → Quake Terminal**:
+Configure Ghostty's embedded terminal in **Settings → Quake Terminal**:
 
 - **Position** — `Top`, `Bottom`, `Left`, `Right`, or `Center`. The default is `Center`, which fades the terminal in place; the four edge positions slide it in from that screen edge.
 - **Show On** — which monitor the terminal appears on: `Mouse Cursor's Monitor`, `Focused Window's Monitor` (the default), or `Main Monitor`. `Main Monitor` follows the **Monitor Roles** ranking in **Settings → Displays** when one is set, so you can pin the terminal to a preferred display with a fallback when it is disconnected; without a ranking it is the display with the macOS menu bar. See [Multi-Monitor Setup](/guides/multi-monitor/#monitor-roles).
