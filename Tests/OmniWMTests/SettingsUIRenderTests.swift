@@ -183,6 +183,49 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
+    func testUnappliedGestureProposalSurvivesATabSwitch() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let gestures = fixture.settings.gestures
+            gestures.scrollEnabled = true
+            gestures.fingerCount = .three
+            gestures.workspaceSwipeEnabled = false
+            gestures.overviewGestureEnabled = true
+            gestures.overviewGestureFingerCount = .four
+            gestures.windowMoveEnabled = false
+            gestures.windowResizeEnabled = false
+            let editor = GestureAssignmentEditor()
+            editor.submit(
+                .init(action: .move, change: .enabled(true)),
+                settings: fixture.settings,
+                monitors: Monitor.current()
+            )
+            XCTAssertNotNil(editor.proposal)
+            let navigation = SettingsNavigationModel()
+            navigation.section = .mouseTrackpad
+            let root = MouseTrackpadSettingsTab(
+                settings: fixture.settings, controller: fixture.controller, gestureEditor: editor
+            ).environment(navigation)
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "gesture-proposal-tab-round-trip",
+                requiredText: [String(localized: "Cancel")],
+                beforeCapture: { _ in
+                    navigation.selectTab("mouse")
+                    try await Task.sleep(for: .milliseconds(300))
+                    navigation.selectTab("trackpad")
+                    try await Task.sleep(for: .milliseconds(300))
+                }
+            )
+            XCTAssertNotNil(editor.proposal)
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
     func testTabbedPagesOpenedInVisibleWindowKeepTabsLegible() async throws {
         try requireNativeRendering()
         let fixture = try Fixture()

@@ -8,17 +8,21 @@ struct MouseTrackpadSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     @State private var missionControlGestureProbe: MissionControlGestureProbe
+    // Owned here so an unapplied gesture proposal survives a visit to the Mouse & Focus tab.
+    @State private var gestureEditor: GestureAssignmentEditor
     @Environment(SettingsNavigationModel.self) private var navigation
     @State private var connectedMonitors: [Monitor] = Monitor.current()
 
     init(
         settings: SettingsStore,
         controller: WMController,
-        missionControlGestureProbe: MissionControlGestureProbe = MissionControlGestureProbe()
+        missionControlGestureProbe: MissionControlGestureProbe = MissionControlGestureProbe(),
+        gestureEditor: GestureAssignmentEditor = GestureAssignmentEditor()
     ) {
         self.settings = settings
         self.controller = controller
         _missionControlGestureProbe = State(initialValue: missionControlGestureProbe)
+        _gestureEditor = State(initialValue: gestureEditor)
     }
 
     var body: some View {
@@ -34,7 +38,11 @@ struct MouseTrackpadSettingsTab: View {
                 .formStyle(.grouped)
             } else {
                 Form {
-                    TrackpadGesturesSettingsPanel(settings: settings, monitors: connectedMonitors)
+                    TrackpadGesturesSettingsPanel(
+                        settings: settings,
+                        monitors: connectedMonitors,
+                        editor: gestureEditor
+                    )
                     macOSGestureSection
                 }
                 .formStyle(.grouped)
