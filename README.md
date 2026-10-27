@@ -23,6 +23,27 @@ OmniWM is a free, open-source, Developer ID-signed and Apple-notarized tiling wi
 
 ---
 
+### 🛠️ Maintainers
+
+<table align="center">
+  <tr>
+    <td nowrap>
+      <a href="https://github.com/Guria" title="Aleksei Gurianov">
+        <img src="https://github.com/Guria.png?size=96" width="72" alt="Aleksei Gurianov">
+      </a>
+      <a href="https://github.com/dappermint" title="millia ampora">
+        <img src="https://github.com/dappermint.png?size=96" width="72" alt="millia ampora">
+      </a>
+      <a href="https://github.com/rickythefox" title="Richard G">
+        <img src="https://github.com/rickythefox.png?size=96" width="72" alt="Richard G">
+      </a>
+      <a href="https://github.com/hezhizhen" title="Zhizhen He">
+        <img src="https://github.com/hezhizhen.png?size=96" width="72" alt="Zhizhen He">
+      </a>
+    </td>
+  </tr>
+</table>
+
 ### 🏢 By Employer
 
 <table align="center">
@@ -1027,6 +1048,8 @@ OmniWM remembers one custom size and position. It reuses that frame when it fits
 
 Quake Terminal loads Ghostty's normal configuration files and their included files, so font, theme, and other terminal preferences can be shared. OmniWM applies its Quake background opacity and effect afterward; configure those in **Settings → Quake Terminal**.
 
+**Unreleased:** When building from `main`, select **Kitty** under **Settings → Quake Terminal → Terminal** to use Kitty's quick-access terminal. Install Kitty separately. It uses `quick-access-terminal.conf`, with optional placement, auto-hide, and opacity overrides in OmniWM. The Ghostty settings and shortcuts above apply to the embedded provider. See the [Kitty provider guide](https://omniwm.app/features/quake-terminal/#kitty-provider).
+
 #### Command Palette
 
 Quickly search windows, app menus, clipboard history, OmniWM commands, applications, or files from one shared palette:
@@ -1060,10 +1083,10 @@ Overview supports [trackpad opening and closing](https://omniwm.app/features/ove
 
 See all windows at once with thumbnails:
 - Open it from the global shortcut shown in `Keyboard Shortcuts`
-- Configure the 50–150% baseline zoom plus backdrop and window-border colors in **Settings → Overview**
+- Configure the 50–150% zoom, scrolling controls, and backdrop and window-border colors in **Settings → Overview**
 - Click a window to focus it
 - Type to filter/search windows; `Backspace` deletes search text
-- `Alt (Option) + Shift + Mouse Scroll` temporarily zooms the current overview; the next opening starts from the configured baseline
+- `Alt (Option) + Shift + Mouse Scroll` changes the zoom; closing Overview saves it for the next opening
 - `Arrow Keys` navigate spatially; `Left` / `Right` stay within the current workspace. `Tab` / `Shift + Tab` cycle forward or backward through matching windows, and keyboard navigation automatically scrolls the selected thumbnail into view
 - Assigned structural move, reorder, consume/expel, and workspace-transfer shortcuts operate on the selected thumbnail while Overview is open
 - In Niri workspaces, reorder windows and columns, consume or expel windows, move windows into or out of columns, move windows across workspaces and monitors, and move whole columns between Niri workspaces
@@ -1088,19 +1111,19 @@ A visual indicator showing your workspaces:
 - Optionally hide the bar on a monitor while that monitor shows a macOS native fullscreen window, and bring it back on exit (`Hide in Native Fullscreen`); reserved tiled layout space is left untouched so windows do not shuffle around the fullscreen session
 - Exclude individual apps or choose alternate app icons across all monitors in Settings
 - When building from `main`, the bar is drawn by Luau widgets in `~/.config/omniwm/shell/` that you can restyle or replace, with the Wayline, Nocturne and Celestial styles and twelve colour themes bundled; see [OmniShell](https://omniwm.app/features/luau-shell/)
-- Add **Notifications** from **Bar Widgets** to browse retained macOS notifications. Its Details view includes participants, attachments, action definitions and native metadata, also available to widgets through `ctx.data.notifications`. The feed reads Notification Center's database on changes; native persistence can delay updates by several seconds. The widget shows storage-access errors and links to Full Disk Access settings. Reply and dismiss definitions are metadata; the widget does not execute those native actions.
+- Add **Notifications** from **Settings → Styles & Widgets → Bar → Add Widget…** to browse retained macOS notifications. Its Details view includes participants, attachments, action definitions and native metadata, also available to widgets through `ctx.data.notifications`. The feed reads Notification Center's database on changes; native persistence can delay updates by several seconds. The widget shows storage-access errors and links to Full Disk Access settings. Reply and dismiss definitions are metadata; the widget does not execute those native actions.
 - The editable effects library includes native motion presets, Metal lighting and reveal masks. Add `effects-lab` to a bar lane in `shell.toml` to explore them with blur and glass materials; see [Effects library](https://omniwm.app/omnishell/reference/effects-shaders/).
 
 Workspace-bar appearance controls are optional and also support per-monitor overrides:
 
 - **Automatically hide and show** reveals the bar when the pointer touches its edge and hides it after the pointer moves inward past the bar and interactions end, without reserving layout space. Set `workspaceBar.autoHide = true`; the default is `false`.
-- **Transparent Background** removes the outer bar material, tint, and border; icons remain clickable. It takes precedence over **Solid Black Background**.
-- **Solid Black Background** uses opaque black instead of the outer bar's material and tint.
+- **Transparent Background** removes the outer bar material, tint, and border; icons remain clickable.
+- **Solid Black Background** uses opaque black instead of the outer bar's material and tint. It takes precedence over **Transparent Background** when both are enabled.
 - **Inactive Icon Opacity** adjusts non-focused app icons. Leaving it unset preserves the standard opacity for each kind of item; hidden-app icons retain their hidden-state appearance. Values are limited to 0–1, and nonfinite values are treated as unset.
 - Disable **Show Item Backgrounds** to remove the backgrounds behind workspace groups, floating windows, scratchpads, and the stats button.
 - Disable **Show Accent Highlights** to remove focused-item accent outlines and glows without changing focus behavior.
 - **Bottom / Left / Right placement** docks at the usable display edge. Side bars stack upright content and scroll when needed; **Bar Thickness** controls their width. See [Workspace Bar](website/src/content/docs/features/workspace-bar.md) for details.
-- **Fill Left of Notch** covers the menu-bar band from the display's left edge to the notch, or to the display midpoint when no notch is present. This deliberately covers application menus; choose another notch mode to access them again. At top positions, this mode uses the menu-bar height, overrides position/offset/height controls, and does not reserve extra tiled layout space. It always hides on displays showing native fullscreen content. Bottom/Left/Right ignore notch modes and follow **Hide in Native Fullscreen**.
+- **Fill Left of Notch** covers the menu-bar band from the display's left edge to the notch, or to the display midpoint when no notch is present. This deliberately covers application menus; choose another notch mode to access them again. At top positions, this mode uses the menu-bar height and overrides position/offset/height controls. With **Reserve Layout Space** on and automatic hiding off, a visible bar can reserve space where it overlaps the usable display area, such as on a display without a notch whose system menu bar is automatically hidden. It always hides on displays showing native fullscreen content. Bottom/Left/Right ignore notch modes and follow **Hide in Native Fullscreen**.
 
 Existing appearance stays unchanged until you opt in. For example, edit these keys inside the existing `[workspaceBar]` table (do not replace the complete configuration with this fragment):
 

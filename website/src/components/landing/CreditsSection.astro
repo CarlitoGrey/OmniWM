@@ -2,6 +2,7 @@
 import { employers } from '../../data/employers';
 import { education } from '../../data/education';
 import { contributors } from '../../data/contributors';
+import { maintainers } from '../../data/maintainers';
 import { bugReporters } from '../../data/reporters';
 
 const walls = [
@@ -15,6 +16,15 @@ const walls = [
     <div class="section-head">
       <h2>Built by a community</h2>
       <p>Thank you to everyone who contributed to OmniWM. Your ideas and code made a real difference.</p>
+    </div>
+
+    <h3 class="group-title">Maintainers</h3>
+    <div class="wall">
+      {maintainers.map((person) => (
+        <a href={`https://github.com/${person.handle}`} title={person.name}>
+          <img src={`https://github.com/${person.handle}.png?size=96`} alt={person.name} width="56" height="56" loading="lazy" />
+        </a>
+      ))}
     </div>
 
     <h3 class="group-title">Contributors by employer</h3>

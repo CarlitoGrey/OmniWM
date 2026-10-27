@@ -87,15 +87,14 @@ struct MonitorSettingsTab: View {
     }
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { navigation.route.tab ?? "arrangement" },
-            set: { navigation.selectTab($0) }
-        )) {
-            Tab("Arrangement", systemImage: "display.2", value: "arrangement") {
+        SettingsTabs(
+            selection: Binding(get: { navigation.route.tab ?? "arrangement" }, set: { navigation.selectTab($0) }),
+            tabs: [("Arrangement", "arrangement"), ("Behavior", "behavior")]
+        ) { tab in
+            if tab != "behavior" {
                 Form { arrangementSections }
                     .formStyle(.grouped)
-            }
-            Tab("Behavior", systemImage: "cursorarrow.motionlines", value: "behavior") {
+            } else {
                 Form {
                     Section("Display") {
                         Picker("Configure Display", selection: $selectedMonitor) {
