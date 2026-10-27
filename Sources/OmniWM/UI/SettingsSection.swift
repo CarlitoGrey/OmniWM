@@ -4,7 +4,7 @@
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, styles, menuBar
+    case general, appearance, styles, menuBar, network
     case workspaces, layouts, monitors, appRules, overview, windowSwitcher
     case hotkeys, mouseTrackpad, quakeTerminal, diagnostics, reportIssue, advanced
 
@@ -61,6 +61,12 @@ enum SettingsSection: String, CaseIterable, Identifiable {
                 String(localized: "Menu Bar"),
                 "menubar.arrow.up.rectangle",
                 String(localized: "Manage OmniWM’s status item and hidden menu-bar apps.")
+            )
+        case .network:
+            Presentation(
+                String(localized: "Network & Permissions"),
+                "network.badge.shield.half.filled",
+                String(localized: "Review what OmniShell widgets, native programs, and built-in services can reach.")
             )
         case .workspaces:
             Presentation(
@@ -158,7 +164,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var sections: [SettingsSection] {
         switch self {
         case .app: [.general, .appearance]
-        case .desktop: [.styles, .menuBar]
+        case .desktop: [.styles, .menuBar, .network]
         case .windows: [.workspaces, .layouts, .monitors, .appRules, .overview, .windowSwitcher]
         case .input: [.hotkeys, .mouseTrackpad]
         case .tools: [.quakeTerminal]

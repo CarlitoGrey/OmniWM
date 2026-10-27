@@ -405,6 +405,23 @@ final class ShellNetworkPermissionTests: XCTestCase {
             onTitleDemandChange: { _ in }
         )
         let other = ShellWidgetPrincipal(role: .bar, name: "clock", source: "/shell/widgets/clock")
+        let island = ShellWidgetHost.WidgetState(
+            name: "lake", sourceURL: URL(fileURLWithPath: "/shell/widgets/lake/init.luau")
+        )
+        let clockWidget = ShellWidgetHost.WidgetState(
+            name: other.name, sourceURL: URL(fileURLWithPath: other.source).appendingPathComponent("init.luau")
+        )
+        var islandSource = ShellWidgetSource(chunk: "", main: "", modules: [])
+        islandSource.componentDescriptors = [ShellComponentDescriptor(
+            widget: principal.name, title: "CI", icon: "circle", views: [], uses: [], options: [:],
+            capabilities: ShellComponentCapabilities(network: ["a.example", "b.example"]),
+            providerCommand: nil, folder: URL(fileURLWithPath: principal.source)
+        )]
+        var clockSource = ShellWidgetSource(chunk: "", main: "", modules: [])
+        clockSource.network = ["a.example"]
+        host.widgets = ["lake": island, other.name: clockWidget]
+        host.setDeclarations(islandSource, of: island)
+        host.setDeclarations(clockSource, of: clockWidget)
         let both = ShellNetworkApproval.Key(principal: principal, hosts: ["a.example", "b.example"])
         let clock = ShellNetworkApproval.Key(principal: other, hosts: ["a.example"])
         host.recordNetworkApprovals([

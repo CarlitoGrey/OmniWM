@@ -139,13 +139,14 @@ final class StatusBarController: NSObject {
         menuHost?.dismiss()
     }
 
-    func openSettings(section: SettingsSection) {
+    func openSettings(section: SettingsSection, anchor: String? = nil) {
         guard let controller else { return }
         SettingsWindowController.shared.show(
             settings: settings,
             controller: controller,
             updateCoordinator: updateCoordinator,
-            section: section
+            section: section,
+            anchor: anchor
         )
     }
 

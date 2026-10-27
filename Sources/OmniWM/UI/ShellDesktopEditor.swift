@@ -261,6 +261,10 @@ final class ShellDesktopEditor {
         if navigation?.leaveGuard != nil { navigation?.leaveGuard = nil }
     }
 
+    func openPermissions(_ role: ShellWidgetPrincipal.Role, _ name: String) {
+        navigation?.request(SettingsRoute(section: .network, anchor: NetworkPermissionsPage.anchor(role, name)))
+    }
+
     private func complete(_ transition: Transition) async -> Bool {
         guard await writes.drain() else {
             problem = String(localized: "A change could not be saved. Retry or discard it first.")

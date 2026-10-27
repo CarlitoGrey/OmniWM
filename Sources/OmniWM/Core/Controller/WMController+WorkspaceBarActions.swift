@@ -103,7 +103,8 @@ extension WMController {
             workspaceNavigationHandler.moveFocusedWindowFromBar(toWorkspaceId: workspaceId)
         case .renameWorkspace,
              .editShellWidget,
-             .openBarWidgetSettings:
+             .openBarWidgetSettings,
+             .openNetworkPermissions:
             return
         case let .setLayout(workspaceId, layout):
             guard let name = workspaceManager.descriptor(for: workspaceId)?.name else { return }

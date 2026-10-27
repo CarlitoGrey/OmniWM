@@ -2,6 +2,7 @@
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 import Foundation
+import Observation
 import Synchronization
 
 struct ShellWidgetPrincipal: Hashable, Sendable {
@@ -18,7 +19,11 @@ struct ShellWidgetPrincipal: Hashable, Sendable {
 
 extension ShellWidgetPrincipal {
     init(role: Role, name: String, folder: URL) {
-        self.init(role: role, name: name, source: folder.resolvingSymlinksInPath().standardizedFileURL.path)
+        self.init(role: role, name: name, source: Self.source(of: folder))
+    }
+
+    static func source(of folder: URL) -> String {
+        folder.resolvingSymlinksInPath().standardizedFileURL.path
     }
 }
 
@@ -104,9 +109,18 @@ final class ShellHTTPDeclarations: Sendable {
         }
         policies.withLock { $0 = next }
     }
+
+    func declares(_ key: ShellNetworkApproval.Key) -> Bool {
+        policies.withLock { policies in
+            policies.values.contains { policy in
+                guard case let .widget(principal, hosts, _) = policy else { return false }
+                return principal == key.principal && hosts.isSuperset(of: key.hosts)
+            }
+        }
+    }
 }
 
-final class ShellNetworkPermissions: Sendable {
+final class ShellNetworkPermissions: Observable, Sendable {
     struct Hosts: Equatable, Sendable {
         var allowed: Set<String> = []
         var denied: Set<String> = []
@@ -142,6 +156,7 @@ final class ShellNetworkPermissions: Sendable {
     }
 
     private let state: Mutex<Snapshot>
+    private let registrar = ObservationRegistrar()
 
     init(
         decisions: ShellPermissionDecisions = ShellPermissionDecisions(),
@@ -154,7 +169,8 @@ final class ShellNetworkPermissions: Sendable {
     }
 
     var snapshot: Snapshot {
-        state.withLock { $0 }
+        registrar.access(self, keyPath: \.snapshot)
+        return state.withLock { $0 }
     }
 
     func decide(_ host: String, for principal: ShellWidgetPrincipal) -> ShellNetworkDecision {
@@ -195,7 +211,7 @@ final class ShellNetworkPermissions: Sendable {
     func update(decisions: ShellPermissionDecisions? = nil, managed: ShellManagedPolicy? = nil) -> Bool {
         let widgets = decisions.map(Self.widgets)
         let programs = decisions.map(Self.programs)
-        return state.withLock { state in
+        let changed = state.withLock { state in
             var next = state
             if let widgets { next.widgets = widgets }
             if let programs { next.programs = programs }
@@ -206,6 +222,8 @@ final class ShellNetworkPermissions: Sendable {
             state = next
             return true
         }
+        if changed { registrar.withMutation(of: self, keyPath: \.snapshot) {} }
+        return changed
     }
 
     private static func widgets(_ decisions: ShellPermissionDecisions) -> [ShellWidgetPrincipal: Hosts] {

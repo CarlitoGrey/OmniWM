@@ -22,6 +22,7 @@ enum WorkspaceBarMenuAction: Equatable {
     case unassignScratchpadWindows([WindowToken])
     case editShellWidget(String, ShellWidgetEdit)
     case openBarWidgetSettings
+    case openNetworkPermissions(String)
 }
 
 enum ShellWidgetEdit: Equatable {

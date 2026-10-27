@@ -10,6 +10,7 @@ struct ShellRootSettings: Equatable, Sendable {
     let network: [String]
     let purpose: String?
     let folder: URL
+    let source: String
 
     static func load(_ widget: String, directories: [URL]) throws -> ShellRootSettings? {
         guard ShellComponentCatalog.validName(widget) else {
@@ -39,7 +40,8 @@ struct ShellRootSettings: Equatable, Sendable {
             ),
             network: capabilities.network,
             purpose: capabilities.purpose,
-            folder: folder
+            folder: folder,
+            source: ShellWidgetPrincipal.source(of: folder)
         )
     }
 

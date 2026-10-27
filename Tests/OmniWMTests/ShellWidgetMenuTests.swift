@@ -45,7 +45,9 @@ final class ShellWidgetMenuTests: XCTestCase {
             profile: ShellDefaults.profile,
             customized: false
         )
-        XCTAssertEqual(WorkspaceBarManager.widgetMenuItems(for: "omniwm", layout: layout, vertical: false), [
+        XCTAssertEqual(WorkspaceBarManager.widgetMenuItems(
+            for: "omniwm", layout: layout, vertical: false, permissions: true
+        ), [
             .header("OmniWM"),
             .action(String(localized: "Move Left"), .editShellWidget("omniwm", .earlier), isEnabled: false),
             .action(String(localized: "Move Right"), .editShellWidget("omniwm", .later), isEnabled: true),
@@ -60,9 +62,13 @@ final class ShellWidgetMenuTests: XCTestCase {
             .separator,
             .action(String(localized: "Remove from Bar"), .editShellWidget("omniwm", .remove)),
             .separator,
-            .action(String(localized: "Bar Widgets…"), .openBarWidgetSettings)
+            .action(String(localized: "Bar Widgets…"), .openBarWidgetSettings),
+            .action(String(localized: "Network & Permissions…"), .openNetworkPermissions("omniwm"))
         ])
-        let vertical = WorkspaceBarManager.widgetMenuItems(for: "clock", layout: layout, vertical: true)
+        let vertical = WorkspaceBarManager.widgetMenuItems(
+            for: "clock", layout: layout, vertical: true, permissions: false
+        )
+        XCTAssertEqual(vertical.last, .action(String(localized: "Bar Widgets…"), .openBarWidgetSettings))
         XCTAssertEqual(
             vertical[1],
             .action(String(localized: "Move Up"), .editShellWidget("clock", .earlier), isEnabled: false)

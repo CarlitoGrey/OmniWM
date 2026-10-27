@@ -19,6 +19,7 @@ extension ShellWidgetHost {
             report(state, ShellScriptFailure(kind: .compile, message: error.localizedDescription))
             return
         }
+        setDeclarations(source, of: state)
         Self.close(state.loadingPackage)
         let retiring = Array(Self.retiringTasks.values)
         nextGeneration += 1
@@ -164,7 +165,7 @@ extension ShellWidgetHost {
         let triggerChanged = state.declaration.hasTrigger != declaration.hasTrigger
         state.declaration = declaration
         state.assetPackages = latest.assetPackages
-        state.componentDescriptors = latest.componentDescriptors
+        setDeclarations(latest, of: state)
         for instance in state.instances.values {
             instance.surface?.assetFolders = latest.assetPackages
         }

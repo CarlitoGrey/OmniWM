@@ -51,6 +51,8 @@ struct SettingsDetailView: View {
             ShellDesktopEditorPage(settings: settings, controller: controller)
         case .menuBar:
             MenuBarSettingsPage(settings: settings, controller: controller)
+        case .network:
+            NetworkPermissionsSettingsPage(settings: settings, controller: controller)
         case .workspaces:
             WorkspacesSettingsTab(settings: settings, controller: controller)
         case .layouts:

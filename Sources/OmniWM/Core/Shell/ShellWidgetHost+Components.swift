@@ -20,7 +20,7 @@ extension ShellWidgetHost {
         _ source: ShellWidgetSource, fingerprint: [String: SettingsFileAccess.Fingerprint], to state: WidgetState
     ) {
         state.assetPackages = source.assetPackages
-        state.componentDescriptors = source.componentDescriptors
+        setDeclarations(source, of: state)
         state.fingerprint = fingerprint
         for instance in state.instances.values { instance.surface?.assetFolders = source.assetPackages }
         if popout?.widget == state.name { popout?.surface.assetFolders = source.assetPackages }

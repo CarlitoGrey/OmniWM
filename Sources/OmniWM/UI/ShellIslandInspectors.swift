@@ -51,6 +51,11 @@ struct ShellIslandComponentInspectorView: View {
             }
             Section {
                 Button("Remove from Island", role: .destructive) { editor.removeComponent(id) }
+                let capabilities = editor.componentDescriptor(id)?.capabilities
+                let network = (capabilities?.network ?? []) + (component.capabilities?.network ?? [])
+                if !network.isEmpty || capabilities?.provider == true {
+                    Button("Network & Permissions…") { editor.openPermissions(.component, component.widget) }
+                }
             }
         }
     }

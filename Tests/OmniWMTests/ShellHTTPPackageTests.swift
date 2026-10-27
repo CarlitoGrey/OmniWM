@@ -892,6 +892,86 @@ final class ShellHTTPPackageTests: XCTestCase {
         await package.close()
     }
 
+    func testARemovedAndRestoredComponentReportsItsPendingHostAgain() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let host = "pending." + UUID().uuidString.lowercased() + ".example"
+        let sink = Sink()
+        let first = expectation(description: "the component's first request is refused")
+        sink.onCommand = { _ in first.fulfill() }
+        let package = ShellWidgetPackage(
+            name: "test",
+            generation: 1,
+            outbox: ShellWidgetOutbox { sink.consume($0) },
+            store: ShellStore(directoryURL: directory),
+            permissions: ShellNetworkPermissions()
+        )
+        await package.installHTTPStub(ProtocolStub.self)
+        package.services.attachWake { Task { await package.receive(.services) } }
+        let source = componentSource("""
+        return { init=function()
+            assert(omniwm.http({url='https://\(host)/data'},function(result) omniwm.run(result.error) end))
+        end, views={compact=function() return ui.box{w=10,h=10} end} }
+        """, hosts: [host])
+        let failure = await package.load(source)
+        XCTAssertNil(failure)
+        await fulfillment(of: [first], timeout: 10)
+        let approval = ShellNetworkApproval(key: .init(principal: childPrincipal, hosts: [host]), purpose: nil)
+        XCTAssertEqual(sink.approvals, [approval])
+
+        let second = expectation(description: "the restored component's request is refused")
+        sink.onCommand = { _ in second.fulfill() }
+        await package.receive(.components(ShellWidgetSource(
+            chunk: source.chunk, main: source.main, modules: [], moduleLimit: source.moduleLimit,
+            network: source.network, principal: source.principal
+        )))
+        await package.receive(.components(source))
+        await fulfillment(of: [second], timeout: 10)
+        XCTAssertEqual(sink.approvals, [approval, approval])
+        XCTAssertEqual(sink.commands, ["network_not_approved", "network_not_approved"])
+        await package.close()
+    }
+
+    func testRemovingADeclaredHostForgetsTheComponentsReportedApproval() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let suffix = UUID().uuidString.lowercased() + ".example"
+        let hosts = ["pending." + suffix, "kept." + suffix]
+        let sink = Sink()
+        let refused = expectation(description: "the component's request is refused")
+        sink.onCommand = { _ in refused.fulfill() }
+        let package = ShellWidgetPackage(
+            name: "test",
+            generation: 1,
+            outbox: ShellWidgetOutbox { sink.consume($0) },
+            store: ShellStore(directoryURL: directory),
+            permissions: ShellNetworkPermissions()
+        )
+        await package.installHTTPStub(ProtocolStub.self)
+        package.services.attachWake { Task { await package.receive(.services) } }
+        let script = """
+        return { init=function()
+            assert(omniwm.http({url='https://\(hosts[0])/data'},function(result) omniwm.run(result.error) end))
+        end, views={compact=function() return ui.box{w=10,h=10} end} }
+        """
+        let source = componentSource(script, hosts: hosts)
+        let failure = await package.load(source)
+        XCTAssertNil(failure)
+        await fulfillment(of: [refused], timeout: 10)
+        let key = ShellNetworkApproval.Key(principal: childPrincipal, hosts: Set(hosts))
+        XCTAssertEqual(sink.approvals.map(\.key), [key])
+        var reported = await package.networkApprovals
+        XCTAssertEqual(reported, [key])
+
+        await package.receive(.components(source))
+        reported = await package.networkApprovals
+        XCTAssertEqual(reported, [key])
+        await package.receive(.components(componentSource(script, hosts: [hosts[1]])))
+        reported = await package.networkApprovals
+        XCTAssertTrue(reported.isEmpty)
+        await package.close()
+    }
+
     func testRevocationReachesAPackageTheHostIsStillLoading() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

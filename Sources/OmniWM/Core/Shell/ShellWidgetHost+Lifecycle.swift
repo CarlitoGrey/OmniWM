@@ -129,6 +129,8 @@ extension ShellWidgetHost {
         publishToggleNames()
         bars = [:]
         placedSlots = [:]
+        networkApprovals = [:]
+        providerApprovals = [:]
     }
 
     func updateWallpaperPalette() {
@@ -244,6 +246,8 @@ extension ShellWidgetHost {
             }
             widgets[name] = state
         }
+        refreshHiddenBarMenuHosts()
+        pruneApprovals()
     }
 
     func folders(of state: WidgetState) -> [URL] {

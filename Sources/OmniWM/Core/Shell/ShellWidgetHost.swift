@@ -238,6 +238,7 @@ final class ShellWidgetHost {
         var backgroundDemand: UInt64 = 0
         var declaration = ShellWidgetDeclaration()
         var assetPackages: [String: URL] = [:]
+        var declaredHosts: Set<String> = []
         var componentDescriptors: [ShellComponentDescriptor] = []
 
         init(name: String, sourceURL: URL) {
@@ -255,8 +256,15 @@ final class ShellWidgetHost {
     let focusPolicyEngine: FocusPolicyEngine?
     let sessionToken: String
     let permissions: ShellNetworkPermissions
-    var networkApprovals: [ShellNetworkApproval.Key: ShellNetworkApproval] = [:]
-    var providerApprovals: [ShellProviderApproval.Key: ShellProviderApproval] = [:]
+    var networkApprovals: [ShellNetworkApproval.Key: ShellNetworkApproval] = [:] {
+        didSet { if networkApprovals != oldValue { onApprovalsChange?() } }
+    }
+
+    var providerApprovals: [ShellProviderApproval.Key: ShellProviderApproval] = [:] {
+        didSet { if providerApprovals != oldValue { onApprovalsChange?() } }
+    }
+
+    var onApprovalsChange: (@MainActor () -> Void)?
     var config = ShellConfig()
     let configurationCatalogLoader = ShellConfigurationCatalogLoader()
     var configurationCatalog: ShellConfigurationCatalog?
@@ -325,6 +333,7 @@ final class ShellWidgetHost {
     var placedSlots: [Monitor.ID: [WorkspaceBarShellWidget]] = [:]
     var popout: ShellPopout?
     var hiddenBarMenu: ShellHiddenBarMenu?
+    var hiddenBarMenuHosts: Set<String> = []
     var onHiddenBarMenuClose: (@MainActor () -> Void)?
     var closingPopout: ShellPopout?
     var drawer: ShellEdgeDrawer?

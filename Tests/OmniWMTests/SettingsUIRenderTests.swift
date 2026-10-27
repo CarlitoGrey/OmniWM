@@ -118,6 +118,33 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
+    func testNetworkPermissionsPageListsTheStyleWidgetsProgramsAndServices() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            for windowClass in windowClasses {
+                let navigation = SettingsNavigationModel()
+                navigation.section = .network
+                let root = SettingsView(
+                    settings: fixture.settings, controller: fixture.controller,
+                    windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+                )
+                try await render(
+                    root, fixture: fixture, windowClass: windowClass, section: .network,
+                    name: "settings-network-permissions-\(windowClass.suffix)",
+                    requiredText: [SettingsSection.network.subtitle, "CI status", "api.github.com"],
+                    requiredObservations: [String(localized: "Widgets"), String(localized: "Not asked")]
+                )
+                XCTAssertNil(fixture.controller.workspaceBarManager.shellHost)
+            }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
     func testPopulatedAppRulesAndItsEditorRenderAtNarrowAndWideSizes() async throws {
         try requireNativeRendering()
         let fixture = try Fixture()
@@ -547,6 +574,7 @@ final class SettingsUIRenderTests: XCTestCase {
         case .appearance: String(localized: "App Appearance")
         case .styles: String(localized: "Bar Widgets")
         case .menuBar: String(localized: "Show Workspace")
+        case .network: String(localized: "Built-in Services")
         case .workspaces: String(localized: "Layout Algorithm")
         case .layouts: String(localized: "Spacing")
         case .monitors: String(localized: "Arrangement")

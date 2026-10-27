@@ -173016,6 +173016,97 @@
     },
     "Live opacity needs a new Kitty Quake session. Close the Kitty panel when ready, then reopen it; OmniWM will not restart its shells." : {
 
+    },
+    "Network & Permissions" : {
+
+    },
+    "Review what OmniShell widgets, native programs, and built-in services can reach." : {
+
+    },
+    "Widget Network Access" : {
+
+    },
+    "Programs" : {
+
+    },
+    "Built-in Services" : {
+
+    },
+    "Lyrics" : {
+
+    },
+    "Your organization’s policy for OmniWM has invalid values for %@. OmniWM applies the most restrictive setting until the policy is fixed." : {
+
+    },
+    "No installed widget declares a network server." : {
+
+    },
+    "Widgets can reach only the servers they declare. OmniWM asks the first time a widget connects to a server you haven’t decided on. Changes take effect on the widget’s next request." : {
+
+    },
+    "No installed widget includes a native program." : {
+
+    },
+    "A program runs as you, with full access to your files and network. OmniWM asks before it first runs and again whenever it changes." : {
+
+    },
+    "Sends the city or coordinates you set for weather to %@." : {
+
+    },
+    "Sends the playing track’s title, artist, album, and length to %@ to find synced lyrics." : {
+
+    },
+    "The widget’s own description" : {
+
+    },
+    "Blocked" : {
+
+    },
+    "Access" : {
+
+    },
+    "Allowed by your organization" : {
+
+    },
+    "Not asked" : {
+
+    },
+    "Allowed" : {
+
+    },
+    "Declared by your shell.toml" : {
+
+    },
+    "Needs approval" : {
+
+    },
+    "Revoke" : {
+
+    },
+    "OmniWM remembers your choice. You can change it in Settings › Network & Permissions." : {
+
+    },
+    "Allow “%@” to connect to the internet?" : {
+
+    },
+    "Allow “%@” to run a program?" : {
+
+    },
+    "This widget asks to send requests to the servers below." : {
+
+    },
+    "“%@” runs “%@” as you, with full access to your files and network. Only allow programs you trust." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "“%1$@” runs “%2$@” as you, with full access to your files and network. Only allow programs you trust."
+          }
+        }
+      }
+    },
+    "Network & Permissions…" : {
+
     }
   },
   "version" : "1.0"

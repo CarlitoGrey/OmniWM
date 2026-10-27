@@ -10,7 +10,7 @@ final class SettingsNavigationTests: XCTestCase {
         let destinations = SettingsSectionGroup.allCases.flatMap(\.sections)
         XCTAssertEqual(Set(destinations), Set(SettingsSection.allCases))
         XCTAssertEqual(destinations.count, Set(destinations).count)
-        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .menuBar])
+        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .menuBar, .network])
     }
 
     func testSearchFindsShellTasksAndIndividualControls() throws {
@@ -30,6 +30,15 @@ final class SettingsNavigationTests: XCTestCase {
         )
         XCTAssertTrue(SettingsSearchIndex.results(for: "zqvnomatch").isEmpty)
         XCTAssertTrue(SettingsSearchIndex.results(for: "  ").isEmpty)
+    }
+
+    func testNetworkPermissionsSearchFindsThePageAndItsServices() throws {
+        XCTAssertTrue(SettingsSearchIndex.results(for: "permissions").contains {
+            $0.route == SettingsRoute(section: .network)
+        })
+        let lyrics = try XCTUnwrap(SettingsSearchIndex.results(for: "Lyrics")
+            .first { $0.title == String(localized: "Lyrics") })
+        XCTAssertEqual(lyrics.route, SettingsRoute(section: .network, anchor: NetworkPermissionsPage.servicesAnchor))
     }
 
     func testIslandSearchTargetsTheEditorSurfaceAndPreservesItsGroups() throws {

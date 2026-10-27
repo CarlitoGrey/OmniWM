@@ -18,7 +18,7 @@ enum ShellHTTPPolicy: Sendable {
 
     static func root(_ source: ShellWidgetSource, permissions: ShellNetworkPermissions) -> ShellHTTPPolicy {
         guard let principal = source.principal else { return .denied }
-        return .widget(principal, hosts: Set(source.network.map(canonicalHost)), permissions: permissions)
+        return .widget(principal, hosts: source.declaredHosts, permissions: permissions)
     }
 
     static func resolve(

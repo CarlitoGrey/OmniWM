@@ -33,6 +33,10 @@ final class ShellPermissionSettings {
         decisions.setProgram(decision, for: approval)
     }
 
+    func resetProgram(_ key: ShellProviderApproval.Key) {
+        decisions.removeProgram(key)
+    }
+
     func setServiceEnabled(_ enabled: Bool, service: ShellBuiltInService) {
         switch service {
         case .weather: decisions.services.weather = enabled
@@ -81,19 +85,23 @@ struct ShellPermissionDecisions: Codable, Equatable, Sendable {
     var services = Services()
 
     mutating func setProgram(_ decision: HostDecision?, for approval: ShellProviderApproval) {
-        let index = programs.firstIndex {
-            $0.name == approval.principal.name && $0.source == approval.principal.source && $0.command == approval
-                .command
-        }
-        programs.removeAll {
-            $0.name == approval.principal.name && $0.source == approval.principal.source && $0.command == approval
-                .command
-        }
+        let index = removeProgram(approval.key)
         guard let decision else { return }
         programs.insert(Program(
             name: approval.principal.name, source: approval.principal.source,
             command: approval.command, sha256: approval.sha256, denied: decision == .denied
         ), at: index ?? programs.endIndex)
+    }
+
+    @discardableResult
+    mutating func removeProgram(_ key: ShellProviderApproval.Key) -> Int? {
+        let matches = { (program: Program) in
+            program.name == key.principal.name && program.source == key.principal.source
+                && program.command == key.command
+        }
+        let index = programs.firstIndex(where: matches)
+        programs.removeAll(where: matches)
+        return index
     }
 
     mutating func setNetwork(

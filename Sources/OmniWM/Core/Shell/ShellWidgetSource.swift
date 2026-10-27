@@ -21,4 +21,8 @@ struct ShellWidgetSource: Sendable {
     var network: [String] = []
     var principal: ShellWidgetPrincipal?
     var purpose: String?
+
+    var declaredHosts: Set<String> {
+        Set(network.map(ShellHTTPPolicy.canonicalHost))
+    }
 }

@@ -39,6 +39,7 @@ extension ShellWidgetPackage {
             })
             componentDescriptors = source.componentDescriptors
             httpDeclarations.update(source, components: Array(configuredComponents.values), permissions: permissions)
+            networkApprovals = networkApprovals.filter(httpDeclarations.declares)
             rootPurpose = source.purpose
             if !closing { revalidateNetwork() }
         }

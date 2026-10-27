@@ -33,7 +33,7 @@ enum SettingsSearchIndex {
             route: SettingsRoute(section: section),
             keywords: aliases(for: section)
         )
-    } + settings
+    } + settings + networkSettings
 
     private static func setting(
         _ title: LocalizedStringResource,
@@ -325,6 +325,13 @@ enum SettingsSearchIndex {
 }
 
 extension SettingsSearchIndex {
+    private static let networkSettings: [SettingsSearchEntry] = [
+        setting("Widget Network Access", section: .network, anchor: NetworkPermissionsPage.widgetsAnchor),
+        setting("Programs", section: .network, anchor: NetworkPermissionsPage.programsAnchor),
+        setting("Built-in Services", section: .network, anchor: NetworkPermissionsPage.servicesAnchor),
+        setting("Lyrics", section: .network, anchor: NetworkPermissionsPage.servicesAnchor)
+    ]
+
     static func tabTitle(_ tab: String) -> String {
         switch tab {
         case "lanes": String(localized: "Bar Widgets")
@@ -367,6 +374,22 @@ extension SettingsSearchIndex {
                 "components"
             ]
         case .menuBar: ["status bar", "hidden bar", "menu bar", "icons"]
+        case .network: [
+                "permissions",
+                "network",
+                "internet",
+                "privacy",
+                "hosts",
+                "servers",
+                "consent",
+                "trust",
+                "providers",
+                "programs",
+                "weather",
+                "lyrics",
+                "organization",
+                "mdm"
+            ]
         case .layouts: ["spacing", "gaps", "margins", "niri", "dwindle", "columns", "tiling"]
         case .monitors: ["monitors", "displays", "screens", "routing"]
         case .appRules: ["app rules", "float", "tile", "bundle", "match"]

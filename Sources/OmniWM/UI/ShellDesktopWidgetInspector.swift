@@ -61,6 +61,9 @@ struct ShellDesktopWidgetInspector: View {
             } else {
                 Button("Remove from Bar", role: .destructive) { editor.remove(widget) }
             }
+            if schema?.network.isEmpty == false {
+                Button("Network & Permissions…") { editor.openPermissions(.bar, widget) }
+            }
         }
     }
 

@@ -206,6 +206,8 @@ extension ShellWidgetHost {
         let state = WidgetState(name: "hidden-bar-menu", sourceURL: url)
         do {
             let source = try widgetSource(of: state)
+            hiddenBarMenuHosts = source.declaredHosts
+            pruneApprovals()
             onHiddenBarMenuClose = onClose
             hiddenBarMenu = ShellHiddenBarMenu(
                 page: page,
@@ -242,6 +244,14 @@ extension ShellWidgetHost {
         let onClose = onHiddenBarMenuClose
         onHiddenBarMenuClose = nil
         onClose?()
+    }
+
+    func refreshHiddenBarMenuHosts() {
+        guard !hiddenBarMenuHosts.isEmpty, hiddenBarMenu == nil else { return }
+        let url = config.widget("hidden-bar-menu") ?? ShellConfig.bundledWidget("hidden-bar-menu")
+        hiddenBarMenuHosts = url.flatMap {
+            try? widgetSource(of: WidgetState(name: "hidden-bar-menu", sourceURL: $0)).declaredHosts
+        } ?? []
     }
 
     func togglePopout(

@@ -129,6 +129,10 @@ extension WorkspaceBarManager {
             editShellWidget(name, edit)
         case .openBarWidgetSettings:
             controller?.statusBarController?.openSettings(section: .styles)
+        case let .openNetworkPermissions(name):
+            controller?.statusBarController?.openSettings(
+                section: .network, anchor: NetworkPermissionsPage.anchor(.bar, name)
+            )
         default:
             controller?.performWorkspaceBarMenuAction(action, barMonitorId: monitorId)
         }
@@ -140,19 +144,30 @@ extension WorkspaceBarManager {
         else {
             return
         }
+        let folder = shellHost?.widgets[request.widget]?.sourceURL.deletingLastPathComponent()
+        let network = folder.flatMap { try? ShellRootSettings.load(request.widget, folder: $0) }?.network ?? []
         let items = Self.widgetMenuItems(
             for: request.widget,
             layout: try? ShellBarLayout.load(shellDirectory: shellDirectory).get(),
-            vertical: controller.settings.workspaceBar.resolved(for: monitor).position.isVertical
+            vertical: controller.settings.workspaceBar.resolved(for: monitor).position.isVertical,
+            permissions: !network.isEmpty
         )
         let rect = request.view.convert(window.convertFromScreen(request.anchor.frame), from: nil)
         let location = CGPoint(x: rect.minX, y: request.view.isFlipped ? rect.maxY : rect.minY)
         present(items, at: location, in: request.view, monitorId: request.monitor, renameAnchor: request.anchor.frame)
     }
 
-    static func widgetMenuItems(for name: String, layout: ShellBarLayout?, vertical: Bool) -> [WorkspaceBarMenuItem] {
-        let settings = WorkspaceBarMenuItem.action(String(localized: "Bar Widgets…"), .openBarWidgetSettings)
-        guard let layout else { return [.header(ShellBarLayout.title(of: name)), settings] }
+    static func widgetMenuItems(
+        for name: String,
+        layout: ShellBarLayout?,
+        vertical: Bool,
+        permissions: Bool
+    ) -> [WorkspaceBarMenuItem] {
+        var links = [WorkspaceBarMenuItem.action(String(localized: "Bar Widgets…"), .openBarWidgetSettings)]
+        if permissions {
+            links.append(.action(String(localized: "Network & Permissions…"), .openNetworkPermissions(name)))
+        }
+        guard let layout else { return [.header(ShellBarLayout.title(of: name))] + links }
         let lane = layout.lane(of: name) ?? .trailing
         let names = layout.names(in: lane)
         let moves = ShellLane.allCases.filter { $0 != lane }.map { target in
@@ -176,9 +191,8 @@ extension WorkspaceBarManager {
         ] + moves + [
             .separator,
             .action(String(localized: "Remove from Bar"), .editShellWidget(name, .remove)),
-            .separator,
-            settings
-        ]
+            .separator
+        ] + links
     }
 
     private func editShellWidget(_ name: String, _ edit: ShellWidgetEdit) {

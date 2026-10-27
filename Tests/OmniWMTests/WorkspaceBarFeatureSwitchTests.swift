@@ -96,6 +96,18 @@ final class WorkspaceBarFeatureSwitchTests: XCTestCase {
     }
 
     @MainActor
+    func testRepeatedSetupKeepsThePermissionPromptCoordinator() throws {
+        let settings = makeSettingsStore()
+        settings.workspaceBar.enabled = false
+        let controller = WMController(settings: settings)
+        controller.setWorkspaceBarEnabled(false)
+        let prompts = try XCTUnwrap(controller.workspaceBarManager.shellPermissionPrompts)
+
+        controller.setWorkspaceBarEnabled(false)
+        XCTAssertTrue(controller.workspaceBarManager.shellPermissionPrompts === prompts)
+    }
+
+    @MainActor
     private func makeSettingsStore() -> SettingsStore {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("OmniWMWorkspaceBarFeatureSwitchTests-\(UUID().uuidString)", isDirectory: true)

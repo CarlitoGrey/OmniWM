@@ -133,7 +133,8 @@ extension WorkspaceBarManager {
             publishShellBadges()
         }
         host.setBarColors(accent: settings.workspaceBar.accentColor, foreground: settings.workspaceBar.textColor)
-        host.setLocked(controller?.isLockScreenActive == true)
+        shellPermissionPrompts?.observe(host)
+        setShellLocked(controller?.isLockScreenActive == true)
         host.start()
     }
 
@@ -243,6 +244,7 @@ extension WorkspaceBarManager {
 
     func setShellLocked(_ locked: Bool) {
         shellHost?.setLocked(locked)
+        shellPermissionPrompts?.setSuspended(locked)
     }
 
     private func keepsShellInstance(_ bar: DesiredBarSurface) -> Bool {
