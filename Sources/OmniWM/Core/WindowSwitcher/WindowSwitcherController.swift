@@ -107,13 +107,6 @@ final class WindowSwitcherController {
             tokens: scopedItems().map { $0.handle.id }, current: current, reverse: reverse,
             recent: controller.workspaceManager.windowFocusRecencyOrder
         )
-        if let token = selection.directSwitchTarget(totalWindowCount: items.count),
-           let target = scopedItems().first(where: { $0.handle.id == token })?.handle
-        {
-            dismiss()
-            activate(target, focusOrigin: .keyboardOrProgrammatic)
-            return
-        }
         isVisible = true
         controller.focusPolicyEngine.beginLease(owner: .windowSwitcher, reason: "window_switcher", duration: nil)
         dismissalMonitor.start(

@@ -15,12 +15,11 @@ struct AppearanceSettingsPage: View {
     }
 
     var body: some View {
-        TabView(selection: selection) {
-            Tab("App & Motion", systemImage: "paintpalette", value: "app") {
-                appAppearance
-            }
-            Tab("Window Borders", systemImage: "square.dashed", value: "borders") {
+        SettingsTabs(selection: selection, tabs: [("App & Motion", "app"), ("Window Borders", "borders")]) { tab in
+            if tab == "borders" {
                 BorderSettingsTab(settings: settings, controller: controller)
+            } else {
+                appAppearance
             }
         }
         .padding(.horizontal, 20)

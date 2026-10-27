@@ -871,6 +871,83 @@ final class ShellProfileTests: XCTestCase {
         XCTAssertEqual(ShellProfiles.names(in: root), ["default", "Aqua", "noctalia"])
     }
 
+    func testProfileDiscoveryFollowsDirectorySymlinksAndKeepsTheirNames() throws {
+        let names = try makeSymlinkedProfiles()
+        let target = root.appendingPathComponent(".profiles/look", isDirectory: true)
+        for name in ["widgets", "themes", "shaders", "lib", "default", ".hidden"] {
+            try FileManager.default.createSymbolicLink(
+                at: root.appendingPathComponent(name),
+                withDestinationURL: target
+            )
+        }
+
+        XCTAssertEqual(ShellProfiles.names(in: root), ["default"] + names)
+
+        let linkedShell = root.appendingPathComponent(".linked-shell", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: linkedShell, withDestinationURL: root)
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default"] + names)
+    }
+
+    func testSelectingSymlinkedProfilesLoadsTheirSettingsAndWidgets() throws {
+        for name in try makeSymlinkedProfiles() {
+            XCTAssertTrue(try ShellProfiles.select(name, in: root), name)
+            assertTOMLEqual(try String(contentsOf: root.appendingPathComponent("shell.toml"), encoding: .utf8), """
+            profile = "\(name)"
+            """)
+
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(shellDirectory: root, problems: &problems))
+            XCTAssertEqual(problems, [], name)
+            XCTAssertEqual(config.profile, name)
+            XCTAssertEqual(config.trailing, ["linked-clock"])
+            let widget = try XCTUnwrap(config.widget("linked-clock"))
+            XCTAssertEqual(widget, root.appendingPathComponent("\(name)/widgets/linked-clock/init.luau"))
+            XCTAssertEqual(try String(contentsOf: widget, encoding: .utf8), "return 'linked profile'")
+            XCTAssertFalse(try ShellProfiles.select(name, in: root), name)
+        }
+    }
+
+    func testNonDirectoryProfileSymlinksAreRejected() throws {
+        try write("x", to: "notes.txt")
+        let destinations = [
+            "file-link": "notes.txt",
+            "dangling": "missing",
+            "cycle-a": "cycle-b",
+            "cycle-b": "cycle-a"
+        ]
+        for (name, destination) in destinations {
+            try FileManager.default.createSymbolicLink(
+                atPath: root.appendingPathComponent(name).path,
+                withDestinationPath: destination
+            )
+        }
+
+        XCTAssertEqual(ShellProfiles.names(in: root), ["default"])
+        for name in destinations.keys {
+            XCTAssertThrowsError(try ShellProfiles.select(name, in: root)) { error in
+                XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile)
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("shell.toml").path))
+    }
+
+    private func makeSymlinkedProfiles() throws -> [String] {
+        try write("trailing = [\"linked-clock\"]\n", to: ".profiles/look/shell.toml")
+        try write("return 'linked profile'", to: ".profiles/look/widgets/linked-clock/init.luau")
+        let links = [
+            ("absolute", root.appendingPathComponent(".profiles/look").path),
+            ("relative", ".profiles/look"),
+            ("chained", "relative")
+        ]
+        for (name, destination) in links {
+            try FileManager.default.createSymbolicLink(
+                atPath: root.appendingPathComponent(name).path,
+                withDestinationPath: destination
+            )
+        }
+        return links.map(\.0).sorted()
+    }
+
     private func assertTOMLEqual(
         _ actual: String,
         _ expected: String,

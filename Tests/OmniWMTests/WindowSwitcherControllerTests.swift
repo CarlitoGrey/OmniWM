@@ -1,12 +1,81 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import AppKit
 import ApplicationServices
 @testable import OmniWM
 import XCTest
 
 @MainActor
 final class WindowSwitcherControllerTests: XCTestCase {
+    func testSingleAndTwoWindowScopesPresentCardsWithoutChangingFocusAndCanCancel() throws {
+        for windowCount in [1, 2] {
+            for scope in WindowSwitcherScope.allCases {
+                for reverse in [false, true] {
+                    let fixture = try makePresentationFixture(windowCount: windowCount)
+                    defer {
+                        fixture.switcher.shutdown()
+                        fixture.driver.finish()
+                        fixture.controller.layoutRefreshController.resetState()
+                        fixture.controller.surfaceReconciler.cleanup()
+                    }
+
+                    fixture.switcher.handle(.begin(reverse: reverse, scope: scope))
+
+                    XCTAssertTrue(fixture.switcher.isVisible)
+                    XCTAssertEqual(fixture.registry.visibleSurfaceIDs(), ["window-switcher"])
+                    let panel = try XCTUnwrap(fixture.registry.visibleWindows().first as? WindowSwitcherPanel)
+                    let cards = tiles(in: try XCTUnwrap(panel.contentView))
+                    XCTAssertEqual(cards.map(\.handle.id), fixture.tokens)
+                    XCTAssertEqual(
+                        cards.filter { $0.layer?.borderWidth == 3 }.map(\.handle.id),
+                        [fixture.tokens[windowCount - 1]]
+                    )
+                    XCTAssertEqual(fixture.controller.workspaceManager.nativeManagedFocusToken, fixture.tokens[0])
+
+                    fixture.switcher.handle(.cycle(reverse: reverse))
+                    XCTAssertTrue(fixture.switcher.isVisible)
+                    fixture.switcher.handle(.cancel)
+
+                    XCTAssertFalse(fixture.switcher.isVisible)
+                    XCTAssertTrue(fixture.registry.visibleWindows().isEmpty)
+                    XCTAssertEqual(fixture.controller.workspaceManager.nativeManagedFocusToken, fixture.tokens[0])
+                    XCTAssertNil(fixture.controller.focusPolicyEngine.activeLease)
+                }
+            }
+        }
+    }
+
+    func testSingleWindowScopeCanExpandToWindowsOnAnotherWorkspace() throws {
+        let fixture = try makePresentationFixture(windowCount: 1)
+        defer {
+            fixture.switcher.shutdown()
+            fixture.driver.finish()
+            fixture.controller.layoutRefreshController.resetState()
+            fixture.controller.surfaceReconciler.cleanup()
+        }
+        let otherWorkspaceId = try XCTUnwrap(WindowAdmissionTestSupport.workspace(
+            named: "2", layoutType: .niri, controller: fixture.controller
+        ))
+        let otherToken = WindowToken(pid: 81_001, windowId: 81_102)
+        _ = WindowAdmissionTestSupport.track(otherToken, in: otherWorkspaceId, controller: fixture.controller)
+
+        fixture.switcher.handle(.begin(reverse: false, scope: .activeWorkspace))
+
+        XCTAssertTrue(fixture.switcher.isVisible)
+        let panel = try XCTUnwrap(fixture.registry.visibleWindows().first as? WindowSwitcherPanel)
+        XCTAssertEqual(tiles(in: try XCTUnwrap(panel.contentView)).map(\.handle.id), fixture.tokens)
+
+        fixture.switcher.handle(.toggleScope)
+
+        XCTAssertTrue(fixture.switcher.isVisible)
+        XCTAssertEqual(
+            Set(tiles(in: try XCTUnwrap(panel.contentView)).map(\.handle.id)),
+            Set(fixture.tokens + [otherToken])
+        )
+        XCTAssertEqual(fixture.controller.workspaceManager.nativeManagedFocusToken, fixture.tokens[0])
+    }
+
     func testHiddenSwitcherRefreshDoesNotPinRetainedPreviews() async throws {
         let controller = WindowAdmissionTestSupport.controller(
             prefix: "OmniWMWindowSwitcherControllerTests",
@@ -79,5 +148,49 @@ final class WindowSwitcherControllerTests: XCTestCase {
             DispatchQueue.main.async { continuation.resume() }
         }
         XCTAssertNil(controller.windowSwitcherControllerStorage)
+    }
+
+    private struct PresentationFixture {
+        let controller: WMController
+        let switcher: WindowSwitcherController
+        let registry: OwnedWindowRegistry
+        let driver: OverviewPreviewTestDriver
+        let tokens: [WindowToken]
+    }
+
+    private func makePresentationFixture(windowCount: Int) throws -> PresentationFixture {
+        let registry = OwnedWindowRegistry(surfaceCoordinator: SurfaceCoordinator())
+        let controller = WindowAdmissionTestSupport.controller(
+            prefix: "OmniWMWindowSwitcherPresentationTests", ownedWindowRegistry: registry
+        )
+        controller.settings.windowSwitcher.enabled = true
+        let frame = CGRect(x: 0, y: 0, width: 1200, height: 800)
+        let monitor = Monitor(
+            id: .init(displayId: 81_000), displayId: 81_000,
+            frame: frame, visibleFrame: frame, hasNotch: false, name: "Window Switcher Tests"
+        )
+        controller.workspaceManager.applyMonitorConfigurationChange([monitor])
+        let workspaceId = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
+        _ = controller.workspaceManager.focusWorkspace(named: "1")
+        let tokens = (1 ... windowCount).map { WindowToken(pid: 81_001, windowId: 81_100 + $0) }
+        for token in tokens {
+            _ = WindowAdmissionTestSupport.track(token, in: workspaceId, controller: controller)
+        }
+        XCTAssertTrue(controller.workspaceManager.confirmManagedFocus(
+            tokens[0], in: workspaceId, onMonitor: monitor.id, activateWorkspaceOnMonitor: true
+        ))
+        controller.commandHandler.frontmostAppPidProvider = { tokens[0].pid }
+        controller.commandHandler.frontmostFocusedWindowTokenProvider = { tokens[0] }
+        let driver = OverviewPreviewTestDriver()
+        let capture = driver.makeCapture(consumer: .windowSwitcher, hasCaptureAccess: { false })
+        let switcher = WindowSwitcherController(controller: controller, previewCapture: capture)
+        return PresentationFixture(
+            controller: controller, switcher: switcher, registry: registry, driver: driver, tokens: tokens
+        )
+    }
+
+    private func tiles(in view: NSView) -> [WindowSwitcherTile] {
+        if let tile = view as? WindowSwitcherTile { return [tile] }
+        return view.subviews.flatMap { tiles(in: $0) }
     }
 }

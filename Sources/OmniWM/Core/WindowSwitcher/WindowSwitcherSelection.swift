@@ -22,11 +22,6 @@ struct WindowSwitcherSelection {
         cycle(reverse: reverse)
     }
 
-    func directSwitchTarget(totalWindowCount: Int) -> WindowToken? {
-        if tokens.count == 1 { return selected }
-        return totalWindowCount == 2 && tokens.count == 2 ? selected : nil
-    }
-
     mutating func reconcile(tokens: [WindowToken]) {
         let previousIndex = selected.flatMap { self.tokens.firstIndex(of: $0) } ?? 0
         self.tokens = tokens

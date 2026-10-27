@@ -25,20 +25,21 @@ struct ShellDesktopEditorPage: View {
         VStack(spacing: 10) {
             ShellDesktopStyleStrip(editor: editor)
             scope
-            TabView(selection: Binding(
-                get: { editor.surface },
-                set: { next in Task { await editor.selectSurface(next) } }
-            )) {
-                Tab("Bar", systemImage: "rectangle.topthird.inset.filled", value: ShellDesktopEditor.Surface.bar) {
-                    if editor.surface == .bar {
+            SettingsTabs(
+                selection: Binding(
+                    get: { editor.surface },
+                    set: { next in Task { await editor.selectSurface(next) } }
+                ),
+                tabs: [("Bar", .bar), ("Island", .island), ("Drawers", .drawers)]
+            ) { surface in
+                if surface == editor.surface {
+                    switch surface {
+                    case .bar:
                         VStack(spacing: 10) {
                             preview
                             ShellDesktopEditorForm(editor: editor)
                         }
-                    }
-                }
-                Tab("Island", systemImage: "capsule", value: ShellDesktopEditor.Surface.island) {
-                    if editor.surface == .island {
+                    case .island:
                         GeometryReader { geometry in
                             VStack(spacing: 8) {
                                 islandPreview(height: min(
@@ -48,10 +49,7 @@ struct ShellDesktopEditorPage: View {
                                 ShellIslandEditorForm(editor: editor)
                             }
                         }
-                    }
-                }
-                Tab("Drawers", systemImage: "rectangle.stack", value: ShellDesktopEditor.Surface.drawers) {
-                    if editor.surface == .drawers {
+                    case .drawers:
                         GeometryReader { geometry in
                             VStack(spacing: 8) {
                                 drawerPreview(height: min(

@@ -23,7 +23,7 @@ Each shortcut opens its assigned scope. **Last Used Scope** remembers the choice
 
 The first forward Tab selects the most recently focused window available in that scope, excluding the current window. Further presses follow the displayed layout order. Repeatedly pressing and releasing the shortcut switches back and forth between the two most recently used windows. Shift-Tab starts in reverse layout order.
 
-When exactly two eligible windows exist across all workspaces and both belong to the shortcut's scope, the shortcut focuses the other window immediately without opening the panel. Having two windows in the active workspace is not enough if other workspaces contain more windows.
+A scope with one or two windows uses the same preview panel and controls as a larger scope. Opening the switcher does not activate a window: release the shortcut's modifier, press Return, or click a card to select it. Escape cancels, and S still changes the workspace scope.
 
 ## Appearance and previews
 

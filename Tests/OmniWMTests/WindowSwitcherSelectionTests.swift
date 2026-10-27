@@ -32,25 +32,29 @@ final class WindowSwitcherSelectionTests: XCTestCase {
         XCTAssertEqual(selection.selected, third)
     }
 
-    func testDirectSwitchForTwoWindowsRequiresBothGloballyAndInScope() {
-        var selection = WindowSwitcherSelection()
-        selection.begin(tokens: [first, second], current: first, reverse: false)
-        XCTAssertEqual(selection.directSwitchTarget(totalWindowCount: 2), second)
-        XCTAssertNil(selection.directSwitchTarget(totalWindowCount: 3))
-        selection.begin(tokens: [first, second], current: second, reverse: true)
-        XCTAssertEqual(selection.directSwitchTarget(totalWindowCount: 2), first)
-        selection.reconcile(tokens: [])
-        XCTAssertNil(selection.directSwitchTarget(totalWindowCount: 0))
-    }
-
-    func testSingleWindowInScopeBypassesOverlayEvenWithOtherWorkspaceWindows() {
+    func testSingleWindowInScopeRemainsSelectedInBothDirections() {
         for current: WindowToken? in [first, third, nil] {
             for reverse in [false, true] {
                 var selection = WindowSwitcherSelection()
                 selection.begin(tokens: [first], current: current, reverse: reverse, recent: [third, first])
-                for totalWindowCount in [1, 2, 3] {
-                    XCTAssertEqual(selection.directSwitchTarget(totalWindowCount: totalWindowCount), first)
-                }
+                XCTAssertEqual(selection.selected, first)
+                selection.cycle(reverse: reverse)
+                XCTAssertEqual(selection.selected, first)
+                XCTAssertEqual(selection.tokens, [first])
+            }
+        }
+    }
+
+    func testTwoWindowsCycleBetweenBothCandidatesInBothDirections() {
+        for current in [first, second] {
+            for reverse in [false, true] {
+                var selection = WindowSwitcherSelection()
+                let other = current == first ? second : first
+                selection.begin(tokens: [first, second], current: current, reverse: reverse)
+                XCTAssertEqual(selection.selected, other)
+                selection.cycle(reverse: reverse)
+                XCTAssertEqual(selection.selected, current)
+                XCTAssertEqual(selection.tokens, [first, second])
             }
         }
     }

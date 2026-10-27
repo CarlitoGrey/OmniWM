@@ -14,8 +14,10 @@ struct MenuBarSettingsPage: View {
     }
 
     var body: some View {
-        TabView(selection: selection) {
-            Tab("macOS Status Item", systemImage: "menubar.rectangle", value: "status") {
+        SettingsTabs(selection: selection, tabs: [("macOS Status Item", "status"), ("Hidden Bar", "hidden")]) { tab in
+            if tab == "hidden" {
+                HiddenBarSettingsTab(settings: settings, controller: controller)
+            } else {
                 Form {
                     Section("Status Bar") {
                         Toggle("Show Workspace", isOn: Bindable(settings.statusBar).showWorkspaceName)
@@ -48,9 +50,6 @@ struct MenuBarSettingsPage: View {
                     .id("Status Bar")
                 }
                 .formStyle(.grouped)
-            }
-            Tab("Hidden Bar", systemImage: "eye.slash", value: "hidden") {
-                HiddenBarSettingsTab(settings: settings, controller: controller)
             }
         }
         .padding(.horizontal, 20)
