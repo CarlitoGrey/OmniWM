@@ -212,12 +212,13 @@ final class SettingsUIRenderTests: XCTestCase {
                 root, fixture: fixture, windowClass: windowClasses[1], name: "gesture-proposal-tab-round-trip",
                 requiredText: [String(localized: "Cancel")],
                 beforeCapture: { _ in
+                    let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" })
                     navigation.selectTab("mouse")
-                    try await Task.sleep(for: .milliseconds(300))
+                    await self.display(window, appearance: window.effectiveAppearance)
                     gestures.adoptNativeResize.toggle()
-                    try await Task.sleep(for: .milliseconds(300))
+                    await self.display(window, appearance: window.effectiveAppearance)
                     navigation.selectTab("trackpad")
-                    try await Task.sleep(for: .milliseconds(300))
+                    await self.display(window, appearance: window.effectiveAppearance)
                 }
             )
             XCTAssertEqual(editor.proposal?.refreshed, true)
@@ -246,8 +247,8 @@ final class SettingsUIRenderTests: XCTestCase {
                     @MainActor func scrollViews(in view: NSView) -> [NSScrollView] {
                         ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
                     }
-                    let content = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" }?
-                        .contentView)
+                    let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" })
+                    let content = try XCTUnwrap(window.contentView)
                     let scroll = try XCTUnwrap(scrollViews(in: content).first { view in
                         view.convert(view.bounds, to: content).minX >= 220
                             && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height + 300
@@ -258,9 +259,9 @@ final class SettingsUIRenderTests: XCTestCase {
                     clip.scroll(to: CGPoint(x: clip.bounds.minX, y: offset))
                     scroll.reflectScrolledClipView(clip)
                     navigation.selectTab("dwindle")
-                    try await Task.sleep(for: .milliseconds(300))
+                    await self.display(window, appearance: window.effectiveAppearance)
                     navigation.selectTab("niri")
-                    try await Task.sleep(for: .milliseconds(300))
+                    await self.display(window, appearance: window.effectiveAppearance)
                     XCTAssertNotNil(scroll.window, "Niri's form was rebuilt")
                     XCTAssertEqual(clip.bounds.minY, offset)
                 }

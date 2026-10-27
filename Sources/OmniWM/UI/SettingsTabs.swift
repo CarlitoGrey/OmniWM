@@ -3,12 +3,6 @@
 
 import SwiftUI
 
-/// Segmented tabs for a settings page. SwiftUI's `TabView` is backed by `NSTabView`, which can size its tab
-/// picker before the picker has a size when the page is inserted into a visible window, and only re-tiles it
-/// on a later resize; the collapsed picker draws every label on top of the others.
-///
-/// Like `TabView`, a tab is built when first shown and then kept alive while hidden, so its view state
-/// (scroll position, pickers, pending edits) survives switching tabs.
 struct SettingsTabs<Value: Hashable, Content: View>: View {
     @Binding var selection: Value
     let tabs: [(title: LocalizedStringKey, value: Value)]
