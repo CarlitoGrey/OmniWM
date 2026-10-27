@@ -78,7 +78,7 @@ A widget’s `settings.toml` declares root/bar settings. A component’s `compon
 | `deinit(instance)` | Retire an instance on disable/removal/reload; its services are cancelled and durable writes are flushed. |
 | `activity(ctx)` | Return `ComponentActivity` for root policy independently of visible views. |
 | `views[name](ctx)` | Construct one view with per-display/placement `ctx.state` and shared `ctx.instance.state`. |
-| `receive(instance, event)` | Handle ordered events from an explicitly enabled [provider](/omnishell/reference/providers/). |
+| `receive(instance, event)` | Handle ordered events from an approved [provider](/omnishell/reference/providers/). |
 
 Use `instance.state` for shared transient integration state and `ctx.state` for local presentation. Save explicitly through [durable storage](/omnishell/reference/services/#durable-state). Activity priority, labels, views, and alert data are interpreted by the root; native code does not prescribe promotion policy.
 
@@ -117,7 +117,7 @@ omniwm.config.set("hoverPreview", true)
 
 `add` assigns a stable new instance ID and returns it as `result.id` on success. Move indexes are one-based final positions. Each call returns a service handle, or `nil, error` if admission fails. The optional callback receives `{ok, id?, revision?, error?}`; persistence failure is reported as an error. Configuration actions share the normal bounded async ledger. The host also bounds queued and pending file writes to 256 operations independently of callback cancellation; excess work receives an overload error before changing configuration. Cancellation retires callback delivery; an accepted change already applied in memory still completes its file write.
 
-All values must satisfy the package's declared option schema. `id`, `widget`, `enabled`, `provider` and capability names are reserved option keys. Configuration actions cannot grant provider access or widen capabilities; enabling an already configured instance preserves its existing grants. Existing grants are preserved when reordering or changing ordinary options. File writes run off the render executor, preserve unrelated current user configuration, and do not reload the root VM. The first component-list write copies the complete effective list into `[profiles.<profile>.island]` because profile arrays replace lower layers.
+All values must satisfy the package’s declared option schema. `id`, `widget`, `enabled` and capability names are reserved option keys. `provider` is no longer a reserved permission flag: it is accepted only as a declared ordinary option. Configuration actions cannot grant consent, program trust or wider capabilities; enabling an instance, reordering it or editing ordinary options does not change its remembered decisions. File writes run off the render executor, preserve unrelated current user configuration, and do not reload the root VM. The first component-list write copies the complete effective list into `[profiles.<profile>.island]` because profile arrays replace lower layers.
 
 `omniwm.config.set` writes only the calling root's declared settings. A root exposes its editable schema through `widgets/<root>/settings.toml`:
 
@@ -136,16 +136,20 @@ max = 640
 step = 20
 ```
 
-The option types and validation rules are the same as component options. The host publishes effective values in `ctx.data.settings` and schema metadata in `ctx.data.settingsSchema`; they update together on configuration or source changes. A missing root schema means there are no declared root settings to write. Besides `[options.*]`, the file may hold one more top-level key listing the exact hosts the root's own `omniwm.http` calls may reach (see [Services](/omnishell/reference/services/)). Put it above the first `[options.*]` table, since TOML would otherwise read it as part of that option:
+The option types and validation rules are the same as component options. The host publishes effective values in `ctx.data.settings` and schema metadata in `ctx.data.settingsSchema`; they update together on configuration or source changes. A missing root schema means there are no declared root settings to write. The top-level `capabilities` key lists exact hosts for the root’s own `omniwm.http` calls and an optional `purpose` of at most 300 characters. Put it above the first `[options.*]` table, since TOML would otherwise read it as part of that option:
 
 ```toml
-capabilities = { network = ["api.github.com"] }
+capabilities = { network = ["api.github.com"], purpose = "Shows public repository workflow status." }
 
 [options.hoverPreview]
 type = "boolean"
 title = "Hover preview"
 default = true
 ```
+
+Components put the same optional `capabilities.purpose` in `component.toml`. Settings and network prompts show it verbatim as **The widget’s own description**. It grants nothing and may be omitted. HTTP requires both a declaration and a remembered user decision or managed preapproval; see [Services](/omnishell/reference/services/#consent-and-policy).
+
+An instance’s `capabilities.network` in your own `shell.toml` only extends the declared hosts and does not grant consent. Instance `capabilities.provider` is rejected; use the separate [program trust decision](/omnishell/reference/providers/) instead. Those decisions live in OmniWM’s `settings.toml`, outside the Luau configuration API.
 
 A replacement profile can render these controls however it chooses while retaining the same component integrations and configuration APIs. Native Settings still provides the Show Dynamic Island toggle, profile selection and shell folder access if a custom root cannot render.
 
@@ -157,7 +161,7 @@ Views and activities are retained independently. Each runs only when its selecte
 
 Unchanged views keep their handlers while other components publish. Each unit retains four changed handler revisions, and removal or reload invalidates that unit's old handlers. Hidden islands retain their views without rendering; activity dependencies continue updating in the background. Static packages receive no feed wakeup for data they do not use.
 
-Option schemas support `boolean`, `number` (`min`, `max`, `step`), `string` (`maxLength`), `choice` (`choices`) and `strings`. Identity, provider and capability fields are reserved. Native provider execution is not enabled merely by installing a component.
+Option schemas support `boolean`, `number` (`min`, `max`, `step`), `string` (`maxLength`), `choice` (`choices`) and `strings`. Identity and capability fields are reserved. Native provider execution is not enabled merely by installing a component.
 
 Native Settings translates option titles through `Shell.xcstrings`; unrecognized custom titles are displayed as provided. The localization check includes bundled option titles from both `settings.toml` and `component.toml`.
 

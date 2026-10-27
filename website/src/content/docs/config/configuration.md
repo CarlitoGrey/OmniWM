@@ -22,7 +22,7 @@ Both commands recreate the file from the running settings if it was deleted, so 
 
 ## Settings window
 
-The searchable Settings window groups controls by task. **Desktop** contains Styles & Widgets and Menu Bar; **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
+The searchable Settings window groups controls by task. **Desktop** contains Styles & Widgets, Menu Bar and Network & Permissions (Unreleased: available when building from `main`); **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
 
 **Start at Login** is managed by macOS, and **System-wide Window Corners** changes a macOS preference. Neither is stored in `settings.toml`.
 
@@ -88,6 +88,7 @@ The full schema is documented key by key in the [Settings Reference](/config/set
 | [`[quakeTerminal]`](/config/settings-reference/#quaketerminal) | Drop-down terminal |
 | [`[scratchpads]`](/config/settings-reference/#scratchpads) | Scratchpad slot labels |
 | [`[appearance]`](/config/settings-reference/#appearance) | Light/dark appearance of OmniWM's own UI |
+| [`[shellPermissions]`](/config/settings-reference/#shellpermissions) | Remembered OmniShell host/program decisions and built-in service switches |
 | [`[[hotkeys]]`](/config/settings-reference/#hotkeys) | One entry per assignable action |
 | [`[[workspaces]]`](/config/settings-reference/#workspaces) | Workspace definitions |
 | [`[[appRules]]`](/config/settings-reference/#apprules) | Per-app window rules |

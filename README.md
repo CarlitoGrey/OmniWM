@@ -668,6 +668,7 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 - **SIP stays enabled** — Official OmniWM releases do not require disabling System Integrity Protection.
 - **Signed and notarized releases** — Official release builds are Developer ID signed and Apple-notarized.
 - **Free and open source** — OmniWM has no subscriptions, feature paywalls, trial limits, or usage caps and is licensed GPL-2.0-only.
+- **OmniShell network consent** — **Unreleased:** Widgets need declared hosts and user consent or organization preapproval; native programs need trust tied to their executable and command. **Settings > Network & Permissions** manages those decisions and the built-in Weather and Lyrics switches, both on by default. Organization policies can block them. See [network permissions](https://omniwm.app/omnishell/reference/services/#consent-and-policy) and [managed preferences](https://omniwm.app/config/managed-preferences/).
 
 ## Requirements
 

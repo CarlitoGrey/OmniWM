@@ -70,12 +70,15 @@ The query shows widget state and errors, plus mistakes in `shell.toml` and theme
 | Options are absent | Put `settings.toml` beside the effective `init.luau`; declare the keys that source actually reads. User replacements do not inherit an ignored schema. |
 | State disappears after reload | Save durable values with `omniwm.store`; ordinary view state is not persisted. |
 | Data is unavailable | Check the permission below, then the data or service error. Reading data alone does not grant access. |
-| Provider does not run | Declare its manifest capability and explicitly enable `provider = true` in your own configured instance; see [Providers](/omnishell/reference/providers/). |
+| Provider does not run | Declare its manifest capability, enable its instance, and approve its trust prompt in **Settings > Network & Permissions**; check for a changed executable or an organization block. See [Providers](/omnishell/reference/providers/). |
 
 ## Permissions
 
 | Feature | Permission |
 |---|---|
+| Widget HTTP | Declared hosts plus remembered consent; an undecided request fails and automatically prompts. Review in **Settings > Network & Permissions**. |
+| Native provider | Author declaration plus trust for the executable and command |
+| Built-in Weather and Lyrics | On by default; global switches in **Settings > Network & Permissions**; organization blocks apply |
 | Per-app volume | System Audio Recording, asked the first time an app is turned down |
 | Calendar | Calendar full access, asked from the calendar widget |
 | Reminders | Reminders full access, requested only by `reminders authorize`; independent of Calendar access |
@@ -87,4 +90,4 @@ The query shows widget state and errors, plus mistakes in `shell.toml` and theme
 
 Now Playing needs no permission.
 
-Component capabilities are separate from macOS permissions. Network hosts, files, clipboard and provider execution must satisfy the [component contract](/omnishell/reference/components-configuration/), [service API](/omnishell/reference/services/) and [provider policy](/omnishell/reference/providers/). A widget cannot grant itself new capabilities through its configuration controls.
+Component capabilities are separate from macOS permissions. Network hosts, files, clipboard and provider execution must satisfy the [component contract](/omnishell/reference/components-configuration/), [service API](/omnishell/reference/services/) and [provider policy](/omnishell/reference/providers/). A widget cannot grant itself new capabilities through its configuration controls. Instance `capabilities.network` in your own `shell.toml` extends a declaration only; consent and program trust live in the app’s [settings.toml](/config/settings-reference/#shellpermissions). Organization policy uses separate [managed preferences](/config/managed-preferences/).

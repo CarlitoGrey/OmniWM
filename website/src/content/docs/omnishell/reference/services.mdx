@@ -66,12 +66,28 @@ Callbacks receive `{ok, status, headers, text?, json?, bytes?, error?}`. Respons
 A component declares exact network hosts in its manifest:
 
 ```toml
-capabilities = { network = ["api.github.com"] }
+capabilities = { network = ["api.github.com"], purpose = "Shows public repository workflow status." }
 ```
 
-Root/bar scripts declare theirs with the same line at the top of the `settings.toml` beside their effective `init.luau`, above any `[options.*]` table; a replacement `init.luau` does not inherit the hosts of the one it replaces, and a `settings.toml` that fails to load grants no hosts. Requests to any other host fail with `network_denied`.
+Root/bar scripts declare theirs with the same line at the top of the `settings.toml` beside their effective `init.luau`, above any `[options.*]` table; a replacement `init.luau` does not inherit the hosts of the one it replaces, and a `settings.toml` that fails to load grants no hosts. Undeclared hosts fail with `network_denied`, without a prompt. The optional `purpose` is at most 300 characters and appears as **The widget’s own description**; it is not a grant.
 
-Explicit user configuration may add component hosts. Declarations do not grant wildcard or subdomain access, and each redirect is checked. Requests must use HTTPS; plain HTTP is accepted only for `localhost`, `127.0.0.1` and `::1`, which still have to be declared. These rules constrain API use within the shared VM; they are not a process sandbox. Provider and other capability grants cannot be widened by the Luau configuration API.
+### Consent and policy
+
+Declarations are not consent. The first request to a declared, undecided host automatically shows a native prompt for that widget’s undecided hosts. Background polling can prompt too. Allow and Deny are remembered across profiles and instances for the same widget role, name and resolved source folder. Newly declared hosts need a new decision; an override or symlink retarget to another folder starts with no consent.
+
+| Error | Meaning |
+|---|---|
+| `network_not_approved` | No user decision or managed preapproval; the request fails immediately and queues consent. |
+| `network_blocked` | Your organization blocks the host or excludes it through allowlist-only policy. |
+| `network_denied` | User denial, an undeclared host, or a disallowed URL scheme. |
+
+These codes arrive in the callback's `error`, not as an admission error. `HTTPError` also permits other error strings, such as transport failures. Requests are never parked or replayed after Allow: the next ordinary request succeeds. A startup-only widget must wait for its next normal reload. Deny, Reset and managed blocks re-check transfers and queued body work; revoked work cannot report a successful late result. Bytes already sent cannot be recalled.
+
+Use **Settings > Network & Permissions** to change decisions, or follow **Network & Permissions…** from a declaring widget’s bar menu or Styles & Widgets inspector. Decisions are stored in OmniWM’s [settings.toml](/config/settings-reference/#shellpermissions), not the widget’s settings file. A root’s Luau configuration API cannot grant consent.
+
+Your own `shell.toml` instance `capabilities.network` can extend a component’s declared hosts; those hosts still need consent. Host matching is exact, case-insensitive and ignores trailing dots, with no wildcard or subdomain grants; a declared host covers any port. Requests must use HTTPS; plain HTTP is accepted only for declared `localhost`, `127.0.0.1` and `::1`. Every redirect re-checks declarations and current decisions but never prompts. Organization blocks win, a user Deny wins over managed preapproval, and otherwise managed preapproval or user Allow permits the request. See [Managed preferences](/config/managed-preferences/).
+
+These rules constrain the Luau HTTP API. Trusted native programs, terminal processes, update checks and browser `openURL` actions are outside it; this is not an OmniWM-wide firewall.
 
 The installed **CI status** component is optional and is not enabled by default. Add it through lake's component catalog or configure an instance with `widget="ci-status"`, `options.repo="owner/name"` and an integer `options.interval` between 15 and 3600 seconds (default 60). It uses public repository workflows without credentials. It keeps the last five valid runs across restarts, polls with one request or timer at a time and displays **Retry polling** if timer admission fails. A failed HTTP admission waits for the next ordinary poll; Retry resumes only when the user selects it. Replacing the component views leaves its HTTP, polling, storage and activity behavior available to custom layouts.
 
@@ -80,6 +96,8 @@ A newly observed failed workflow offers a stable four-second `activity.alert` ma
 <LuauDeclaration name="omniwm.http" />
 
 <LuauDeclaration name="HTTPRequest" />
+
+<LuauDeclaration name="HTTPError" />
 
 <LuauDeclaration name="HTTPResult" />
 

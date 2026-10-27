@@ -40,6 +40,7 @@ The **Desktop** group in Settings gives the shell its own destinations. Search S
 | **Styles & Widgets > Island** | Preview compact and expanded states, choose displays and fullscreen behavior, and configure the selected style’s island. Lake exposes native widget, appearance, interaction, and placement editors. |
 | **Styles & Widgets > Drawers** | Add drawers and configure their placement, hover, widgets and shortcut. |
 | **Menu Bar** | Change OmniWM’s status item and configure the **Hidden Bar** tab. |
+| **Network & Permissions** | Review installed widgets’ declared hosts, change remembered consent and program trust, and turn Weather or Lyrics off. Organization-managed blocks are locked. |
 
 You can configure the bar and island while their enable switches are off. The switches are independent: either surface can run alone, or both can run together. A **style** is a profile that supplies layout, widgets, and appearance; a **palette** changes its colors. Browsing a style preview leaves your desktop unchanged until you choose **Use Style**. Style options save to the selected style, and saved choices stay with that style when you switch away and return.
 

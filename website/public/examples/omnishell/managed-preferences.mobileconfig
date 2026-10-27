@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>PayloadContent</key>
+	<array>
+		<dict>
+			<key>PayloadContent</key>
+			<dict>
+				<key>com.barut.OmniWM</key>
+				<dict>
+					<key>Forced</key>
+					<array>
+						<dict>
+							<key>mcx_preference_settings</key>
+							<dict>
+								<key>ShellNetworkAllowedHosts</key>
+								<array>
+									<string>api.github.com</string>
+									<string>api.open-meteo.com</string>
+									<string>geocoding-api.open-meteo.com</string>
+								</array>
+								<key>ShellNetworkBlockedHosts</key>
+								<array>
+									<string>blocked.example.com</string>
+								</array>
+								<key>ShellNetworkOnlyAllowedHosts</key>
+								<false/>
+								<key>ShellProvidersAllowed</key>
+								<false/>
+								<key>ShellBlockedServices</key>
+								<array>
+									<string>lyrics</string>
+								</array>
+							</dict>
+						</dict>
+					</array>
+				</dict>
+			</dict>
+			<key>PayloadDisplayName</key>
+			<string>OmniWM Shell Permissions</string>
+			<key>PayloadIdentifier</key>
+			<string>com.example.omniwm.shell-permissions.preferences</string>
+			<key>PayloadType</key>
+			<string>com.apple.ManagedClient.preferences</string>
+			<key>PayloadUUID</key>
+			<string>1F38BE92-9A65-4B7C-9F61-070460DBD15B</string>
+			<key>PayloadVersion</key>
+			<integer>1</integer>
+		</dict>
+	</array>
+	<key>PayloadDisplayName</key>
+	<string>OmniWM Shell Permissions Example</string>
+	<key>PayloadIdentifier</key>
+	<string>com.example.omniwm.shell-permissions</string>
+	<key>PayloadType</key>
+	<string>Configuration</string>
+	<key>PayloadUUID</key>
+	<string>958DEEA7-E839-4DA7-B598-799D1BFE0279</string>
+	<key>PayloadVersion</key>
+	<integer>1</integer>
+</dict>
+</plist>

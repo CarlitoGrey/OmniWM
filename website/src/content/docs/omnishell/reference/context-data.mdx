@@ -95,7 +95,7 @@ ui.text{ text = ctx.format.bytes(ctx.data.system and ctx.data.system.memory.used
 | `volume`, `muted`, `outputs` | Output volume and the audio outputs |
 | `audioApps` | Apps with audio and their own volume |
 | `media` | What is playing, with artwork, shuffle and repeat |
-| `lyrics` | Synced lyrics for what is playing, from [LRCLIB](https://lrclib.net); the title, artist and album are sent there only while a widget reads `lyrics` |
+| `lyrics` | Synced lyrics for what is playing, from [LRCLIB](https://lrclib.net); the title, artist, album and track length are sent there while the service is allowed and a widget reads `lyrics` |
 | `spectrum` | 60 bars of what the Mac is playing, from 50 Hz to 10 kHz, and its tempo, about four times a second; needs System Audio Recording, like per-app volume |
 | `tempo` | Just the `spectrum` tempo in beats per minute, which changes far less often than the bars |
 | `calendar` | Upcoming events and a month to draw |
@@ -115,6 +115,24 @@ ui.text{ text = ctx.format.bytes(ctx.data.system and ctx.data.system.memory.used
 `seconds` is Unix time in seconds. A root island receives [Island](/omnishell/reference/context-data/#api-island) geometry and navigation data; ordinary bar placements receive `nil` for `island`. Reading a feed requests it; the host does not poll integrations that no widget uses. Library helpers obey the same dependency tracking.
 
 <LuauDeclaration name="Data" />
+
+## Weather and lyrics access
+
+**Settings > Network & Permissions > Built-in Services** controls Weather and Lyrics. Both default to on and ask no per-host prompt. Weather uses `api.open-meteo.com` and `geocoding-api.open-meteo.com` for your configured city or coordinates; Lyrics uses `lrclib.net` for the playing track. Organization host rules and service blocks apply to both, including redirects. Turning a service off cancels its work and clears its data; Lyrics also clears its cache. Turning it back on re-evaluates current widget demand.
+
+When present, both feeds include `access`: `"ok"`, `"off"` or `"blocked"`. A disabled or blocked weather value contains **only** `access`, with no temperature, status or forecast arrays. Lyrics keeps `status="none"` and an empty `lines` array. Check access before reading measurements or treating missing lyrics as a search result:
+
+```lua
+local weather = ctx.data.weather
+if weather and weather.access ~= "ok" then
+    return ui.text{ text = weather.access == "off" and "Turned off in Settings" or "Blocked by your organization" }
+end
+return ui.text{ text = weather and tostring(weather.temp) or "Unavailable" }
+```
+
+<LuauDeclaration name="WeatherUnavailable" />
+
+<LuauDeclaration name="Lyrics" />
 
 ## Reminders data
 

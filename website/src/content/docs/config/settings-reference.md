@@ -529,6 +529,57 @@ minHeight = 220.0
 minWidth = 574.0
 ```
 
+## shellPermissions
+
+**Settings > Network & Permissions** writes these decisions to the app’s `settings.toml`. They are separate from widget `settings.toml` declarations and `shell.toml` layout/options. External edits are live-reloaded. The section is optional: missing widget/program lists are empty, and missing service switches default to on. Unreleased: available when building from `main`.
+
+| Key | Type | Default | Description |
+|---|---|---|---|
+| `widgets` *(optional)* | array of tables | `[]` | Remembered per-host Allow and Deny for widget principals |
+| `programs` *(optional)* | array of tables | `[]` | Native program trust or denial, bound to the source, command and executable digest |
+| `services` *(optional)* | table | both on | Global `weather` and `lyrics` switches |
+
+### shellPermissions.widgets
+
+Each row requires `role` (`root`, `bar` or `component`), `name` and `source` (the canonical resolved widget folder). `allowed` and `denied` are host arrays, both empty by default. A host absent from both is **Not asked**. Reset removes its user decision. One principal’s choices apply across its instances, displays and profiles; an override or symlink retarget to another source folder has separate decisions.
+
+```toml
+[[shellPermissions.widgets]]
+role = "component"
+name = "ci-status"
+source = "/Users/me/.config/omniwm/shell/lake/widgets/ci-status"
+allowed = ["api.github.com"]
+denied = []
+```
+
+Hosts are exact names or IP literals, not URLs, with no wildcard or subdomain grant. Case and trailing dots are normalized. Declared hosts still need consent; adding instance `capabilities.network` only extends the declaration. Organization blocks win, then user Deny, then managed preapproval or user Allow. See [HTTP consent](/omnishell/reference/services/#consent-and-policy).
+
+### shellPermissions.programs
+
+Each row requires `name`, `source` and a `command` string array. `sha256` is optional; when present it is the approved executable digest. `denied` defaults to `false` and overrides approval for that source/command until Reset. The UI writes the observed digest for both Allow and Deny. Use the trust prompt to record the actual digest; this illustrative row denies a program without inventing an approval hash:
+
+```toml
+[[shellPermissions.programs]]
+name = "converter"
+source = "/Users/me/.config/omniwm/shell/lake/widgets/converter"
+command = ["provider.pl"]
+denied = true
+```
+
+Program rows have no `role` field. Revoke stores a denial; Reset removes the row. A matching source and full command still need the current executable’s SHA-256. The digest covers executable bytes, not its interpreter, environment or dependencies. This file is not protected from native programs already running as your user. See [Providers](/omnishell/reference/providers/).
+
+### shellPermissions.services
+
+```toml
+[shellPermissions.services]
+weather = true
+lyrics = true
+```
+
+Both Boolean keys are optional and default to `true`. Turning a service off cancels work and clears shared readings; Lyrics also clears cached tracks. Turning it on resumes current widget demand. Weather sends your configured city or coordinates to `api.open-meteo.com` and `geocoding-api.open-meteo.com`. Lyrics sends the playing track’s title, artist, album and length to `lrclib.net`. There are no built-in service prompts.
+
+[Managed preferences](/config/managed-preferences/) can force a service off, block its hosts or disable native programs. Managed values are not stored here. Update checks, embedded Ghostty and terminal children, internal helpers and browser `openURL` actions are outside these shell controls.
+
 ## Per-monitor overrides
 
 Five arrays hold per-monitor exceptions to the global tables. Every entry requires `monitorName`. Use the display’s `monitorDisplayUUID`; for a display without a UUID, supply both `monitorDisplayId` and `monitorName`. A name alone does not match a display. All entries except orientation also carry an `id` UUID identifying the override row, not the display. Override keys are all optional — an omitted key falls back to the corresponding global setting. All five arrays default to empty. Custom routing grids live separately in [`routing.arrangements`](#routing).

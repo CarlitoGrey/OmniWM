@@ -316,6 +316,12 @@ export type Reminders = {
     error: string?,
 }
 
+export type Lyrics = {
+    access: "ok" | "off" | "blocked",
+    status: "loading" | "synced" | "none",
+    lines: { { time: number, text: string } },
+}
+
 export type WeatherHour = {
     time: number,
     code: number,
@@ -338,7 +344,12 @@ export type WeatherDay = {
     rain: number?,
 }
 
+export type WeatherUnavailable = {
+    access: "off" | "blocked",
+}
+
 export type Weather = {
+    access: "ok",
     temp: number,
     feels: number?,
     high: number?,
@@ -357,7 +368,7 @@ export type Weather = {
     status: "ok" | "stale",
     hours: { WeatherHour },
     days: { WeatherDay },
-}
+} | WeatherUnavailable
 
 export type SystemDisplay = {
     w: number,
@@ -490,7 +501,7 @@ export type Data = {
     thermal: { cpu: number?, gpu: number?, gpuName: string? }?,
     networkHistory: { down: { number }, up: { number }, received: number, sent: number }?,
     appearance: ("light" | "dark")?,
-    lyrics: { status: "loading" | "synced" | "none", lines: { { time: number, text: string } } }?,
+    lyrics: Lyrics?,
     spectrum: { access: "unknown" | "granted" | "denied", bars: { number }, bpm: number? }?,
     tempo: number?,
     island: Island?,
@@ -555,7 +566,7 @@ export type ConfigResult = {
 export type ConfigCallback = (result: ConfigResult) -> ()
 
 export type ProviderState = {
-    status: "stopped" | "starting" | "running" | "exited" | "failed",
+    status: "stopped" | "starting" | "running" | "exited" | "failed" | "not_approved",
     error: string?,
     exitCode: number?,
     state: { [string]: any },
@@ -835,6 +846,8 @@ export type HTTPRequest = {
     timeout: number?,
 }
 
+export type HTTPError = "network_not_approved" | "network_blocked" | "network_denied" | string
+
 export type HTTPResult = {
     ok: boolean,
     status: number,
@@ -842,7 +855,7 @@ export type HTTPResult = {
     text: string?,
     json: any?,
     bytes: string?,
-    error: string?,
+    error: HTTPError?,
 }
 
 export type StoreStatus = {
