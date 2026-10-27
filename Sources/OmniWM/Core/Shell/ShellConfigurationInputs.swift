@@ -21,12 +21,15 @@ struct ShellConfigurationInputs: Sendable {
     }
 
     init(directory: URL, config: ShellConfig) throws {
+        var paths = SettingsFileObservationDirectories.paths(for: directory)
+        paths.insert(directory)
         let directory = try SettingsFileAccess.canonicalURL(for: directory)
         var files: [String: SettingsFileAccess.Fingerprint] = [:]
-        var paths: Set<URL> = [directory, directory.deletingLastPathComponent()]
+        paths.formUnion([directory, directory.deletingLastPathComponent()])
         var widgets: Set<String> = []
         let prefix = directory.standardizedFileURL.path + "/"
         let directories = try config.directories.compactMap { url -> URL? in
+            paths.formUnion(SettingsFileObservationDirectories.paths(for: url))
             do { return try SettingsFileAccess.canonicalURL(for: url) }
             catch let error as POSIXError where error.code == .ENOENT { return nil }
         }

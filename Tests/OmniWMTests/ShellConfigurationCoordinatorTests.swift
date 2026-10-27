@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import Darwin
 import Foundation
 import Observation
 @testable import OmniWM
@@ -351,6 +352,54 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         }
     }
 
+    func testObservedShellDirectoryLinksRetargetAndKeepReloading() async throws {
+        for suffix in ["", "shell"] {
+            let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let config = root.appendingPathComponent("config")
+            let aliases = root.appendingPathComponent("aliases")
+            for directory in [config, aliases] {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            }
+            let first = root.appendingPathComponent("targets/A").appendingPathComponent(suffix)
+            let second = root.appendingPathComponent("targets/B").appendingPathComponent(suffix)
+            for directory in [first, second] {
+                _ = ShellDefaults.sync(into: directory)
+                _ = try ShellProfiles.select("lake", in: directory)
+            }
+            let heightKey = ShellProfiles.key("workspaceBar", of: "lake") + ["height"]
+            _ = try ShellProfiles.setValue(41, at: heightKey, in: first)
+            _ = try ShellProfiles.setValue(47, at: heightKey, in: second)
+            let intermediate = aliases.appendingPathComponent("current")
+            try FileManager.default.createSymbolicLink(atPath: intermediate.path, withDestinationPath: "../targets/A")
+            let link = config.appendingPathComponent("current")
+            try FileManager.default.createSymbolicLink(atPath: link.path, withDestinationPath: "../aliases/current")
+            let shell = link.appendingPathComponent(suffix)
+            let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+            try await coordinator.refresh()
+            coordinator.startObserving()
+            defer { coordinator.stopObserving() }
+            try await coordinator.refresh()
+            XCTAssertEqual(coordinator.config.barOverride?.settings.height, 41)
+
+            try await expectObservedBarHeight(42, from: coordinator) {
+                _ = try ShellProfiles.setValue(42, at: heightKey, in: first)
+            }
+            try await expectObservedBarHeight(47, from: coordinator) {
+                try replaceDirectoryLink(intermediate, destination: "../targets/B")
+            }
+            try await expectObservedBarHeight(49, from: coordinator) {
+                _ = try ShellProfiles.setValue(49, at: heightKey, in: second)
+            }
+            try await expectObservedBarHeight(42, from: coordinator) {
+                try replaceDirectoryLink(link, destination: "../targets/A")
+            }
+            try await expectObservedBarHeight(43, from: coordinator) {
+                _ = try ShellProfiles.setValue(43, at: heightKey, in: first)
+            }
+        }
+    }
+
     func testObservedSchemaAndConfigurationEditsUpdateTheirOwners() async throws {
         let shell = try fixture()
         defer { try? FileManager.default.removeItem(at: shell) }
@@ -602,6 +651,29 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
             [String: TOMLNode].self,
             from: Data(contentsOf: shell.appendingPathComponent("shell.toml"))
         )
+    }
+
+    private func expectObservedBarHeight(
+        _ height: Double, from coordinator: ShellConfigurationCoordinator, edit: () throws -> Void
+    ) async throws {
+        let published = expectation(description: "Observed bar height \(height)")
+        published.assertForOverFulfill = false
+        coordinator.onSave = { config in
+            if config.barOverride?.settings.height == height { published.fulfill() }
+        }
+        try edit()
+        await fulfillment(of: [published], timeout: 3)
+        await coordinator.flush()
+        XCTAssertEqual(coordinator.config.barOverride?.settings.height, height)
+        XCTAssertNil(coordinator.metadataError)
+    }
+
+    private func replaceDirectoryLink(_ link: URL, destination: String) throws {
+        let replacement = link.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createSymbolicLink(atPath: replacement.path, withDestinationPath: destination)
+        guard Darwin.rename(replacement.path, link.path) == 0 else {
+            throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+        }
     }
 
     private func fixture() throws -> URL {
