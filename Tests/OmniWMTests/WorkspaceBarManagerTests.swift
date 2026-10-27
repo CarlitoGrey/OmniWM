@@ -279,6 +279,11 @@ final class WorkspaceBarManagerTests: XCTestCase {
         controller.settings.workspaceBar.fullWidth = true
         controller.settings.workspaceBar.revealModifier = .option
         controller.settings.workspaceBar.hideInNativeFullscreen = true
+        let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
+        XCTAssertTrue(try ShellProfiles.setValue(
+            WorkspaceBarPosition.overlappingMenuBar.rawValue,
+            at: ShellProfiles.key("workspaceBar", of: "default") + ["position"], in: shell
+        ))
         controller.workspaceManager.applyMonitorConfigurationChange([monitor])
         let menuBar = FakeMenuBarAutohide()
         let state = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -316,7 +321,6 @@ final class WorkspaceBarManagerTests: XCTestCase {
         XCTAssertEqual(menuBar.calls, [true, false])
         XCTAssertTrue(controller.toggleWorkspaceBarVisibility())
         apply()
-        let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
         XCTAssertTrue(try ShellProfiles.setValue(
             false, at: ShellProfiles.key("workspaceBar", of: "default") + ["fullWidth"], in: shell
         ))

@@ -243,6 +243,9 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         executionTimeAllowance = 60
         let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
         try FileManager.default.removeItem(at: shell)
+        try FileManager.default.createDirectory(at: shell, withIntermediateDirectories: true)
+        try Data("profiles.default.workspaceBar.position = \"overlappingMenuBar\"\n".utf8)
+            .write(to: shell.appendingPathComponent("shell.toml"))
         let workspace = try XCTUnwrap(controller.workspaceManager.workspaceId(for: "1", createIfMissing: true))
         let token = WindowToken(pid: NSRunningApplication.current.processIdentifier, windowId: 92_305)
         _ = WindowAdmissionTestSupport.track(token, in: workspace, controller: controller)
