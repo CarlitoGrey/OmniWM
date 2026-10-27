@@ -71,7 +71,7 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
 
     var applicationSections: [LauncherSection<LauncherApplicationResult>] = []
     var launcherFilter: LauncherFilter = .all
-    var savedApplicationIdentifiers: Set<String> = []
+    var savedApplicationIdentifiers: [UUID: String] = [:]
     var fileSections: [LauncherSection<LauncherFileResult>] = []
     var applicationChips: [LauncherChip] = []
     var fileChips: [LauncherChip] = []

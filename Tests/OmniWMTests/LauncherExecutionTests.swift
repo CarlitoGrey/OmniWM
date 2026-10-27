@@ -35,6 +35,50 @@ final class LauncherExecutionTests: XCTestCase {
         XCTAssertEqual(decoded.kind, .command)
     }
 
+    func testSavedCommandKeepsTheCapturedPathWhenLoginStartupResetsIt() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("launcher-path-\(UUID())")
+        let tools = root.appendingPathComponent("bin")
+        try FileManager.default.createDirectory(at: tools, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Data("export PATH=/usr/bin:/bin\n".utf8).write(to: root.appendingPathComponent(".bash_profile"))
+        let tool = tools.appendingPathComponent("omniwm-review-tool")
+        try Data("#!/bin/sh\nexit 0\n".utf8).write(to: tool)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tool.path)
+        let result = try await LauncherProcess.run(
+            executable: "/bin/bash",
+            arguments: LauncherShell.bash.commandArguments("omniwm-review-tool", interactive: false),
+            environment: ["PATH": tools.path + ":/usr/bin:/bin", "HOME": root.path]
+        )
+        XCTAssertEqual(result.status, 0, String(decoding: result.output, as: UTF8.self))
+    }
+
+    func testRefreshReloadsEveryCachedShellEnvironment() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("launcher-cache-\(UUID())")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let override = root.appendingPathComponent("zsh")
+        try FileManager.default.createSymbolicLink(at: override, withDestinationURL: URL(fileURLWithPath: "/bin/zsh"))
+        let previousZDOTDIR = ProcessInfo.processInfo.environment["ZDOTDIR"]
+        setenv("ZDOTDIR", root.path, 1)
+        setenv("OMNIWM_LAUNCHER_MARKER", "old", 1)
+        defer {
+            unsetenv("OMNIWM_LAUNCHER_MARKER")
+            if let previousZDOTDIR { setenv("ZDOTDIR", previousZDOTDIR, 1) } else { unsetenv("ZDOTDIR") }
+        }
+        var global = LauncherConfiguration()
+        global.shell = .zsh
+        global.shellExecutable = "/bin/zsh"
+        var entry = global
+        entry.shellExecutable = override.path
+        let cache = LauncherEnvironmentCache()
+        _ = try await cache.environment(for: global)
+        _ = try await cache.environment(for: entry)
+        setenv("OMNIWM_LAUNCHER_MARKER", "new", 1)
+        _ = try await cache.environment(for: global, refresh: true)
+        let reloaded = try await cache.environment(for: entry)
+        XCTAssertEqual(reloaded.values["OMNIWM_LAUNCHER_MARKER"], "new")
+    }
+
     func testConfigurationRoundtripIncludesSavedEntriesAndShells() throws {
         var export = SettingsExport.defaults()
         var entry = LauncherEntry()

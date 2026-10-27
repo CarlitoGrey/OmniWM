@@ -145,7 +145,8 @@ actor LauncherEnvironmentCache {
             executable: configuration.shellExecutable,
             folders: configuration.cliFolders
         )
-        if !refresh, let task = environments[key] { return try await task.value }
+        if refresh { environments.removeAll() }
+        if let task = environments[key] { return try await task.value }
         let task = Task { try await LauncherEnvironment.load(configuration: configuration) }
         environments[key] = task
         do {

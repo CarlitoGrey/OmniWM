@@ -45,7 +45,7 @@ enum ApplicationCatalogFilter {
             guard let entries = try? fileManager.contentsOfDirectory(atPath: root) else { continue }
             for entry in entries where !entry.hasPrefix(".") {
                 let path = (root as NSString).appendingPathComponent(entry)
-                if entry.hasSuffix(".app") {
+                if isApplicationCandidate(path) {
                     paths.append(path)
                     continue
                 }
@@ -57,7 +57,7 @@ enum ApplicationCatalogFilter {
                 else {
                     continue
                 }
-                paths += children.filter { $0.hasSuffix(".app") }.map { (path as NSString).appendingPathComponent($0) }
+                paths += children.map { (path as NSString).appendingPathComponent($0) }.filter(isApplicationCandidate)
             }
         }
         return paths
@@ -74,6 +74,10 @@ enum ApplicationCatalogFilter {
         url = url.resolvingSymlinksInPath()
         guard url.pathExtension.lowercased() == "app", Bundle(url: url)?.bundleIdentifier != nil else { return nil }
         return url
+    }
+
+    private static func isApplicationCandidate(_ path: String) -> Bool {
+        path.hasSuffix(".app") || isFinderAlias(URL(fileURLWithPath: path))
     }
 
     static func isFinderAlias(_ url: URL) -> Bool {

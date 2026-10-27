@@ -63,6 +63,32 @@ final class LauncherApplicationTests: XCTestCase {
             .contains(customApp.path))
     }
 
+    func testFolderScanFindsFinderAliasesWithoutAnAppExtension() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("launcher-alias-\(UUID())")
+        let folder = root.appendingPathComponent("Apps")
+        let app = root.appendingPathComponent("Fixture.app")
+        try FileManager.default.createDirectory(
+            at: app.appendingPathComponent("Contents"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let plist = ["CFBundleIdentifier": "com.omniwm.tests.fixture-\(UUID().uuidString)", "CFBundleName": "Fixture"]
+        try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+            .write(to: app.appendingPathComponent("Contents/Info.plist"))
+        let alias = folder.appendingPathComponent("Fixture alias")
+        try URL.writeBookmarkData(
+            app.bookmarkData(options: .suitableForBookmarkFile, includingResourceValuesForKeys: nil, relativeTo: nil),
+            to: alias
+        )
+        let note = folder.appendingPathComponent("notes")
+        try Data("plain".utf8).write(to: note)
+        let scanned = ApplicationCatalogFilter.scannedBundlePaths(home: root.path, extraFolders: [folder.path])
+        XCTAssertTrue(scanned.contains(alias.path))
+        XCTAssertFalse(scanned.contains(note.path))
+        XCTAssertEqual(ApplicationCatalogFilter.resolvedBundleURL(alias.path)?.lastPathComponent, "Fixture.app")
+    }
+
     func testRealHomebrewCaskIsDiscoverable() throws {
         guard ProcessInfo.processInfo.environment["OMNIWM_RUN_LAUNCHER_LIVE_TESTS"] == "1" else {
             throw XCTSkip("Set OMNIWM_RUN_LAUNCHER_LIVE_TESTS=1 for installed-app checks")

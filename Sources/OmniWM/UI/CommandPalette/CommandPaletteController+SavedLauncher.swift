@@ -21,9 +21,10 @@ extension CommandPaletteController {
 
     var displayedApplicationSections: [LauncherSection<LauncherApplicationResult>] {
         guard launcherFilter == .all || launcherFilter == .apps else { return [] }
-        guard launcherFilter == .all, !savedApplicationIdentifiers.isEmpty else { return applicationSections }
+        let shown = Set(launcherSavedEntries.compactMap { savedApplicationIdentifiers[$0.id] })
+        guard launcherFilter == .all, !shown.isEmpty else { return applicationSections }
         return applicationSections.compactMap { section in
-            let items = section.items.filter { !savedApplicationIdentifiers.contains($0.bundleIdentifier ?? "") }
+            let items = section.items.filter { !shown.contains($0.bundleIdentifier ?? "") }
             return items.isEmpty ? nil : LauncherSection(id: section.id, title: section.title, items: items)
         }
     }
@@ -85,10 +86,11 @@ extension CommandPaletteController {
     }
 
     func refreshSavedApplicationIdentifiers(settings: SettingsStore) {
-        savedApplicationIdentifiers = Set(settings.launcher.entries.filter { $0.kind == .application }.compactMap {
-            ApplicationCatalogFilter.resolvedBundleURL(LauncherPaths.expanded($0.path))
-                .flatMap { Bundle(url: $0)?.bundleIdentifier }
-        })
+        savedApplicationIdentifiers = settings.launcher.entries.filter { $0.kind == .application }
+            .reduce(into: [:]) { identifiers, entry in
+                identifiers[entry.id] = ApplicationCatalogFilter.resolvedBundleURL(LauncherPaths.expanded(entry.path))
+                    .flatMap { Bundle(url: $0)?.bundleIdentifier }
+            }
     }
 
     func publishLauncherTools() {

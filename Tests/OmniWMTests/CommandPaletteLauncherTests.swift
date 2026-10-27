@@ -161,6 +161,27 @@ final class CommandPaletteLauncherTests: XCTestCase {
         XCTAssertEqual(fixture.palette.currentSelectionList(), [.application(.all, item.id)])
     }
 
+    func testSavedAppHidesItsDiscoveredResultOnlyWhileTheSavedEntryIsShown() throws {
+        let recorder = Recorder()
+        let fixture = makeFixture(mode: .applications, recorder: recorder)
+        defer { fixture.cleanup() }
+        var entry = LauncherEntry()
+        entry.kind = .application
+        entry.path = ApplicationCatalogFilter.finderPath
+        entry.name = "Work Browser"
+        fixture.controller.settings.launcher.entries = [entry]
+        _ = try fixture.show()
+        fixture.palette.searchText = "Files"
+        let item = LauncherApplicationResult(
+            bundleURL: URL(fileURLWithPath: entry.path), bundleIdentifier: "com.apple.finder", displayName: "Files"
+        )
+        try XCTUnwrap(recorder.appSubmissions.last).publish(
+            fixture.palette.launcherRequestGeneration, [LauncherSection(id: .all, title: "", items: [item])], []
+        )
+        XCTAssertTrue(fixture.palette.launcherSavedEntries.isEmpty)
+        XCTAssertEqual(fixture.palette.currentSelectionList(), [.application(.all, item.id)])
+    }
+
     func testSettingsCanConfirmRemovalWhilePaletteIsClosed() {
         let recorder = Recorder()
         let fixture = makeFixture(mode: .applications, recorder: recorder)

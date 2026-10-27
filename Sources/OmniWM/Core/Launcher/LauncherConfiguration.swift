@@ -38,9 +38,9 @@ enum LauncherShell: String, Codable, CaseIterable, Sendable {
 
     func commandArguments(_ text: String, interactive: Bool) -> [String] {
         if self == .nushell {
-            return ["--login"] + (interactive ? ["--interactive"] : []) + ["--commands", text]
+            return (interactive ? ["--login", "--interactive"] : []) + ["--commands", text]
         }
-        return ["-l"] + (interactive ? ["-i"] : []) + ["-c", text]
+        return (interactive ? ["-l", "-i"] : []) + ["-c", text]
     }
 }
 
