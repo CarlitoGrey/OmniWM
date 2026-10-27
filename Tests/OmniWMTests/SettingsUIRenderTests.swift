@@ -183,7 +183,7 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
-    func testUnappliedGestureProposalSurvivesATabSwitch() async throws {
+    func testUnappliedGestureProposalStaysCurrentWhileItsTabIsHidden() async throws {
         try requireNativeRendering()
         let fixture = try Fixture()
         try await fixture.prepare()
@@ -214,11 +214,57 @@ final class SettingsUIRenderTests: XCTestCase {
                 beforeCapture: { _ in
                     navigation.selectTab("mouse")
                     try await Task.sleep(for: .milliseconds(300))
+                    gestures.adoptNativeResize.toggle()
+                    try await Task.sleep(for: .milliseconds(300))
                     navigation.selectTab("trackpad")
                     try await Task.sleep(for: .milliseconds(300))
                 }
             )
-            XCTAssertNotNil(editor.proposal)
+            XCTAssertEqual(editor.proposal?.refreshed, true)
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testTabKeepsItsScrollPositionAcrossTabSwitches() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let navigation = SettingsNavigationModel()
+            navigation.request(SettingsRoute(section: .layouts, tab: "niri"))
+            let root = SettingsView(
+                settings: fixture.settings, controller: fixture.controller,
+                windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+            )
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "settings-tab-scroll-round-trip",
+                requiredText: [],
+                beforeCapture: { _ in
+                    @MainActor func scrollViews(in view: NSView) -> [NSScrollView] {
+                        ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+                    }
+                    let content = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" }?
+                        .contentView)
+                    let scroll = try XCTUnwrap(scrollViews(in: content).first { view in
+                        view.convert(view.bounds, to: content).minX >= 220
+                            && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height + 300
+                    })
+                    let clip = scroll.contentView
+                    let offset = try XCTUnwrap(scroll.documentView).isFlipped
+                        ? 300 : try XCTUnwrap(scroll.documentView).bounds.height - clip.bounds.height - 300
+                    clip.scroll(to: CGPoint(x: clip.bounds.minX, y: offset))
+                    scroll.reflectScrolledClipView(clip)
+                    navigation.selectTab("dwindle")
+                    try await Task.sleep(for: .milliseconds(300))
+                    navigation.selectTab("niri")
+                    try await Task.sleep(for: .milliseconds(300))
+                    XCTAssertNotNil(scroll.window, "Niri's form was rebuilt")
+                    XCTAssertEqual(clip.bounds.minY, offset)
+                }
+            )
         } catch {
             await fixture.close()
             throw error

@@ -7,7 +7,7 @@ import SwiftUI
 struct SpacingSettingsPage: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
-    @Binding var selectedGapMonitor: Monitor.ID?
+    @State private var selectedGapMonitor: Monitor.ID?
     @State private var connectedMonitors: [Monitor] = Monitor.current()
 
     var body: some View {

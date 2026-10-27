@@ -7,10 +7,6 @@ struct LayoutSettingsPage: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     @Environment(SettingsNavigationModel.self) private var navigation
-    // Owned here so each tab keeps its display scope while another tab is shown.
-    @State private var spacingMonitor: Monitor.ID?
-    @State private var niriMonitor: Monitor.ID?
-    @State private var dwindleMonitor: Monitor.ID?
 
     private var selection: Binding<String> {
         Binding(get: { navigation.route.tab ?? "spacing" }, set: { navigation.selectTab($0) })
@@ -21,12 +17,9 @@ struct LayoutSettingsPage: View {
             ("Spacing", "spacing"), ("Niri", "niri"), ("Dwindle", "dwindle")
         ]) { tab in
             switch tab {
-            case "niri":
-                NiriSettingsTab(settings: settings, controller: controller, selectedMonitor: $niriMonitor)
-            case "dwindle":
-                DwindleSettingsTab(settings: settings, controller: controller, selectedMonitor: $dwindleMonitor)
-            default:
-                SpacingSettingsPage(settings: settings, controller: controller, selectedGapMonitor: $spacingMonitor)
+            case "niri": NiriSettingsTab(settings: settings, controller: controller)
+            case "dwindle": DwindleSettingsTab(settings: settings, controller: controller)
+            default: SpacingSettingsPage(settings: settings, controller: controller)
             }
         }
         .padding(.horizontal, 20)

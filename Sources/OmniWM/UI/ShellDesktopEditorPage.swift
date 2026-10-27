@@ -32,29 +32,31 @@ struct ShellDesktopEditorPage: View {
                 ),
                 tabs: [("Bar", .bar), ("Island", .island), ("Drawers", .drawers)]
             ) { surface in
-                switch surface {
-                case .bar:
-                    VStack(spacing: 10) {
-                        preview
-                        ShellDesktopEditorForm(editor: editor)
-                    }
-                case .island:
-                    GeometryReader { geometry in
-                        VStack(spacing: 8) {
-                            islandPreview(height: min(
-                                expandedPreview ? 180 : 110,
-                                max(64, geometry.size.height * 0.32)
-                            ))
-                            ShellIslandEditorForm(editor: editor)
+                if surface == editor.surface {
+                    switch surface {
+                    case .bar:
+                        VStack(spacing: 10) {
+                            preview
+                            ShellDesktopEditorForm(editor: editor)
                         }
-                    }
-                case .drawers:
-                    GeometryReader { geometry in
-                        VStack(spacing: 8) {
-                            drawerPreview(height: min(
-                                ShellSettingsPreview.drawerHeight, max(64, geometry.size.height * 0.3)
-                            ))
-                            ShellDrawerEditorForm(editor: editor)
+                    case .island:
+                        GeometryReader { geometry in
+                            VStack(spacing: 8) {
+                                islandPreview(height: min(
+                                    expandedPreview ? 180 : 110,
+                                    max(64, geometry.size.height * 0.32)
+                                ))
+                                ShellIslandEditorForm(editor: editor)
+                            }
+                        }
+                    case .drawers:
+                        GeometryReader { geometry in
+                            VStack(spacing: 8) {
+                                drawerPreview(height: min(
+                                    ShellSettingsPreview.drawerHeight, max(64, geometry.size.height * 0.3)
+                                ))
+                                ShellDrawerEditorForm(editor: editor)
+                            }
                         }
                     }
                 }

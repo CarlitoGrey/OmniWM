@@ -8,7 +8,6 @@ struct MouseTrackpadSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     @State private var missionControlGestureProbe: MissionControlGestureProbe
-    // Owned here so an unapplied gesture proposal survives a visit to the Mouse & Focus tab.
     @State private var gestureEditor: GestureAssignmentEditor
     @Environment(SettingsNavigationModel.self) private var navigation
     @State private var connectedMonitors: [Monitor] = Monitor.current()
