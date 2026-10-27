@@ -89,6 +89,17 @@ struct ShellConfigurationInputs: Sendable {
         self.widgets = widgets
     }
 
+    static func recoveryPaths(_ directory: URL, config: ShellConfig, previous: Self?) -> [URL] {
+        let profiles = ShellProfiles.names(in: directory).map { directory.appendingPathComponent($0) }
+        var paths = Set(previous?.paths ?? [])
+        for directory in Set([directory] + config.directories + profiles) {
+            let file = directory.appendingPathComponent("shell.toml")
+            paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
+            paths.formUnion([directory, file])
+        }
+        return paths.sorted { $0.path < $1.path }
+    }
+
     static func load(in directory: URL, profile: String? = nil) throws -> Prepared {
         var problems: [String] = []
         let value = if let profile {

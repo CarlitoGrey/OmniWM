@@ -461,13 +461,8 @@ extension ShellConfigurationCoordinator {
                 needsRefresh = false
                 do { try await refresh() }
                 catch {
-                    var paths = Set(inputs?.paths ?? [])
-                    for directory in Set([shellDirectory] + config.directories) {
-                        let file = directory.appendingPathComponent("shell.toml")
-                        paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
-                        paths.formUnion([directory, file])
-                    }
-                    observation?.sync(paths: Array(paths))
+                    let paths = ShellConfigurationInputs.recoveryPaths(shellDirectory, config: config, previous: inputs)
+                    observation?.sync(paths: paths)
                     metadataError = error.localizedDescription
                 }
             }

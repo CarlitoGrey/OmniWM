@@ -454,6 +454,48 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         }
     }
 
+    func testObservedProfileSwitchRecoversAfterRepairingAnUnselectedLinkedProfile() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+            .appendingPathComponent("OmniWMPR1005-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let shell = root.appendingPathComponent("config/shell")
+        let external = root.appendingPathComponent("external")
+        for directory in [shell, external] {
+            _ = ShellDefaults.sync(into: directory)
+            _ = try ShellProfiles.select("lake", in: directory)
+        }
+        let target = external.appendingPathComponent("lake")
+        _ = try ShellProfiles.setValue(47, at: ["workspaceBar", "height"], in: target)
+        let file = target.appendingPathComponent("shell.toml")
+        let repaired = try Data(contentsOf: file)
+        try Data("broken = [".utf8).write(to: file)
+        try FileManager.default.createSymbolicLink(
+            at: shell.appendingPathComponent("alternate"), withDestinationURL: target
+        )
+        let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+        try await coordinator.refresh()
+        coordinator.startObserving()
+        defer { coordinator.stopObserving() }
+        try await coordinator.refresh()
+
+        let failed = expectation(description: "New profile configuration error published")
+        failed.assertForOverFulfill = false
+        withObservationTracking { _ = coordinator.metadataError } onChange: { failed.fulfill() }
+        _ = try ShellProfiles.select("alternate", in: shell)
+        await fulfillment(of: [failed], timeout: 3)
+        await coordinator.flush()
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertNotNil(coordinator.metadataError)
+        XCTAssertEqual(coordinator.config.profile, "lake")
+        try await expectObservedBarHeight(47, from: coordinator) {
+            try repaired.write(to: file)
+        }
+        XCTAssertEqual(coordinator.config.profile, "alternate")
+        try await expectObservedBarHeight(49, from: coordinator) {
+            _ = try ShellProfiles.setValue(49, at: ["workspaceBar", "height"], in: target)
+        }
+    }
+
     func testObservedShellLinkParentReplacementRebindsWithoutContentChanges() async throws {
         let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
             .appendingPathComponent("OmniWMPR1005-\(UUID().uuidString)")
