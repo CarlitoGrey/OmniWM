@@ -295,7 +295,8 @@ extension WorkspaceBarManager {
                 geometry: geometry,
                 monitor: bar.monitor,
                 resolved: resolved
-            )
+            ),
+            icons: shellHost.config.scratchpadIcons
         )
         for index in data.scratchpads.indices {
             data.scratchpads[index].compact = compact.contains(data.scratchpads[index].id)
@@ -306,7 +307,8 @@ extension WorkspaceBarManager {
     static func compactScratchpads(
         _ snapshot: WorkspaceBarSnapshot,
         beside slots: [WorkspaceBarShellWidget],
-        availableWidth: CGFloat
+        availableWidth: CGFloat,
+        icons: Int
     ) -> Set<Int> {
         let others = slots.filter { $0.id != ShellConfig.bundledScratchpads }
         let presented = WorkspaceBarScratchpadLayout.compactedItems(
@@ -314,6 +316,7 @@ extension WorkspaceBarManager {
             availableWidth: availableWidth,
             baseWidth: 8 + others.reduce(0) { $0 + $1.size.width } + CGFloat(max(0, others.count - 1)) * 8,
             barHeight: snapshot.barHeight,
+            icons: icons,
             hasAdjacentContent: !others.isEmpty
         )
         return Set(presented.filter { $0.presentation == .compact }.map(\.index))

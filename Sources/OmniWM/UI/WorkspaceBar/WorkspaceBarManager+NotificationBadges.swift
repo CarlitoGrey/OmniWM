@@ -5,6 +5,7 @@ import Foundation
 
 extension WorkspaceBarManager {
     func updateNotificationBadgeTargets(_ bars: [DesiredBarSurface]) {
+        let scratchpadIcons = shellHost?.config.scratchpadIcons ?? 0
         notificationBadgeTargetsByMonitor = Dictionary(uniqueKeysWithValues: bars.map { bar in
             let snapshot = bar.visible ? barsByMonitor[bar.monitor.id]?.model.snapshot ?? bar.snapshot : bar.snapshot
             var bundleIDs: Set<String> = []
@@ -17,7 +18,7 @@ extension WorkspaceBarManager {
             for scratchpad in snapshot.scratchpads
                 where scratchpad.presentation == .expanded && !compacted.contains(scratchpad.index)
             {
-                for window in scratchpad.windows.prefix(WorkspaceBarScratchpadLayout.maximumVisibleAppIcons) {
+                for window in scratchpad.windows.prefix(scratchpadIcons) {
                     if let bundleID = window.bundleId { bundleIDs.insert(bundleID.lowercased()) }
                 }
             }

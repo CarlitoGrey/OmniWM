@@ -323,6 +323,7 @@ typedef struct omni_capture_stats {
     uint64_t http_rejections;
     uint64_t backlog_rejections;
     uint64_t id_rejections;
+    uint64_t bytecode_compiles;
 } omni_capture_stats;
 
 bool omni_vm_capture_begin(omni_vm *vm, uint64_t capture_id, omni_capture_stats *out) OMNI_NOEXCEPT;

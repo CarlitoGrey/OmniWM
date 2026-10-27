@@ -17,7 +17,7 @@ Bar widgets and popouts use the same widget package. `render(ctx)` supplies the 
 
 An enabled full-width bar holds macOS menu-bar auto-hide on at every edge. Turning off the last full-width bar restores the previous macOS setting. At the top, the bar also stays above the native menu bar. The themed presets reserve their occupied space for tiled windows; **Reserve Space for Workspace Bar** controls this, and an automatically hidden workspace bar does not reserve space.
 
-**Settings > Workspace Bar > Layout > Bar Widgets** edits them for the active profile: drag to reorder, select **Add Widget…** to choose a group, and select a widget for **Move**, **Options…**, or **Remove**. **Use Style Layout…** restores all three groups together. Right-click a widget on the bar to move it, take it off the bar or open these settings; when the widget uses right-click itself, Option + right-click opens the same menu. Your own widgets in `widgets/` are listed there to add.
+**Settings > Styles & Widgets > Bar** edits them for the selected style: drag to reorder, select **Add Widget…** to choose a group, and select a widget for its options or **Remove from Bar**. **Use Style Layout…** restores all three groups together. Right-click a widget on the bar to move it, take it off the bar or open these settings; when the widget uses right-click itself, Option + right-click opens the same menu. Your own widgets in `widgets/` are listed there to add.
 
 ```toml
 # In ~/.config/omniwm/shell/shell.toml, for the default profile:
@@ -30,9 +30,9 @@ Use the active profile’s name instead of `default`. In that profile folder’s
 
 ## Widget options
 
-The **Widgets** library also offers `launcher`, `active-window`, `input-source`, `wifi`, `bluetooth`, `battery-details`, `world-clock`, `privacy` and `control-center`. With **Transparent Background** and **Show Item Backgrounds** both on, the default widgets draw their own capsules and palette popouts.
+**Add Widget…** also offers `launcher`, `active-window`, `input-source`, `wifi`, `bluetooth`, `battery-details`, `world-clock`, `privacy` and `control-center`. With **Transparent Background** and **Show Item Backgrounds** both on, the default widgets draw their own capsules and palette popouts.
 
-Open **Options…** to change supported choices visually. Options follow the actual widget implementation in the selected style; a style that does not use an option does not show it. World Clock provides a location list, and Weather provides city or coordinates, units, and refresh interval. The default widgets also read these values from `profiles.<profile>.widgets.<name>` in `shell.toml`:
+Select a widget to change supported choices visually. Options follow the actual widget implementation in the selected style; a style that does not use an option does not show it. World Clock provides a location list, and Weather provides city or coordinates, units, and refresh interval. The default widgets also read these values from `profiles.<profile>.widgets.<name>` in `shell.toml`:
 
 | Widget | Settings |
 |---|---|
@@ -46,7 +46,7 @@ Open **Options…** to change supported choices visually. Options follow the act
 
 `hiddenBarWidget` and `systemStatsWidget` name the widgets that draw the Hidden Bar drawer and the System Stats popout. The profile supplies defaults; GUI changes are saved as that profile’s overrides. Workspace Bar’s master enable switch, excluded apps and icon overrides stay global. Enabling **System Stats Button** also places the configured stats widget on the bar if it was removed.
 
-For your own widgets, place `settings.toml` beside the effective `init.luau` to declare **Options…** controls. Values arrive in `ctx.data.settings`. See the [widget tutorial](/omnishell/guides/first-widget/) and [settings schema reference](/omnishell/reference/components-configuration/).
+For your own widgets, place `settings.toml` beside the effective `init.luau` to declare **Options** controls. Values arrive in `ctx.data.settings`. See the [widget tutorial](/omnishell/guides/first-widget/) and [settings schema reference](/omnishell/reference/components-configuration/).
 
 ## Popouts
 
@@ -56,7 +56,7 @@ Use stable element keys for interactive controls. The [UI elements](/omnishell/r
 
 ## Drawers
 
-Configure drawers under **Settings > Widgets > Drawers**: add a drawer, choose its edge and widgets, arrange them, and adjust hover, close, width, and background behavior. **Configure Shortcut…** opens the registered Toggle action; enable the bar or island first if the drawer has not been loaded.
+Configure drawers under **Settings > Styles & Widgets > Drawers**: add a drawer, choose its edge and widgets, arrange them, and adjust hover, close, hover area, and background behavior. **Configure Shortcut…** opens the registered Toggle action; enable the bar or island first if the drawer has not been loaded.
 
 A `[drawer.<id>]` stacks the popouts of its widgets in one panel on a screen edge, like a control center. Open it with `shell toggle <id>`, from a click, with **Settings > Keyboard Shortcuts > Toggle \<id\>**, or by moving the pointer to that edge when `hover = true`. Only one drawer or popout is open at a time. `width = 900` limits the hover to that stretch of the edge's middle, and `reach = 10` lets the pointer open it from up to 10 points away from the edge. `close = "leave"` closes it as soon as the pointer leaves it; opened by a click or hotkey, it stays until the pointer has been inside and left. `chrome = false` drops the panel's own background, padding and slide, so the widget draws the whole panel flush against the edge, beside the bar, with room to overshoot.
 

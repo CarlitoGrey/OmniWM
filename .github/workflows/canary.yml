@@ -125,22 +125,27 @@ jobs:
           export KEYCHAIN_PASSWORD
           ./Scripts/release-ci-credentials.sh
       - name: Build, sign and notarize the canary app
+        id: build
         if: steps.check.outputs.should_skip != 'true'
         env:
           OMNIWM_SIGNING_IDENTITY: ${{ env.OMNIWM_RELEASE_SIGNING_IDENTITY }}
           OMNIWM_NOTARIZE_PROFILE: ${{ env.OMNIWM_RELEASE_NOTARIZE_PROFILE }}
-        run: Scripts/package-app.sh release true
+        run: |
+          set -euo pipefail
+          STAMP="$(date -u +%Y%m%d-%H%M)"
+          TAG="canary-$STAMP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "stamp=$STAMP" >> "$GITHUB_OUTPUT"
+          OMNIWM_CANARY_TAG="$TAG" Scripts/package-app.sh release true
       - name: Publish the canary prerelease
         id: publish
         if: steps.check.outputs.should_skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.build.outputs.tag }}
+          STAMP: ${{ steps.build.outputs.stamp }}
         run: |
           set -euo pipefail
-          STAMP="$(date -u +%Y%m%d-%H%M)"
-          # Run and attempt IDs keep forced reruns in the same UTC minute
-          # from sharing a tag.
-          TAG="canary-$STAMP-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           # The tag must name the commit the ZIP and notes were built from;
           # checkout of main can be newer than the event's GITHUB_SHA.
           HEAD_SHA="$(git rev-parse HEAD)"

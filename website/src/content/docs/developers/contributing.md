@@ -17,14 +17,7 @@ Building OmniWM requires an **Apple Silicon Mac running macOS 27**, **Xcode 27**
 
 Install Xcode from [Apple Developer Downloads](https://developer.apple.com/download/all/), open it, and finish its first-launch setup. In **Xcode → Settings → Locations → Command Line Tools**, select Xcode 27. The standalone Command Line Tools package is not a substitute for this Xcode installation.
 
-Install [swiftly](https://www.swift.org/install/macos/), then install the pinned toolchain from the checkout and confirm it:
-
-```bash
-swiftly install
-swift --version
-```
-
-The result must report the Swift 6.5 development snapshot named in `.swift-version`.
+Install [swiftly](https://www.swift.org/install/macos/) to manage the pinned Swift toolchain.
 
 ### 2. Fork, Clone, and Create a Branch
 
@@ -39,6 +32,15 @@ git switch -c my-change upstream/main
 ```
 
 Use a descriptive branch name in place of `my-change`. Each contribution should start from `main` and focus on one problem.
+
+From the repository directory, install and confirm the pinned toolchain:
+
+```bash
+swiftly install
+swift --version
+```
+
+The result must report the Swift 6.5 development snapshot named in `.swift-version`.
 
 ### 3. Set Up Dependencies
 
@@ -161,7 +163,19 @@ CI takes Fish and Nushell from the flake to run the native CLI completion tests.
 
 For changes to setup, packaging, development installation, or related tooling, also run `make test-dev-tools`. This runs the Python development-tooling tests and is included in CI's **Tooling** job.
 
-Website changes use the checks in [Website Development](/developers/website/): `npm run check` and `npm run build` from `website/`. Small documentation-only changes do not need app builds or Swift tests.
+CI also checks that the generated IPC wire encoders match their models. After changing IPC models or the generator, run `python3 Scripts/generate_ipc_wire.py --check`. If it reports stale files, run `python3 Scripts/generate_ipc_wire.py`, review the generated diff, and rerun the check.
+
+### Translating the App
+
+Translations live in the [string catalogs](https://github.com/OmniNull/OmniWM/tree/main/Sources/OmniWM/Resources). `Localizable.xcstrings` contains interface text, `Commands.xcstrings` contains command names, categories, and scopes, `InfoPlist.xcstrings` contains the macOS permission descriptions, and `Shell.xcstrings` contains built-in OmniShell widget text. Add or edit your language's `localizations` entries in those files. Keep the English keys and source values intact, and translate the meaning in context. English is the fallback for strings without a translation.
+
+Preserve each format argument's type when translating. You may reorder arguments with positional forms such as `%2$@` and `%1$lld`; a `%lld` count cannot become `%@`. Plural branches may omit a count when the wording does not need it. `make verify` checks format arguments, including plural forms, before a translation is accepted. To preview length and direction issues, use Xcode's localization pseudolanguages or change the app language in macOS settings.
+
+If you change localized Swift source text, run `make localization-sync` to build and update the catalogs from compiler-extracted strings, then review the catalog diff. `make verify` fails when source and catalogs differ. For translation-only changes, edit the catalogs directly and run `make verify` and `make test-dev-tools`. This SwiftPM repository has no Xcode project for XLIFF export and import; contribute the catalog files directly. See Apple's [string catalog guide](https://developer.apple.com/documentation/xcode/localizing-and-varying-text-with-a-string-catalog) for the catalog format and plural variations.
+
+Before adding the first translation for a new language, translate every desktop string in all four catalogs and have a fluent speaker review the result in the packaged app. Add its cardinal plural categories to `PLURAL_CATEGORIES` in `Scripts/localization.py`, then run `python3 Scripts/localization.py completeness --locales fr de` with the locale codes you are adding; this optional audit requires a nonblank string marked `translated` for every nonempty key and each required plural branch. A partial catalog activates that language for macOS users as soon as it ships. After a language is established, newly added strings may temporarily fall back to English while translations catch up.
+
+Website changes use the checks in [Website Development](/developers/website/): `npm run reference:check`, `npm run check`, and `npm run build` from `website/`. Small documentation-only changes do not need app builds or Swift tests.
 
 GitHub's **OmniWM CI** workflow reports **Tooling** (flake check, formatting, lint, generated IPC files and `make test-dev-tools`), **Verify** (localization and build) and **Tests** (the serial Swift suite) separately. Tests are initially advisory while the hosted environment is established; a failing test still needs an explanation. On a first contribution, a maintainer may need to [approve the workflow run](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/approve-runs-from-forks) before checks start. A pending approval does not mean you did something wrong.
 
@@ -169,7 +183,7 @@ GitHub's **OmniWM CI** workflow reports **Tooling** (flake check, formatting, li
 
 Start with `make doctor` and the first error reported by the failing command.
 
-- **Wrong Swift version:** select Xcode 27 in its Locations settings, complete its first-launch setup, and check `xcrun swift --version` again.
+- **Wrong Swift version:** from the repository directory, run `swiftly install` and check `swift --version` against `.swift-version`. Ensure swiftly's `bin` directory is on `PATH`. Use `make doctor` to check the Swift toolchain and selected Xcode installation separately.
 - **Missing dependencies:** run `make setup`. If an existing GhosttyKit fails its checksum, move your custom framework aside before running setup again; the helper will not replace it for you.
 - **Permissions requested again:** check the signing identity with `make doctor`, rebuild with the same valid certificate, and grant Dev's permissions again when prompted. Stable and Dev permissions are separate.
 - **Switching stops because OmniWM is still running:** quit that copy from its menu, then retry. The helper does not force-kill it or install over a running copy.
@@ -185,13 +199,36 @@ Start with `make doctor` and the first error reported by the failing command.
 
 Reviewed development lands on `main`; published releases come from version tags. Merging a PR does not itself update users' installed apps.
 
+### Releases
+
+Releases use the **OmniWM release** workflow, dispatched from `main` in two runs: `prepare` with the version number, then `publish` with the prepare run ID and final release notes. Preparation requires BarutSRB's approval of the `release-signing` environment. Publication requires a separate BarutSRB approval of `release-publish`, after reviewing the exact artifact ID, release commit, asset checksums, and final notes in the validation job summary. The publish job downloads that same artifact by ID.
+
+Each prepare run first resolves the newest commit on Ghostty's upstream `main` and builds that exact revision in a separate job with no Apple credentials and a read-only repository token. It uses the released Zig version declared by that Ghostty revision, verifies the official compiler download, and runs `zig build -Doptimize=ReleaseFast -Demit-macos-app=false -Dxcframework-target=native` on Apple Silicon. There is no scheduled update. The source revision, compiler, build arguments, and framework checksums are saved as provenance.
+
+Preparation installs that framework on its disposable runner, runs `make verify` and both serial and parallel Swift tests against it, and includes its new source and binary pins in the release commit. An upstream build or compatibility failure stops preparation. Publication reuses the tested framework without checking upstream again. It restores the prepared ZIP before dependency setup, then verifies the public download before pushing the new pins to `main`. Ordinary `make setup` continues downloading the prebuilt framework for its checkout; contributors do not need Zig.
+
+Both environments must allow only the `main` branch, list **BarutSRB** as their sole required reviewer, and disable administrator bypass. Leave **Prevent self-review** off so BarutSRB can also approve a personally dispatched run. The workflow checks this configuration before preparation and again before publication; missing or weakened protection stops the run. Repository administrators remain able to change environment settings, so administrator access must remain trusted.
+
+Store these secrets in **Settings → Environments → release-signing** for stable releases and **canary-signing** for canary builds, with no repository-level duplicates:
+
+- `APPLE_DEVELOPER_ID_CERT_P12_BASE64` and `APPLE_DEVELOPER_ID_CERT_PASSWORD`: the Developer ID certificate and its export password, produced with `base64 -i cert.p12 | pbcopy`.
+- `APPLE_NOTARY_KEY_ID`, `APPLE_NOTARY_ISSUER_ID`, and `APPLE_NOTARY_KEY_P8`: the App Store Connect API key ID, issuer ID, and raw `.p8` contents (`pbcopy < AuthKey_XXXX.p8`). A normal trailing newline is accepted.
+
+The `release-publish` environment contains no Apple secrets. Two optional repository variables override defaults: `OMNIWM_RELEASE_SIGNING_IDENTITY` (default `Developer ID Application: Oliver Nikolic (VF8LDJRGFM)`) and `OMNIWM_RELEASE_NOTARIZE_PROFILE` (default `OmniWM-Notarize`).
+
+The prepare summary prints the `gh workflow run` command for publication because the web form cannot take multi-line notes. Download and launch the prepared app on a desktop before approving publication. Pass `skip_app_launch` only when the runner cannot launch the GUI; signature, notarization, and quarantine checks still run. Prepared artifacts expire after 30 days. If `main` moves before publication, prepare again. Retry an interrupted publish with the same prepare run and identical notes. Publication creates the tag and release before pushing `main`; a competing push or remote failure can still require manual recovery.
+
+Local releases via `Scripts/omniwm_release.py` use your own keychain and notarization profile.
+
+For canaries, configure **canary-signing** with no required reviewers and a selected-branches deployment policy allowing only `main`.
+
+The daily **OmniWM canary** workflow requires the latest **OmniWM CI** push run on `main` for the checked-out commit to pass, including both **Verify** and **Tests**. It checks the actual checkout rather than the scheduled event's commit, before dependency setup or importing Apple credentials. Missing, unfinished, or unsuccessful CI stops the canary; wait for CI to pass and rerun the workflow. The manual `force` option only bypasses the existing-tag check and cannot bypass CI.
+
 ### Maintainer CI Rollout
 
-The **Main branch protection** ruleset blocks branch deletion and force-pushes, with repository-admin bypass for local merges and releases. GitHub uses merge commits and automatically deletes merged branches in this repository.
+The **Main branch protection** ruleset blocks branch deletion and force-pushes. Keep those protections and do not grant GitHub Actions an **Always** bypass. The release workflow uses a normal fast-forward push and rejects additional blocking rules before publication, even when its token could bypass them. Required checks or pull-request-only updates need a release flow that publishes an already-reviewed version commit; do not bypass those rules to keep the current flow working.
 
-After publishing the CI workflow, confirm that **Verify** passes on GitHub, then add **Verify** from GitHub Actions as a required status check in that existing ruleset. Keep the admin bypass and leave **Tests** non-required until several hosted runs establish that the serial suite works reliably there.
-
-For an existing PR, use **Actions → OmniWM CI → Run workflow** and enter its PR number to test its merge with the base branch. A manual run provides logs; it does not replace the PR's required check. Updating the PR branch triggers its normal PR checks. Approve first-time fork runs when needed.
+Re-enable **OmniWM CI** and confirm **Verify** and **Tests** on hosted runners. For an existing PR, use **Actions → OmniWM CI → Run workflow** and enter its PR number to test its merge with the base branch. A manual run provides logs; it does not replace the PR's required check. Updating the PR branch triggers its normal PR checks. Approve first-time fork runs when needed.
 
 ## Trace Files
 

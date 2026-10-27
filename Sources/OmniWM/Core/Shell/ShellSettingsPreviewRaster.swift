@@ -104,11 +104,19 @@ enum ShellSettingsPreviewRaster {
         let name: String
         let image: CGImage
         let size: CGSize
+        var scale: CGFloat = 1
+    }
+
+    private struct Surface {
+        let name: String
+        let surface: ShellWidgetSurface
+        let size: CGSize
     }
 
     static func render(
         _ trees: [ShellSettingsPreviewRenderer.Tree], theme: ShellTheme,
-        dark: Bool, scale: CGFloat, limit: CGSize?
+        dark: Bool, scale: CGFloat, limit: CGSize?, rootMaterial: Bool = true,
+        fit: (([CGSize]) -> CGFloat)? = nil
     ) async throws -> [Image] {
         let scale = limit.map { ShellSettingsPreviewResolution.scale(size: $0, requested: scale) } ?? scale
         let resources = ShellResources(
@@ -118,13 +126,13 @@ enum ShellSettingsPreviewRaster {
         )
         let appearance = NSAppearance(named: dark ? .darkAqua : .aqua) ?? NSApplication.shared.effectiveAppearance
         resources.palette.refresh(theme: theme, appearance: appearance)
-        var images: [Image] = []
+        var surfaces: [Surface] = []
         for tree in trees {
             try Task.checkCancellation()
             let text = ShellTextStore()
             text.ingest(tree.strings, count: tree.stringCount)
             let surface = ShellWidgetSurface(scale: scale, resources: resources, directories: tree.directories)
-            surface.drawsRootMaterial = true
+            surface.drawsRootMaterial = rootMaterial
             surface.assetFolders = tree.packages
             surface.text = text
             if let limit { surface.layout.setRootLimit(Size2(width: Float(limit.width), height: Float(limit.height))) }
@@ -139,10 +147,16 @@ enum ShellSettingsPreviewRaster {
             surface.scene.submit(commands, animated: false)
             let size = surface.size
             if size.width <= 0 || size.height <= 0 { continue }
+            surfaces.append(Surface(name: tree.name, surface: surface, size: size))
+        }
+        let rasterScale = fit?(surfaces.map(\.size)) ?? scale
+        var images: [Image] = []
+        for entry in surfaces {
+            try Task.checkCancellation()
             images.append(Image(
-                name: tree.name,
-                image: try await raster(surface.scene, size: size, scale: scale),
-                size: size
+                name: entry.name,
+                image: try await raster(entry.surface.scene, size: entry.size, scale: rasterScale),
+                size: entry.size, scale: rasterScale
             ))
         }
         return images

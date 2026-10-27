@@ -1,6 +1,11 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+require("../lib/audio")
+require("../lib/battery")
+require("../lib/bluetooth")
+require("../lib/input-source")
+require("../lib/wifi")
 local icons = require("../lib/icons")
 local status = require("../lib/status")
 local surface = require("../lib/surface")
@@ -43,7 +48,8 @@ function render(ctx: Context)
     end
     local bluetooth = data.bluetooth
     if setting(ctx, "bluetooth", true) and bluetooth then
-        local group = { gap = tokens.spacing.medium / 2 * scale, glyph(status.bluetoothIcon(bluetooth), scale) }
+        local group = { gap = tokens.spacing.medium / 2 * scale,
+            glyph(status.bluetoothStateIcon(require("../lib/bluetooth").state(ctx)), scale) }
         for _, device in bluetooth.devices do
             if device.connected then
                 group[#group + 1] = glyph(icons.bluetooth(device.kind), scale)

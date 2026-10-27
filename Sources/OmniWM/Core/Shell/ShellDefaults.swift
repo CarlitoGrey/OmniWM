@@ -8,6 +8,7 @@ enum ShellDefaults {
     static let profile = "default"
     private static let manifestName = ".manifest.json"
     private static let reserved: Set<String> = [profile, "widgets", "themes", "shaders", "lib"]
+    private static let retiredStyles = ["system"]
 
     static var bundled: URL? {
         Bundle.module.url(forResource: "ShellDefault", withExtension: nil)
@@ -34,7 +35,8 @@ enum ShellDefaults {
             install($0, into: shellDirectory.appendingPathComponent(profile, isDirectory: true), day: day)
         } ?? []
         guard let styles else { return backups }
-        for style in styleNames(in: styles) {
+        let bundledNames = styleNames(in: styles)
+        for style in bundledNames {
             let target = shellDirectory.appendingPathComponent(style, isDirectory: true)
             guard !FileManager.default.fileExists(atPath: target.path)
                 || FileManager.default.fileExists(atPath: target.appendingPathComponent(manifestName).path)
@@ -43,6 +45,9 @@ enum ShellDefaults {
                 continue
             }
             backups += install(styles.appendingPathComponent(style), into: target, day: day)
+        }
+        for style in retiredStyles where !bundledNames.contains(style) {
+            retire(shellDirectory.appendingPathComponent(style, isDirectory: true))
         }
         return backups
     }
@@ -62,7 +67,7 @@ enum ShellDefaults {
 
     private static func install(_ source: URL, into target: URL, day: String) -> [URL] {
         let manifestURL = target.appendingPathComponent(manifestName)
-        let written = (try? JSONDecoder().decode([String: String].self, from: Data(contentsOf: manifestURL))) ?? [:]
+        let written = readManifest(at: manifestURL) ?? [:]
         var manifest: [String: String] = [:]
         var backups: [URL] = []
         do {
@@ -86,12 +91,7 @@ enum ShellDefaults {
                     try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
                 }
             }
-            for (path, hash) in written where manifest[path] == nil {
-                let url = target.appendingPathComponent(path)
-                if let current = try? Data(contentsOf: url), digest(current) == hash {
-                    try FileManager.default.removeItem(at: url)
-                }
-            }
+            try removeUnedited(written.filter { manifest[$0.key] == nil }, in: target)
             if manifest != written {
                 try SettingsFileAccess.ensureDirectoryExists(at: target)
                 try SettingsFileAccess.writeAtomically(JSONEncoder().encode(manifest), at: manifestURL)
@@ -100,6 +100,37 @@ enum ShellDefaults {
             Log.shell.error("Failed to update the shell profile in \(target.path): \(error.localizedDescription)")
         }
         return backups
+    }
+
+    private static func retire(_ target: URL) {
+        let target = target.resolvingSymlinksInPath().standardizedFileURL
+        let manifestURL = target.appendingPathComponent(manifestName)
+        guard let written = readManifest(at: manifestURL) else { return }
+        do {
+            try removeUnedited(written, in: target)
+            try FileManager.default.removeItem(at: manifestURL)
+        } catch {
+            Log.shell.error("Failed to retire the shell profile in \(target.path): \(error.localizedDescription)")
+            return
+        }
+        let entries = FileManager.default.enumerator(at: target, includingPropertiesForKeys: nil)?
+            .compactMap { $0 as? URL } ?? []
+        for directory in (entries + [target]).sorted(by: { $0.path.count > $1.path.count }) {
+            rmdir(directory.path)
+        }
+    }
+
+    private static func readManifest(at url: URL) -> [String: String]? {
+        try? JSONDecoder().decode([String: String].self, from: Data(contentsOf: url))
+    }
+
+    private static func removeUnedited(_ written: [String: String], in target: URL) throws {
+        for (path, hash) in written {
+            let url = target.appendingPathComponent(path)
+            if let current = try? Data(contentsOf: url), digest(current) == hash {
+                try FileManager.default.removeItem(at: url)
+            }
+        }
     }
 
     private static var today: String {

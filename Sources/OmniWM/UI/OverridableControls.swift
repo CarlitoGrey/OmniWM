@@ -3,32 +3,6 @@
 
 import SwiftUI
 
-struct SettingsPage<Content: View>: View {
-    let subtitle: String?
-    @ViewBuilder let content: () -> Content
-
-    init(
-        subtitle: String? = nil,
-        @ViewBuilder content: @escaping () -> Content
-    ) {
-        self.subtitle = subtitle
-        self.content = content
-    }
-
-    var body: some View {
-        Form {
-            if let subtitle {
-                Section {
-                    SettingsCaption(subtitle)
-                }
-            }
-
-            content()
-        }
-        .formStyle(.grouped)
-    }
-}
-
 struct SettingsCaption: View {
     let content: Text
 
@@ -309,68 +283,6 @@ struct OverridableSlider: View {
                 .accessibilityValue(displayValue)
 
                 SettingsValueText(text: displayValue, width: 48)
-                overrideStatus
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var overrideStatus: some View {
-        if isOverridden {
-            ResetIconButton(title: String(localized: "Reset \(label) to global default"), action: onReset)
-        } else {
-            Text("Global")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(minWidth: 45)
-                .accessibilityLabel(String(localized: "\(label) uses global default"))
-        }
-    }
-}
-
-struct OverridableStepper: View {
-    let label: String
-    let value: Double?
-    let globalValue: Double
-    let step: Double
-    let formatter: (Double) -> String
-    let onChange: (Double) -> Void
-    let onReset: () -> Void
-
-    private var effectiveValue: Double {
-        value ?? globalValue
-    }
-
-    private var isOverridden: Bool {
-        value != nil
-    }
-
-    private var binding: Binding<Double> {
-        Binding(
-            get: { effectiveValue },
-            set: { onChange($0) }
-        )
-    }
-
-    var body: some View {
-        LabeledContent(label) {
-            HStack {
-                let displayValue = formatter(effectiveValue)
-                Stepper(value: binding, step: step) {
-                    EmptyView()
-                }
-                .labelsHidden()
-                .accessibilityLabel(label)
-                .accessibilityValue(displayValue)
-
-                TextField(label, value: binding, format: .number)
-                    .labelsHidden()
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 64)
-                    .multilineTextAlignment(.trailing)
-                    .accessibilityLabel(label)
-
-                SettingsValueText(text: displayValue, width: 60)
                 overrideStatus
             }
         }

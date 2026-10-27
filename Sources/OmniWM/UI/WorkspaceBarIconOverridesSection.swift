@@ -87,6 +87,7 @@ struct WorkspaceBarIconOverridesSection: View {
 
     var body: some View {
         Section("App Icon Overrides — All Monitors") {
+            SettingsCaption(localized: "Shared by all styles")
             SettingsCaption(
                 localized: "Choose an icon packaged inside an app, or select an image file. Runtime-generated Dock icons may not be available. Other OmniWM surfaces keep the standard icon."
             )

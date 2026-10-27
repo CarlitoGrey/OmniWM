@@ -11,6 +11,25 @@ actor ShellWidgetSourceLoader {
         let directories: [URL]
         let profile: String
         var components: [ShellComponentInstance]?
+        private let libraryDirectories: [URL]
+
+        init(
+            name: String, shellDirectory: URL, sourceURL: URL, directories: [URL], profile: String,
+            components: [ShellComponentInstance]? = nil
+        ) {
+            self.name = name
+            self.sourceURL = sourceURL
+            self.directories = directories
+            self.profile = profile
+            self.components = components
+            if let bundled = ShellDefaults.bundled, sourceURL == ShellConfig.bundledWidget(name) {
+                self.shellDirectory = bundled
+                self.libraryDirectories = [bundled]
+            } else {
+                self.shellDirectory = shellDirectory
+                self.libraryDirectories = directories
+            }
+        }
 
         var contained: Bool {
             sourceURL.standardizedFileURL.path.hasPrefix(shellDirectory.standardizedFileURL.path + "/")
@@ -26,7 +45,7 @@ actor ShellWidgetSourceLoader {
         }
 
         var libraries: [URL] {
-            directories.map { $0.appendingPathComponent("lib", isDirectory: true) }
+            libraryDirectories.map { $0.appendingPathComponent("lib", isDirectory: true) }
                 .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
         }
     }
@@ -143,8 +162,10 @@ actor ShellWidgetSourceLoader {
     }
 
     private static func entries(in folder: URL, directories: Bool) -> [URL] {
-        FileManager.default.enumerator(
-            at: folder,
+        let resolved = folder.resolvingSymlinksInPath().standardizedFileURL
+        let prefixLength = resolved.path.count + 1
+        return FileManager.default.enumerator(
+            at: resolved,
             includingPropertiesForKeys: [.isDirectoryKey],
             options: [.skipsHiddenFiles]
         )?
@@ -153,6 +174,11 @@ actor ShellWidgetSourceLoader {
                 directories
                     ? (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
                     : $0.pathExtension == "luau"
+            }
+            .map {
+                folder.appendingPathComponent(
+                    String($0.standardizedFileURL.path.dropFirst(prefixLength)), isDirectory: directories
+                )
             } ?? []
     }
 

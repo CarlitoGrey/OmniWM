@@ -90,9 +90,12 @@ struct ShellBarLayout: Equatable, Sendable {
     }
 
     @discardableResult
-    static func setSystemStatsEnabled(_ enabled: Bool, in shellDirectory: URL) throws -> Bool {
+    static func setSystemStatsEnabled(_ enabled: Bool, profile: String? = nil, in shellDirectory: URL) throws -> Bool {
         var problems: [String] = []
-        guard let config = ShellConfig.load(shellDirectory: shellDirectory, problems: &problems) else {
+        let loaded = if let profile {
+            ShellConfig.load(profile: profile, shellDirectory: shellDirectory, problems: &problems)
+        } else { ShellConfig.load(shellDirectory: shellDirectory, problems: &problems) }
+        guard let config = loaded, profile.map({ $0 == config.profile }) != false else {
             throw Unreadable(problem: problems.last ?? "shell.toml")
         }
         var entries = [(
@@ -244,6 +247,8 @@ struct ShellBarLayout: Equatable, Sendable {
         "[" + names.map(ShellTOMLText.quoted).joined(separator: ", ") + "]"
     }
 
+    static let internalWidgets: Set = ["hidden-bar-menu", "effects-lab", "focus-ribbon"]
+
     private static func available(config: ShellConfig, shellDirectory: URL) -> [Widget] {
         var seen: Set<String> = []
         var widgets: [Widget] = []
@@ -259,7 +264,8 @@ struct ShellBarLayout: Equatable, Sendable {
             }
             for entry in entries.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                 let name = entry.lastPathComponent
-                guard name != config.hiddenBarWidget, !seen.contains(name),
+                guard name != config.hiddenBarWidget, name != config.island?.root,
+                      !internalWidgets.contains(name), !seen.contains(name),
                       FileManager.default.fileExists(atPath: entry.appendingPathComponent("init.luau").path)
                 else {
                     continue

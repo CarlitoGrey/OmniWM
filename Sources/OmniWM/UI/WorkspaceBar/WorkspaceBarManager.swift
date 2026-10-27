@@ -288,6 +288,22 @@ final class WorkspaceBarManager {
 }
 
 extension WorkspaceBarManager {
+    func topBarBottom(on monitorId: Monitor.ID) -> CGFloat? {
+        guard let instance = barsByMonitor[monitorId], let settings, let controller else { return nil }
+        let resolved = settings.workspaceBar.resolved(for: instance.monitor)
+        guard controller.isWorkspaceBarEnabled(on: instance.monitor, resolved: resolved) else { return nil }
+        switch WorkspaceBarGeometry.effectivePosition(for: instance.monitor, resolved: resolved) {
+        case .overlappingMenuBar,
+             .belowMenuBar:
+            return [instance.primary.lastAppliedFrame, instance.secondary?.lastAppliedFrame]
+                .compactMap { $0?.minY }.min()
+        case .bottom,
+             .left,
+             .right:
+            return nil
+        }
+    }
+
     func visibleBarFrames(on monitorId: Monitor.ID) -> [CGRect] {
         guard let instance = barsByMonitor[monitorId] else { return [] }
         return [instance.primary.panel, instance.secondary?.panel].compactMap { $0 }.filter(\.isVisible).map(\.frame)

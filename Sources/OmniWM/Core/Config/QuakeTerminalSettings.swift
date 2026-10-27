@@ -71,6 +71,21 @@ final class QuakeTerminalSettings {
         didSet { onChange?() }
     }
 
+    var provider = QuakeTerminalSettings.defaults.provider ?? .ghostty {
+        didSet { onChange?() }
+    }
+
+    var kitty = QuakeTerminalSettings.defaults.kitty ?? KittyQuakeSettings() {
+        didSet {
+            let normalized = kitty.normalized()
+            if normalized != kitty {
+                kitty = normalized
+                return
+            }
+            onChange?()
+        }
+    }
+
     func export() -> SettingsExport.QuakeTerminal {
         SettingsExport.QuakeTerminal(
             enabled: enabled,
@@ -82,7 +97,9 @@ final class QuakeTerminalSettings {
             opacity: opacity,
             backgroundEffect: backgroundEffect,
             backgroundBlurRadius: backgroundBlurRadius,
-            monitorMode: monitorMode
+            monitorMode: monitorMode,
+            provider: provider,
+            kitty: kitty.isNative ? nil : kitty
         )
     }
 
@@ -101,5 +118,7 @@ final class QuakeTerminalSettings {
                 ?? QuakeTerminalAppearancePolicy.disabledBackgroundBlurRadius
         )
         monitorMode = values.monitorMode ?? baseline.monitorMode ?? .focusedWindow
+        provider = values.provider ?? baseline.provider ?? .ghostty
+        kitty = values.kitty ?? baseline.kitty ?? KittyQuakeSettings()
     }
 }

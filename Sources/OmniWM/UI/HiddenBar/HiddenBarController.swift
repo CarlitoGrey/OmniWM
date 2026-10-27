@@ -18,17 +18,23 @@ final class HiddenBarController {
     let menuSession = HiddenBarMenuSession()
     let settings: SettingsStore
     let hider: NativeMenuBarHider
-    private let itemService: MenuBarItemService
+    let itemService: MenuBarItemService
     let iconCache = HiddenBarIconCache()
     private let forwarder: HiddenBarClickForwarder
-    private let setMenuAccess: (Bool) -> Bool
+    let setMenuAccess: (Bool) -> Bool
+    let menuBarHiddenByBar: () -> Bool
+    let coversPoint: (CGPoint) -> Bool
+    let resolveOverride: ((String, HiddenBarActivationOwner) async -> [ResolvedMenuBarItem]?)?
+    var holdsMenuAccess = false
+    var menuReadHeldAccess = false
 
     private var activationTask: Task<Void, Never>?
     private var activationGeneration = 0
     private var activeActivation: ActiveActivation?
     var temporarilyRevealed: Set<String> = [] {
         didSet {
-            if !oldValue.isEmpty, temporarilyRevealed.isEmpty {
+            if !oldValue.isEmpty, temporarilyRevealed.isEmpty, holdsMenuAccess {
+                holdsMenuAccess = false
                 _ = setMenuAccess(false)
             }
         }
@@ -40,11 +46,17 @@ final class HiddenBarController {
     init(
         settings: SettingsStore,
         hider: NativeMenuBarHider = NativeMenuBarHider(),
-        setMenuAccess: @escaping (Bool) -> Bool = { _ in true }
+        setMenuAccess: @escaping (Bool) -> Bool = { _ in true },
+        menuBarHiddenByBar: @escaping () -> Bool = { false },
+        coversPoint: @escaping (CGPoint) -> Bool = HiddenBarClickForwarder.isCoveredByOwnWindow,
+        resolveItems: ((String, HiddenBarActivationOwner) async -> [ResolvedMenuBarItem]?)? = nil
     ) {
         self.hider = hider
         self.settings = settings
         self.setMenuAccess = setMenuAccess
+        self.menuBarHiddenByBar = menuBarHiddenByBar
+        self.coversPoint = coversPoint
+        resolveOverride = resolveItems
         let itemService = MenuBarItemService()
         self.itemService = itemService
         forwarder = HiddenBarClickForwarder(itemService: itemService)
@@ -154,7 +166,11 @@ final class HiddenBarController {
         activateHiddenItem(key)
     }
 
-    func openMenu(_ key: MenuBarItemKey, onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void) {
+    func openMenu(
+        _ key: MenuBarItemKey,
+        withMenuAccess: Bool = false,
+        onOpen: @escaping (HiddenBarMenuSession.OpenResult) -> Void
+    ) {
         menuSession.close()
         if let activeActivation {
             cancelActivationIfCurrent(activeActivation, removeReveal: false)
@@ -179,7 +195,7 @@ final class HiddenBarController {
             return
         }
         reconcealment.cancel(reason: .cancelled)
-        guard temporarilyReveal(key.bundleID, ownerPID: owner.pid) else {
+        guard temporarilyReveal(key.bundleID, ownerPID: owner.pid, withMenuAccess: withMenuAccess) else {
             Log.hiddenBar.error("Could not reveal menu item for \(key.bundleID), PID \(owner.pid)")
             releaseMenuReveal(key.bundleID)
             onOpen(.unavailable)
@@ -188,10 +204,9 @@ final class HiddenBarController {
         menuSession.acquire(
             target: .init(key: key, ownerPID: owner.pid, cachedItems: cachedItems),
             resolve: { [weak self] in
-                await self?.resolveRevealedItems(
-                    for: key.bundleID,
-                    owner: owner
-                )
+                let items = await self?.resolveRevealedItems(for: key.bundleID, owner: owner)
+                self?.menuReadHeldAccess = self?.holdsMenuAccess ?? false
+                return items
             },
             onResolve: { [weak self] items in
                 if cachedItems == nil {
@@ -199,7 +214,7 @@ final class HiddenBarController {
                 }
             },
             release: { [weak self] disposition in self?.releaseMenuReveal(key.bundleID, disposition: disposition) },
-            onOpen: onOpen
+            onOpen: retryingWithMenuAccess(key, onOpen: onOpen)
         )
     }
 
@@ -326,7 +341,8 @@ extension HiddenBarController {
     ) async {
         guard let freshItems = await resolveRevealedItems(
             for: key.bundleID,
-            owner: owner
+            owner: owner,
+            clicking: key
         ) else {
             finishActivation(activation)
             return
@@ -369,25 +385,7 @@ extension HiddenBarController {
         finishActivation(activation)
     }
 
-    private func resolveRevealedItems(
-        for bundleID: String,
-        owner: HiddenBarActivationOwner
-    ) async -> [ResolvedMenuBarItem]? {
-        let snapshot = HiddenBarRunningAppsSnapshot.current()
-        let candidates = snapshot.candidates.filter { $0.bundleID == bundleID && $0.pid == owner.pid }
-        guard !candidates.isEmpty else { return nil }
-        let resolution = await itemService.resolveItems(
-            candidates: candidates,
-            bundleIDs: [bundleID],
-            allowEmptyBundleIDs: owner.allowsAuthoritativeEmpty ? [bundleID] : []
-        )
-        guard !Task.isCancelled, temporarilyRevealed.contains(bundleID),
-              let items = resolution.itemsByBundleID[bundleID]
-        else { return nil }
-        return items
-    }
-
-    private func temporarilyReveal(_ bundleID: String, ownerPID: pid_t) -> Bool {
+    private func temporarilyReveal(_ bundleID: String, ownerPID: pid_t, withMenuAccess: Bool = false) -> Bool {
         guard settings.effectiveHiddenBarEnabled, hider.available else { return false }
         let hidden = Set(settings.hiddenBar.hiddenBundleIDs)
         let snapshot = HiddenBarRunningAppsSnapshot.current()
@@ -395,7 +393,7 @@ extension HiddenBarController {
               snapshot.candidates.contains(where: { $0.bundleID == bundleID && $0.pid == ownerPID })
         else { return false }
 
-        guard !temporarilyRevealed.isEmpty || setMenuAccess(true) else { return false }
+        guard takeMenuAccessForReveal(required: withMenuAccess) else { return false }
         temporarilyRevealed.insert(bundleID)
         capture.reconcile(
             snapshot: snapshot,
@@ -476,7 +474,7 @@ extension HiddenBarController {
     }
 
     func startReconcealForTests(revealedBundleIDs: Set<String>) {
-        guard !temporarilyRevealed.isEmpty || revealedBundleIDs.isEmpty || setMenuAccess(true) else { return }
+        guard !temporarilyRevealed.isEmpty || revealedBundleIDs.isEmpty || takeMenuAccessForReveal() else { return }
         temporarilyRevealed = revealedBundleIDs
         reconcealment.schedule(intervalSeconds: settings.hiddenBar.resolvedRehideIntervalSeconds)
     }

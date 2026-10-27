@@ -111,7 +111,7 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         XCTAssertEqual(
             ShellProfiles.names(in: shell),
-            ["default", "celestial", "lake", "matrix", "nocturne", "sakura", "system", "wayline"]
+            ["default", "celestial", "lake", "matrix", "nocturne", "sakura", "wayline"]
         )
         for style in ["celestial", "nocturne", "wayline"] {
             try write("profile = \"\(style)\"\n", to: "shell.toml", in: shell)
@@ -121,8 +121,8 @@ final class ShellDefaultsTests: XCTestCase {
             XCTAssertEqual(config.themeName, style)
             let celestial = style == "celestial"
             XCTAssertEqual(config.barOverride?.settings.height, celestial ? 60 : 40, style)
-            XCTAssertEqual(config.barOverride?.settings.fullWidth, celestial ? true : nil, style)
-            XCTAssertEqual(config.barOverride?.settings.position, celestial ? .left : nil, style)
+            XCTAssertEqual(config.barOverride?.settings.fullWidth, true, style)
+            XCTAssertEqual(config.barOverride?.settings.position, celestial ? .left : .overlappingMenuBar, style)
             let dashboard = config.drawers.first { $0.id == "dashboard" }
             XCTAssertEqual(dashboard?.widgets, celestial ? ["dashboard"] : nil, style)
             if let dashboard {
@@ -145,6 +145,8 @@ final class ShellDefaultsTests: XCTestCase {
             var problems: [String] = []
             let config = try XCTUnwrap(ShellConfig.load(shellDirectory: shell, problems: &problems))
             XCTAssertEqual(problems, [], profile)
+            let layout = ShellBarLayout(config: config, shellDirectory: shell)
+            XCTAssertFalse(layout.widgets.contains { $0.name == "focus-ribbon" }, profile)
             XCTAssertEqual(Array(config.leading.prefix(3)), ["apple-menu", "app-menu", "omniwm"], profile)
             for name in ["apple-menu", "app-menu"] {
                 XCTAssertEqual(config.widget(name), shell.appendingPathComponent("default/widgets/\(name)/init.luau"))
@@ -155,20 +157,38 @@ final class ShellDefaultsTests: XCTestCase {
         }
     }
 
-    func testSystemInstallsNativeMaterialBarAndInheritsTheSharedEffectsGallery() throws {
+    func testScratchpadIconCountComesFromTheResolvedProfileAndIsClamped() throws {
         let shell = root.appendingPathComponent("shell", isDirectory: true)
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
-        try write("profile = \"system\"\n", to: "shell.toml", in: shell)
+        XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, 3)
+        XCTAssertTrue(try ShellProfiles.select("nocturne", in: shell))
+        XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, 2)
+        let selected = try String(contentsOf: shell.appendingPathComponent("shell.toml"), encoding: .utf8)
+        for (value, expected) in [("9", 6), ("-1", 0), ("4", 4), ("inf", 6), ("2.7", 2)] {
+            try Data((selected + "\n[profiles.nocturne.widgets.scratchpads]\nshownWindows = \(value)\n").utf8)
+                .write(to: shell.appendingPathComponent("shell.toml"))
+            XCTAssertEqual(ShellConfig.resolve(shellDirectory: shell).scratchpadIcons, expected, value)
+        }
+    }
+
+    func testDefaultInstallsNativeMaterialBarAndTheSharedEffectsGallery() throws {
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         var problems: [String] = []
         let config = try XCTUnwrap(ShellConfig.load(shellDirectory: shell, problems: &problems))
         XCTAssertEqual(problems, [])
+        XCTAssertEqual(config.profile, "default")
         XCTAssertEqual(config.themeName, "native")
         XCTAssertEqual(config.theme, .native)
         XCTAssertEqual(config.leading, ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"])
         XCTAssertEqual(config.center, ["active-window"])
-        XCTAssertEqual(config.trailing, ["privacy", "wifi", "battery-details", "control-center", "clock"])
+        XCTAssertEqual(
+            config.trailing,
+            ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
+        )
         XCTAssertEqual(config.hiddenBarWidget, "hidden-bar")
         XCTAssertEqual(config.systemStatsWidget, "system-stats")
+        XCTAssertEqual(config.barOverride?.systemStatsButton, true)
         let island = try XCTUnwrap(config.island)
         XCTAssertEqual(island.root, "focus-ribbon")
         XCTAssertEqual(island.displays, .all)
@@ -186,26 +206,46 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(bar.solidBlackBackground, false)
         XCTAssertEqual(bar.showItemBackgrounds, false)
         XCTAssertEqual(bar.showAccentHighlights, true)
-        let workspaces = try XCTUnwrap(config.widgetSettings["workspaces"])
-        XCTAssertEqual(try ShellServiceValue.decode(workspaces).fields?["compact"]?.boolean, true)
+        XCTAssertNil(config.widgetSettings["workspaces"])
         let defaults = shell.appendingPathComponent("default/widgets", isDirectory: true)
-        let system = shell.appendingPathComponent("system/widgets", isDirectory: true)
         let widgets = try FileManager.default.contentsOfDirectory(atPath: defaults.path).sorted()
-        let systemWidgets = try FileManager.default.contentsOfDirectory(atPath: system.path).sorted()
-        let sharedWidgets = ["effects-lab", "apple-menu", "app-menu", "notifications"]
-        let styledWidgets = widgets.filter { !sharedWidgets.contains($0) }
-        XCTAssertEqual(systemWidgets, (styledWidgets + ["focus-ribbon"]).sorted())
-        XCTAssertEqual(config.widget("focus-ribbon"), system.appendingPathComponent("focus-ribbon/init.luau"))
-        for widget in sharedWidgets {
-            XCTAssertTrue(widgets.contains(widget))
+        let expectedWidgets = [
+            "effects-lab",
+            "focus-ribbon",
+            "apple-menu",
+            "app-menu",
+            "notifications",
+            "workspaces",
+            "scratchpads",
+            "omniwm",
+            "hidden-bar",
+            "hidden-bar-menu",
+            "system-stats",
+            "volume",
+            "media",
+            "clock",
+            "calendar",
+            "weather",
+            "active-window",
+            "battery",
+            "battery-details",
+            "wifi",
+            "bluetooth",
+            "input-source",
+            "launcher",
+            "privacy",
+            "world-clock",
+            "stats",
+            "control-center"
+        ]
+        XCTAssertEqual(widgets, expectedWidgets.sorted())
+        for widget in expectedWidgets {
             XCTAssertEqual(config.widget(widget), defaults.appendingPathComponent("\(widget)/init.luau"))
         }
-        for widget in styledWidgets {
-            XCTAssertEqual(config.widget(widget), system.appendingPathComponent("\(widget)/init.luau"))
-        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shell.appendingPathComponent("system").path))
     }
 
-    func testLakeInstallsPopulatedBarLanesAndReservedOpaquePlacement() throws {
+    func testLakeInstallsPopulatedBarLanesAndReservedMaterialPlacement() throws {
         let shell = root.appendingPathComponent("shell", isDirectory: true)
         XCTAssertEqual(ShellDefaults.sync(into: shell), [])
         try write("profile = \"lake\"\n", to: "shell.toml", in: shell)
@@ -223,8 +263,13 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(bar.height, 32)
         XCTAssertEqual(bar.reserveLayoutSpace, true)
         XCTAssertEqual(bar.transparentBackground, false)
-        XCTAssertEqual(bar.backgroundOpacity, 1)
-        XCTAssertEqual(bar.solidBlackBackground, true)
+        XCTAssertEqual(bar.backgroundOpacity, 0.1)
+        XCTAssertEqual(bar.showItemBackgrounds, true)
+        XCTAssertEqual(bar.showAccentHighlights, true)
+        XCTAssertEqual(bar.solidBlackBackground, false)
+        XCTAssertEqual(bar.showLabels, true)
+        XCTAssertEqual(bar.xOffset, 0)
+        XCTAssertEqual(bar.yOffset, 0)
         XCTAssertEqual(
             config.widget("workspaces"),
             shell.appendingPathComponent("default/widgets/workspaces/init.luau")
@@ -232,6 +277,43 @@ final class ShellDefaultsTests: XCTestCase {
         let workspaces = try XCTUnwrap(config.widgetSettings["workspaces"])
         XCTAssertEqual(try ShellServiceValue.decode(workspaces).fields?["indicator"]?.string, "underline")
         XCTAssertEqual(config.island?.components.count, 6)
+    }
+
+    func testStylesWithoutAnIslandInheritTheFocusRibbonOnEveryDisplay() throws {
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        XCTAssertEqual(ShellDefaults.sync(into: shell), [])
+        let monitors = [true, false].enumerated().map { index, hasNotch in
+            let displayID = CGDirectDisplayID(91001 + index)
+            let frame = CGRect(x: index * 1600, y: 0, width: 1600, height: 1000)
+            return Monitor(
+                id: .init(displayId: displayID),
+                displayId: displayID,
+                frame: frame,
+                visibleFrame: frame,
+                hasNotch: hasNotch,
+                name: hasNotch ? "Notched" : "Flat",
+                isMain: !hasNotch
+            )
+        }
+        for profile in ["matrix", "sakura", "wayline", "nocturne", "celestial"] {
+            XCTAssertTrue(try ShellProfiles.select(profile, in: shell), profile)
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(shellDirectory: shell, problems: &problems))
+            XCTAssertEqual(problems, [], profile)
+            let island = try XCTUnwrap(config.island, profile)
+            XCTAssertEqual(island.root, "focus-ribbon", profile)
+            XCTAssertEqual(island.displays, .all, profile)
+            XCTAssertEqual(monitors.filter { island.includes($0) }.map(\.id), monitors.map(\.id), profile)
+        }
+
+        XCTAssertTrue(try ShellProfiles.select("lake", in: shell))
+        var problems: [String] = []
+        let config = try XCTUnwrap(ShellConfig.load(shellDirectory: shell, problems: &problems))
+        XCTAssertEqual(problems, [])
+        let island = try XCTUnwrap(config.island)
+        XCTAssertEqual(island.root, "lake")
+        XCTAssertEqual(island.displays, .all)
+        XCTAssertEqual(monitors.filter { island.includes($0) }.map(\.id), monitors.map(\.id))
     }
 
     func testBundledProviderRetainsExecutablePermissionsAfterInstallAndUpdate() throws {
@@ -262,6 +344,85 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(try String(contentsOf: dusk.appendingPathComponent("shell.toml"), encoding: .utf8), "mine")
         XCTAssertFalse(FileManager.default.fileExists(atPath: dusk.appendingPathComponent("widgets").path))
         XCTAssertFalse(FileManager.default.fileExists(atPath: dusk.appendingPathComponent(".manifest.json").path))
+    }
+
+    func testARetiredStyleLosesItsUneditedFilesAndKeepsTheUsersOwn() throws {
+        let styles = root.appendingPathComponent("styles", isDirectory: true)
+        let bundled = styles.appendingPathComponent("system", isDirectory: true)
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        let system = shell.appendingPathComponent("system", isDirectory: true)
+        try write("theme = \"native\"", to: "system/shell.toml", in: styles)
+        try write("s1", to: "system/lib/style.luau", in: styles)
+        try write("r1", to: "system/widgets/focus-ribbon/init.luau", in: styles)
+        XCTAssertEqual(sync(styles: styles), [])
+        try FileManager.default.createDirectory(
+            at: system.appendingPathComponent("widgets/old"),
+            withIntermediateDirectories: true
+        )
+        try FileManager.default.removeItem(at: bundled)
+        XCTAssertEqual(sync(), [])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: system.appendingPathComponent(".manifest.json").path))
+
+        XCTAssertEqual(sync(styles: styles), [])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: system.path))
+        XCTAssertEqual(ShellProfiles.names(in: shell), ["default"])
+        try write("profile = \"system\"", to: "shell.toml", in: shell)
+        XCTAssertEqual(ShellConfig.load(shellDirectory: shell)?.profile, ShellDefaults.profile)
+
+        try write("theme = \"native\"", to: "system/shell.toml", in: styles)
+        try write("s1", to: "system/lib/style.luau", in: styles)
+        try write("r1", to: "system/widgets/focus-ribbon/init.luau", in: styles)
+        XCTAssertEqual(sync(styles: styles), [])
+        try write("mine", to: "system/lib/style.luau", in: shell)
+        try write("extra", to: "system/widgets/extra/init.luau", in: shell)
+        try FileManager.default.removeItem(at: bundled)
+
+        XCTAssertEqual(sync(styles: styles), [])
+        XCTAssertEqual(
+            try String(contentsOf: system.appendingPathComponent("lib/style.luau"), encoding: .utf8),
+            "mine"
+        )
+        XCTAssertTrue(FileManager.default
+            .fileExists(atPath: system.appendingPathComponent("widgets/extra/init.luau").path))
+        for path in ["shell.toml", "widgets/focus-ribbon", ".manifest.json"] {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: system.appendingPathComponent(path).path), path)
+        }
+        XCTAssertEqual(ShellProfiles.names(in: shell), ["default", "system"])
+        XCTAssertEqual(sync(styles: styles), [])
+        XCTAssertEqual(
+            try String(contentsOf: system.appendingPathComponent("lib/style.luau"), encoding: .utf8),
+            "mine"
+        )
+    }
+
+    func testRetiredManagedStyleIsRemovedThroughALongerSymlinkedShellPath() throws {
+        let styles = root.appendingPathComponent("styles", isDirectory: true)
+        let shell = root.appendingPathComponent("shell", isDirectory: true)
+        try write("theme = \"native\"", to: "system/shell.toml", in: styles)
+        try write("s1", to: "system/lib/style.luau", in: styles)
+        try write("r1", to: "system/widgets/focus-ribbon/init.luau", in: styles)
+        XCTAssertEqual(sync(styles: styles), [])
+
+        let link = root.appendingPathComponent(String(repeating: "linked-shell-", count: 12))
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: root)
+        let linkedShell = link.appendingPathComponent("shell", isDirectory: true)
+        let system = linkedShell.appendingPathComponent("system", isDirectory: true)
+        XCTAssertGreaterThan(
+            system.path.count,
+            system.resolvingSymlinksInPath().appendingPathComponent("widgets/focus-ribbon").path.count
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: system.appendingPathComponent(".manifest.json").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: system.appendingPathComponent("lib/style.luau").path))
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default", "system"])
+        try FileManager.default.removeItem(at: styles.appendingPathComponent("system"))
+
+        XCTAssertEqual(
+            ShellDefaults.sync(into: linkedShell, from: source, styles: styles, day: "2026-10-08"),
+            []
+        )
+        XCTAssertFalse(FileManager.default.fileExists(atPath: system.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: shell.appendingPathComponent("system").path))
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default"])
     }
 
     private func sync(styles: URL? = nil) -> [URL] {
@@ -708,6 +869,83 @@ final class ShellProfileTests: XCTestCase {
         }
         try write("x", to: "notes.txt")
         XCTAssertEqual(ShellProfiles.names(in: root), ["default", "Aqua", "noctalia"])
+    }
+
+    func testProfileDiscoveryFollowsDirectorySymlinksAndKeepsTheirNames() throws {
+        let names = try makeSymlinkedProfiles()
+        let target = root.appendingPathComponent(".profiles/look", isDirectory: true)
+        for name in ["widgets", "themes", "shaders", "lib", "default", ".hidden"] {
+            try FileManager.default.createSymbolicLink(
+                at: root.appendingPathComponent(name),
+                withDestinationURL: target
+            )
+        }
+
+        XCTAssertEqual(ShellProfiles.names(in: root), ["default"] + names)
+
+        let linkedShell = root.appendingPathComponent(".linked-shell", isDirectory: true)
+        try FileManager.default.createSymbolicLink(at: linkedShell, withDestinationURL: root)
+        XCTAssertEqual(ShellProfiles.names(in: linkedShell), ["default"] + names)
+    }
+
+    func testSelectingSymlinkedProfilesLoadsTheirSettingsAndWidgets() throws {
+        for name in try makeSymlinkedProfiles() {
+            XCTAssertTrue(try ShellProfiles.select(name, in: root), name)
+            assertTOMLEqual(try String(contentsOf: root.appendingPathComponent("shell.toml"), encoding: .utf8), """
+            profile = "\(name)"
+            """)
+
+            var problems: [String] = []
+            let config = try XCTUnwrap(ShellConfig.load(shellDirectory: root, problems: &problems))
+            XCTAssertEqual(problems, [], name)
+            XCTAssertEqual(config.profile, name)
+            XCTAssertEqual(config.trailing, ["linked-clock"])
+            let widget = try XCTUnwrap(config.widget("linked-clock"))
+            XCTAssertEqual(widget, root.appendingPathComponent("\(name)/widgets/linked-clock/init.luau"))
+            XCTAssertEqual(try String(contentsOf: widget, encoding: .utf8), "return 'linked profile'")
+            XCTAssertFalse(try ShellProfiles.select(name, in: root), name)
+        }
+    }
+
+    func testNonDirectoryProfileSymlinksAreRejected() throws {
+        try write("x", to: "notes.txt")
+        let destinations = [
+            "file-link": "notes.txt",
+            "dangling": "missing",
+            "cycle-a": "cycle-b",
+            "cycle-b": "cycle-a"
+        ]
+        for (name, destination) in destinations {
+            try FileManager.default.createSymbolicLink(
+                atPath: root.appendingPathComponent(name).path,
+                withDestinationPath: destination
+            )
+        }
+
+        XCTAssertEqual(ShellProfiles.names(in: root), ["default"])
+        for name in destinations.keys {
+            XCTAssertThrowsError(try ShellProfiles.select(name, in: root)) { error in
+                XCTAssertEqual((error as? CocoaError)?.code, .fileNoSuchFile)
+            }
+        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("shell.toml").path))
+    }
+
+    private func makeSymlinkedProfiles() throws -> [String] {
+        try write("trailing = [\"linked-clock\"]\n", to: ".profiles/look/shell.toml")
+        try write("return 'linked profile'", to: ".profiles/look/widgets/linked-clock/init.luau")
+        let links = [
+            ("absolute", root.appendingPathComponent(".profiles/look").path),
+            ("relative", ".profiles/look"),
+            ("chained", "relative")
+        ]
+        for (name, destination) in links {
+            try FileManager.default.createSymbolicLink(
+                atPath: root.appendingPathComponent(name).path,
+                withDestinationPath: destination
+            )
+        }
+        return links.map(\.0).sorted()
     }
 
     private func assertTOMLEqual(

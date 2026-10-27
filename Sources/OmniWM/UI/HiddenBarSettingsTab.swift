@@ -55,7 +55,7 @@ struct HiddenBarSettingsTab: View {
                 Section {
                     Label(
                         String(
-                            localized: "Settings are saved for the “\(override.profile)” shell profile."
+                            localized: "Settings are saved for the “\(ShellStyleText.title(override.profile))” style."
                         ),
                         systemImage: "paintbrush"
                     )

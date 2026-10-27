@@ -3201,10 +3201,8 @@ int requirePath(lua_State *L, const std::string &path, const char *spec, const s
     lua_pushlightuserdata(L, &loadingModule);
     lua_setfield(L, 2, found.c_str());
     const std::string &source = vm->package.modules[found];
-    size_t bytecodeSize = 0;
-    lua_CompileOptions options = scriptCompileOptions();
-    char *bytecode = luau_compile(source.data(), source.size(), &options, &bytecodeSize);
-    if (bytecode == nullptr) {
+    std::shared_ptr<const std::string> bytecode = compiledBytecode(vm, source.data(), source.size());
+    if (!bytecode) {
         luaL_error(L, "require \"%s\": compiler allocation failed", spec);
     }
     lua_State *module = lua_newthread(L);
@@ -3214,8 +3212,7 @@ int requirePath(lua_State *L, const std::string &path, const char *spec, const s
     lua_replace(module, LUA_GLOBALSINDEX);
     luaL_sandboxthread(module);
     std::string chunk = "@" + found;
-    int loaded = luau_load(module, chunk.c_str(), bytecode, bytecodeSize, 0);
-    std::free(bytecode);
+    int loaded = luau_load(module, chunk.c_str(), bytecode->data(), bytecode->size(), 0);
     lua_xmove(module, L, 1);
     int status = loaded == 0 ? lua_pcall(L, 0, 1, 0) : LUA_ERRSYNTAX;
     if (status != LUA_OK || lua_isnil(L, -1)) {

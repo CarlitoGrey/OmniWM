@@ -70,22 +70,91 @@ extension WMController {
     }
 
     func setQuakeTerminalEnabled(_ enabled: Bool) {
-        if enabled {
-            quakeTerminalController.setup()
-        } else {
-            quakeTerminalController.cleanup()
-        }
+        applyQuakeTerminalSelection(enabled ? settings.quakeTerminal.provider : nil)
         updateHotkeyBindings(settings.hotkeyBindings)
     }
 
-    func toggleQuakeTerminal() {
+    func setQuakeTerminalProvider(_ provider: QuakeTerminalProvider) {
         guard settings.quakeTerminal.enabled else { return }
-        quakeTerminalController.toggle()
+        applyQuakeTerminalSelection(provider)
+    }
+
+    private func applyQuakeTerminalSelection(_ selection: QuakeTerminalProvider?) {
+        let previous = appliedQuakeTerminalSelection
+        appliedQuakeTerminalSelection = selection
+        if previous == .kitty, selection != .kitty {
+            kittyQuickAccessTerminal.hide()
+        }
+        switch selection {
+        case nil:
+            quakeTerminalController.cleanup()
+        case .ghostty:
+            quakeTerminalController.setup()
+            if previous == .kitty {
+                reloadQuakeTerminalAppearance()
+            }
+        case .kitty:
+            guard previous != .kitty else { return }
+            quakeTerminalController.hideForProviderSwitch()
+            kittyQuickAccessTerminal.activate()
+            applyKittyQuakeSettings()
+        }
+    }
+
+    func toggleQuakeTerminal() {
+        switch appliedQuakeTerminalSelection {
+        case .ghostty:
+            quakeTerminalController.toggle()
+        case .kitty:
+            kittyQuickAccessTerminal.toggle()
+        case nil:
+            return
+        }
+    }
+
+    func kittyQuakeControlContext() -> KittyQuakeControlContext? {
+        let monitors = workspaceManager.monitors
+        guard let monitor = currentMouseLocation().monitorApproximation(in: monitors)
+            ?? monitors.first(where: \.isMain) ?? monitors.first
+        else { return nil }
+        let screen = NSScreen.screens.first(where: { $0.displayId == monitor.displayId })
+        return KittyQuakeControlContext(
+            settings: settings.quakeTerminal.kitty,
+            screen: .init(
+                frame: screen?.frame ?? monitor.frame,
+                visibleFrame: screen?.visibleFrame ?? monitor.visibleFrame,
+                scale: screen?.backingScaleFactor ?? 1
+            ),
+            barBottom: workspaceBarManager.topBarBottom(on: monitor.id)
+        )
+    }
+
+    func applyKittyQuakeSettings() {
+        guard appliedQuakeTerminalSelection == .kitty else { return }
+        kittyQuickAccessTerminal.applySettings()
     }
 
     func reapplyQuakeTerminalGeometryForMonitorChange() {
-        guard settings.quakeTerminal.enabled else { return }
+        guard appliedQuakeTerminalSelection == .ghostty else { return }
         quakeTerminalController.applyGeometryToVisibleWindow()
+    }
+
+    func reloadQuakeTerminalAppearance() {
+        guard appliedQuakeTerminalSelection == .ghostty else { return }
+        quakeTerminalController.applyGeometryToVisibleWindow()
+        quakeTerminalController.reloadOpacityConfig()
+        quakeTerminalController.reloadBackgroundBlur()
+    }
+
+    func presentKittyQuickAccessFailure(_ problem: KittyQuickAccessTerminal.Problem) {
+        Task { @MainActor in
+            let alert = NSAlert()
+            alert.alertStyle = .warning
+            alert.messageText = String(localized: "Kitty Quake Terminal Unavailable")
+            alert.informativeText = problem.message
+            alert.addButton(withTitle: String(localized: "OK"))
+            _ = alert.runModal()
+        }
     }
 
     func reloadQuakeTerminalOpacity() {

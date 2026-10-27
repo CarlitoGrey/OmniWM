@@ -99,6 +99,55 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
         XCTAssertEqual(icons(widget).map(\.paint.opacity), [1, 0.27, 0.27])
     }
 
+    func testCompactScratchpadsTruncateTheirNameToTheNativeWidth() throws {
+        let widget = try ShellRenderedWidget("scratchpads")
+        let scratchpad = ShellBarScratchpad(
+            id: 1, name: "Terminal sessions", focused: false, revealed: false, visible: true,
+            windows: [item("a"), item("b")], compact: true
+        )
+        let labels = { widget.tree().filter { $0.kind == .label }.map { widget.text.string($0.content.text) } }
+        widget.render(bar(scratchpads: [scratchpad]))
+        let label = try XCTUnwrap(widget.tree()
+            .first { $0.kind == .label && widget.text.string($0.content.text) == "Terminal sessions" })
+        XCTAssertEqual(label.content.maxWidth, Float(WorkspaceBarScratchpadLayout.compactLabelMaximumWidth))
+        XCTAssertFalse(labels().contains("T"))
+        widget.render(bar(scratchpads: [scratchpad]) { $0.vertical = true })
+        XCTAssertTrue(labels().contains("T"))
+    }
+
+    func testScratchpadIconCountFollowsTheSettingWithinTheWidthEstimate() throws {
+        let widget = try ShellRenderedWidget("scratchpads")
+        let scratchpad = ShellBarScratchpad(
+            id: 1, name: "Notes", focused: false, revealed: false, visible: true,
+            windows: (0 ..< 7).map { item("w\($0)") }
+        )
+        let estimate = WorkspaceBarScratchpadItem(
+            index: 1, label: "Notes",
+            windows: (0 ..< 7).map { makeWindowItem(
+                appName: "App",
+                windowCount: 1,
+                hiddenWindowCount: 0,
+                tokenOffset: $0
+            ) },
+            isVisible: true
+        )
+        for shown in [0, 2, 6] {
+            widget.set("settings") {
+                $0.map(1)
+                $0.key("shownWindows")
+                $0.number(Double(shown))
+            }
+            widget.render(bar(scratchpads: [scratchpad]) { $0.height = 24 })
+            XCTAssertEqual(icons(widget).count, shown)
+            XCTAssertTrue(widget.tree().contains { widget.text.string($0.content.text) == "+\(7 - shown)" }, "\(shown)")
+            XCTAssertLessThanOrEqual(
+                widget.surface.size.width,
+                WorkspaceBarScratchpadLayout.estimatedWidth(of: [estimate], barHeight: 24, icons: shown),
+                "\(shown)"
+            )
+        }
+    }
+
     func testScratchpadIconOpacityDefaultsOverridesAndFocus() throws {
         let widget = try ShellRenderedWidget("scratchpads")
         let scratchpad = ShellBarScratchpad(
@@ -214,7 +263,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
         ])]))
         let group = try XCTUnwrap(widget.tree().first { widget.text.string($0.content.target) == "window mail" })
         widget.invoke(group.content.action)
-        let rows = widget.renderPopout().map { widget.text.string($0.content.help) }.filter { !$0.isEmpty }
+        let rows = widget.renderPopout().filter { widget.text.string($0.content.action).hasPrefix("window focus") }
+            .map { widget.text.string($0.content.help) }
         XCTAssertEqual(rows, [l10n("Unhide and focus %@", .text("Compose")), l10n("Focus %@", .text("Inbox"))])
     }
 
@@ -246,8 +296,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
             event: ShellEvent(button: .none),
             content: CGPoint(x: 0, y: 100_000)
         ))
-        widget.surface.press(at: CGPoint(x: 50, y: 195))
-        widget.surface.release(at: CGPoint(x: 50, y: 195))
+        widget.surface.press(at: CGPoint(x: 50, y: 180))
+        widget.surface.release(at: CGPoint(x: 50, y: 180))
         XCTAssertEqual(widget.clicks.last?.action, "window focus web_19")
 
         widget.render(group(20) { $0.textColor = "#FF0000" })
@@ -376,10 +426,10 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
             )
         }
         let custom = sizes(28)
-        XCTAssertEqual(custom.text, 10.8, accuracy: 0.0001)
-        XCTAssertEqual(custom.symbol, 11.52, accuracy: 0.0001)
+        XCTAssertEqual(custom.text, 11.38, accuracy: 0.0001)
+        XCTAssertEqual(custom.symbol, 10.08, accuracy: 0.0001)
         let standard = sizes(24)
-        XCTAssertEqual(standard.text, 9)
+        XCTAssertEqual(standard.text, 9.75)
         XCTAssertEqual(standard.symbol, 10)
     }
 
@@ -610,7 +660,8 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
                 barHeight: 24
             ),
             beside: [],
-            availableWidth: availableWidth
+            availableWidth: availableWidth,
+            icons: 3
         )
         let widget = try ShellRenderedWidget("scratchpads")
         func widths(_ compact: (WorkspaceBarScratchpadItem) -> Bool) -> (estimated: CGFloat, rendered: CGFloat) {
@@ -629,7 +680,7 @@ final class WorkspaceBarViewLayoutTests: XCTestCase {
                 )
             }))
             return (
-                8 + WorkspaceBarScratchpadLayout.estimatedWidth(of: presented, barHeight: 24),
+                8 + WorkspaceBarScratchpadLayout.estimatedWidth(of: presented, barHeight: 24, icons: 3),
                 8 + widget.surface.size.width
             )
         }

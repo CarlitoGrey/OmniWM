@@ -11,6 +11,7 @@ final class ShellNotificationsActionTests: XCTestCase {
         var snapshot: ShellNotificationsData
         let entered: @Sendable (Int) -> Void
         private(set) var requests: [ShellNotificationActionRequest] = []
+        private(set) var batches: [[ShellNotificationActionRequest]] = []
         private var pending: [Int: CheckedContinuation<ShellNotificationActionOutcome, Never>] = [:]
 
         init(snapshot: ShellNotificationsData, entered: @escaping @Sendable (Int) -> Void = { _ in }) {
@@ -33,6 +34,11 @@ final class ShellNotificationsActionTests: XCTestCase {
                 pending[index] = continuation
                 entered(index)
             }
+        }
+
+        func batch(_ requests: [ShellNotificationActionRequest]) -> ShellNotificationActionOutcome {
+            batches.append(requests)
+            return .failed
         }
 
         func finish(_ index: Int, with outcome: ShellNotificationActionOutcome) -> Bool {
@@ -73,7 +79,8 @@ final class ShellNotificationsActionTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
             .appendingPathComponent("uncreated/db")
         let controller = ShellNotificationsController(
-            url: url, load: { await gate.read($0) }, perform: { await gate.perform($0) }
+            url: url, load: { await gate.read($0) }, perform: { await gate.perform($0) },
+            dismissAll: { requests, _ in await gate.batch(requests) }
         )
         await listen(controller, expected: expected)
         return controller
@@ -172,34 +179,76 @@ final class ShellNotificationsActionTests: XCTestCase {
         await task.value
         XCTAssertEqual(controller.current.items, refreshed.items)
         XCTAssertEqual(controller.current.action?.fields?["state"]?.string, "dispatched")
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertEqual(controller.current.kept, 0)
+        XCTAssertFalse(controller.perform(.dismiss(bundle: bundle, id: id)))
+        let dispatchedRequests = await gate.requests
+        XCTAssertEqual(dispatchedRequests.count, 1)
         XCTAssertNil(controller.actionTask)
         controller.onChange = nil
     }
 
-    func testReplyUsesOnlyTheUniqueCurrentTextActionLabels() async throws {
+    func testReplyUsesUniqueTextActionLabelsAndSuppressesTheRowForBothSuccessOutcomes() async throws {
+        for outcome in [ShellNotificationActionOutcome.dispatched, .dispatchedPanelOpen] {
+            let id = UUID()
+            let action: ShellServiceValue = .object([
+                "title": .text("Reply ✓"), "textInputButtonTitle": .text("Send synthetic reply")
+            ])
+            let snapshot = ShellNotificationsData(state: "ready", items: [item(id, actions: [action])])
+            let entered = expectation(description: "reply begins")
+            let gate = Gate(snapshot: snapshot, entered: { _ in entered.fulfill() })
+            let controller = await controller(gate, expected: snapshot)
+            let text = "Reply with \n exact Unicode ✓ 中文"
+            XCTAssertTrue(controller.perform(.reply(bundle: bundle, id: id, text: text)))
+            let task = try XCTUnwrap(controller.actionTask)
+            await fulfillment(of: [entered], timeout: 5)
+            let requests = await gate.requests
+            XCTAssertEqual(requests, [.init(
+                bundle: bundle, id: id, peers: [id],
+                operation: .reply(text: text, title: "Reply ✓", sendTitle: "Send synthetic reply")
+            )])
+            let finished = await gate.finish(0, with: outcome)
+            XCTAssertTrue(finished)
+            await task.value
+            await controller.task?.value
+            XCTAssertEqual(controller.current.items, snapshot.items)
+            XCTAssertEqual(controller.current.action?.fields?["kind"]?.string, "reply")
+            XCTAssertEqual(controller.current.action?.fields?["state"]?.string, outcome.rawValue)
+            XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+            XCTAssertEqual(controller.current.kept, 0)
+            XCTAssertFalse(controller.perform(.dismiss(bundle: bundle, id: id)))
+            XCTAssertFalse(controller.perform(.reply(bundle: bundle, id: id, text: text)))
+            XCTAssertFalse(controller.perform(.dismissAll))
+            await controller.actionTask?.value
+            let finalRequests = await gate.requests
+            let batches = await gate.batches
+            XCTAssertEqual(finalRequests.count, 1)
+            XCTAssertTrue(batches.isEmpty)
+            XCTAssertEqual(controller.current.items, snapshot.items)
+            controller.setListening(false)
+        }
+    }
+
+    func testDismissWithPanelCleanupFeedbackSuppressesTheRowWithoutChangingDatabaseMembership() async throws {
         let id = UUID()
-        let action: ShellServiceValue = .object([
-            "title": .text("Reply ✓"), "textInputButtonTitle": .text("Send synthetic reply")
-        ])
-        let snapshot = ShellNotificationsData(state: "ready", items: [item(id, actions: [action])])
-        let entered = expectation(description: "reply begins")
+        let snapshot = ShellNotificationsData(state: "ready", items: [item(id)])
+        let entered = expectation(description: "dismiss begins")
         let gate = Gate(snapshot: snapshot, entered: { _ in entered.fulfill() })
         let controller = await controller(gate, expected: snapshot)
         defer { controller.setListening(false) }
-        let text = "Reply with \n exact Unicode ✓ 中文"
-        XCTAssertTrue(controller.perform(.reply(bundle: bundle, id: id, text: text)))
+        XCTAssertTrue(controller.perform(.dismiss(bundle: bundle, id: id)))
         let task = try XCTUnwrap(controller.actionTask)
         await fulfillment(of: [entered], timeout: 5)
-        let requests = await gate.requests
-        XCTAssertEqual(requests, [.init(
-            bundle: bundle, id: id, peers: [id],
-            operation: .reply(text: text, title: "Reply ✓", sendTitle: "Send synthetic reply")
-        )])
         let finished = await gate.finish(0, with: .dispatchedPanelOpen)
         XCTAssertTrue(finished)
         await task.value
+        await controller.task?.value
         XCTAssertEqual(controller.current.items, snapshot.items)
         XCTAssertEqual(controller.current.action?.fields?["state"]?.string, "dispatchedPanelOpen")
+        XCTAssertEqual(controller.current.dispatched, [id.uuidString.lowercased()])
+        XCTAssertFalse(controller.perform(.dismiss(bundle: bundle, id: id)))
+        let requests = await gate.requests
+        XCTAssertEqual(requests.count, 1)
     }
 
     func testStaleIncompleteAndAmbiguousRequestsNeverReachNativeActions() async {
@@ -233,6 +282,7 @@ final class ShellNotificationsActionTests: XCTestCase {
             XCTAssertEqual(controller.current.action?.fields?["state"]?.string, outcome)
             XCTAssertEqual(controller.current.items, snapshot.items)
             XCTAssertNil(controller.actionTask)
+            XCTAssertEqual(controller.current.dispatched, [])
             let requests = await gate.requests
             XCTAssertTrue(requests.isEmpty)
             controller.setListening(false)
@@ -292,11 +342,13 @@ final class ShellNotificationsActionTests: XCTestCase {
         XCTAssertEqual(controller.current.items, fresh.items)
         XCTAssertEqual(controller.current.action?.fields?["id"]?.string, newID.uuidString.lowercased())
         XCTAssertEqual(controller.current.action?.fields?["state"]?.string, "pending")
+        XCTAssertEqual(controller.current.dispatched, [])
         XCTAssertNotNil(controller.actionTask)
         let newFinished = await gate.finish(1, with: .failedPanelOpen)
         XCTAssertTrue(newFinished)
         await newTask.value
         XCTAssertEqual(controller.current.action?.fields?["state"]?.string, "failedPanelOpen")
+        XCTAssertEqual(controller.current.dispatched, [])
         XCTAssertNil(controller.actionTask)
     }
 }

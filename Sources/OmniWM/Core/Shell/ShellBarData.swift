@@ -62,6 +62,7 @@ struct ShellBarStyle: Equatable, Sendable {
     var keyboardMode = KeyboardModeKind.normal.rawValue
     var previews = true
     var hideInFullscreen = true
+    var hidesMenuBar = false
 
     func write(to writer: inout ShellValueWriter) {
         let optional = { (value: String?) -> (inout ShellValueWriter) -> Void in
@@ -91,7 +92,8 @@ struct ShellBarStyle: Equatable, Sendable {
             ("secureInput", { $0.bool(secureInput) }),
             ("keyboardMode", { $0.string(keyboardMode) }),
             ("previews", { $0.bool(previews) }),
-            ("hideInFullscreen", { $0.bool(hideInFullscreen) })
+            ("hideInFullscreen", { $0.bool(hideInFullscreen) }),
+            ("hidesMenuBar", { $0.bool(hidesMenuBar) })
         ]
         writer.map(fields.count)
         for (key, value) in fields {

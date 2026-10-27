@@ -106,6 +106,22 @@ final class WorkspaceBarFullWidthTests: XCTestCase {
         XCTAssertEqual(offsets(.rightOfNotch, notch: nil), [4, 62, 457, 505, 533, 936])
     }
 
+    func testCenterWidgetsShiftClearOfLongSideLanesOnlyWhenTheyWouldOverlap() {
+        func offsets(_ items: [(lane: ShellLane, length: CGFloat)]) -> [CGFloat] {
+            WorkspaceBarZoneLayout.offsets(
+                of: items,
+                length: 1000,
+                zones: WorkspaceBarZones(notch: nil, mode: .off),
+                spacing: 8,
+                inset: 4
+            )
+        }
+        XCTAssertEqual(offsets([(.leading, 100), (.center, 200), (.trailing, 100)]), [4, 400, 896])
+        XCTAssertEqual(offsets([(.leading, 400), (.center, 300), (.trailing, 100)]), [4, 412, 896])
+        XCTAssertEqual(offsets([(.leading, 100), (.center, 300), (.trailing, 450)]), [4, 238, 546])
+        XCTAssertEqual(offsets([(.leading, 500), (.center, 300), (.trailing, 400)]), [4, 512, 596])
+    }
+
     func testTheBarViewPlacesWidgetsInTheirZones() {
         let names = ["left", "middle", "right"]
         let snapshot = WorkspaceBarSnapshot(

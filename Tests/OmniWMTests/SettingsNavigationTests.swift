@@ -10,12 +10,12 @@ final class SettingsNavigationTests: XCTestCase {
         let destinations = SettingsSectionGroup.allCases.flatMap(\.sections)
         XCTAssertEqual(Set(destinations), Set(SettingsSection.allCases))
         XCTAssertEqual(destinations.count, Set(destinations).count)
-        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .bar, .island, .widgets, .menuBar])
+        XCTAssertEqual(SettingsSectionGroup.desktop.sections, [.styles, .menuBar])
     }
 
     func testSearchFindsShellTasksAndIndividualControls() throws {
-        XCTAssertTrue(SettingsSearchIndex.results(for: "custom bar").contains { $0.route.section == .bar })
-        XCTAssertTrue(SettingsSearchIndex.results(for: "dynamic island").contains { $0.route.section == .island })
+        XCTAssertTrue(SettingsSearchIndex.results(for: "custom bar").contains { $0.route.section == .styles })
+        XCTAssertTrue(SettingsSearchIndex.results(for: "dynamic island").contains { $0.route.section == .styles })
         let border = try XCTUnwrap(SettingsSearchIndex.results(for: "Border Width")
             .first { $0.title == String(localized: "Border Width") })
         XCTAssertEqual(border.route, SettingsRoute(section: .appearance, tab: "borders", anchor: "Border Width"))
@@ -32,6 +32,21 @@ final class SettingsNavigationTests: XCTestCase {
         XCTAssertTrue(SettingsSearchIndex.results(for: "  ").isEmpty)
     }
 
+    func testIslandSearchTargetsTheEditorSurfaceAndPreservesItsGroups() throws {
+        for (title, anchor) in [
+            ("Show Dynamic Island", "placement"), ("Island Widgets", nil), ("Component Regions", nil),
+            ("Island Appearance", "appearance"), ("Island Interaction", "interaction"),
+            ("Island Motion", "interaction")
+        ] as [(String, String?)] {
+            let result = try XCTUnwrap(SettingsSearchIndex.results(for: title).first { $0.title == title })
+            XCTAssertEqual(result.route, SettingsRoute(section: .styles, tab: "island", anchor: anchor))
+        }
+        XCTAssertEqual(SettingsSearchIndex.tabTitle("island"), String(localized: "Dynamic Island"))
+        for tab in ["lanes", "placement", "appearance", "behavior", "apps"] {
+            XCTAssertTrue(SettingsSearchIndex.entries.contains { $0.route.section == .styles && $0.route.tab == tab })
+        }
+    }
+
     func testWidgetSearchCarriesItsConfiguredItemTarget() throws {
         for (query, item) in [
             ("Clock", "clock"),
@@ -40,14 +55,14 @@ final class SettingsNavigationTests: XCTestCase {
             ("Volume", "volume")
         ] {
             let result = try XCTUnwrap(SettingsSearchIndex.results(for: query)
-                .first { $0.route.section == .widgets && $0.route.itemID == item })
+                .first { $0.route.section == .styles && $0.route.itemID == item })
             XCTAssertEqual(result.route.itemID, item)
         }
         XCTAssertEqual(Set(SettingsSearchIndex.entries.map(\.id)).count, SettingsSearchIndex.entries.count)
         XCTAssertFalse(SettingsSearchIndex.results(for: "Clock").contains { $0.route.itemID == "weather" })
         XCTAssertEqual(
-            SettingsSearchIndex.results(for: "Drawer").first { $0.title == "Drawer" }?.route.anchor,
-            "Drawers"
+            SettingsSearchIndex.results(for: "Drawer").first { $0.title == "Drawer" }?.route,
+            SettingsRoute(section: .styles, tab: "drawers")
         )
     }
 
@@ -56,7 +71,7 @@ final class SettingsNavigationTests: XCTestCase {
         navigation.section = .appRules
         navigation.ruleEditorState.isDirty = true
         navigation.searchText = "widgets"
-        let requested = SettingsRoute(section: .widgets, itemID: "clock")
+        let requested = SettingsRoute(section: .styles, itemID: "clock")
         navigation.request(requested)
         XCTAssertEqual(navigation.section, .appRules)
         XCTAssertEqual(navigation.pendingRoute, requested)
@@ -105,6 +120,72 @@ final class SettingsNavigationTests: XCTestCase {
         navigation.ruleEditorState.isDirty = false
         navigation.section = .monitors
         XCTAssertFalse(navigation.consumeMonitorSetupPresentationRequest())
+    }
+
+    func testEditorLeaveGuardInterceptsAnotherSectionAndAllowsLocalRoutes() {
+        let navigation = SettingsNavigationModel()
+        navigation.proceed(to: SettingsRoute(section: .styles))
+        var intercepted: [SettingsRoute?] = []
+        navigation.leaveGuard = { route in
+            intercepted.append(route)
+            return true
+        }
+        let local = SettingsRoute(section: .styles, itemID: "clock")
+        navigation.request(local)
+        XCTAssertEqual(navigation.route, local)
+        XCTAssertTrue(intercepted.isEmpty)
+        navigation.searchText = "weather"
+        let destination = SettingsRoute(section: .menuBar)
+        navigation.request(destination)
+        XCTAssertEqual(intercepted, [destination])
+        XCTAssertEqual(navigation.route, local)
+        XCTAssertEqual(navigation.searchText, "weather")
+        navigation.proceed(to: destination)
+        XCTAssertEqual(navigation.route, destination)
+        XCTAssertEqual(intercepted, [destination])
+        XCTAssertTrue(navigation.searchText.isEmpty)
+    }
+
+    func testProceedWithoutARouteClosesTheEditorWindow() {
+        let navigation = SettingsNavigationModel()
+        let initial = SettingsRoute(section: .styles, itemID: "clock")
+        navigation.proceed(to: initial)
+        var closed = 0
+        navigation.closeWindow = { closed += 1 }
+        navigation.proceed(to: nil)
+        XCTAssertEqual(closed, 1)
+        XCTAssertEqual(navigation.route, initial)
+    }
+
+    func testDismissingTheRuleDiscardPromptAfterMonitorNavigationKeepsSetupArmed() {
+        let navigation = SettingsNavigationModel()
+        navigation.section = .appRules
+        navigation.ruleEditorState.isDirty = true
+        navigation.requestMonitorSetupPresentation()
+        XCTAssertEqual(navigation.pendingRoute, SettingsRoute(section: .monitors))
+        navigation.discardAndNavigate()
+        XCTAssertEqual(navigation.section, .monitors)
+        XCTAssertTrue(navigation.hasPendingMonitorSetupPresentation)
+        navigation.cancelNavigation()
+        XCTAssertTrue(navigation.hasPendingMonitorSetupPresentation)
+        XCTAssertTrue(navigation.consumeMonitorSetupPresentationRequest())
+        XCTAssertFalse(navigation.consumeMonitorSetupPresentationRequest())
+    }
+
+    func testReflectingTheEditorsSelectionKeepsSearchAndDoesNotInvokeTheLeaveGuard() {
+        let navigation = SettingsNavigationModel()
+        navigation.proceed(to: SettingsRoute(section: .styles))
+        navigation.searchText = "Clock"
+        var guarded = false
+        navigation.leaveGuard = { _ in
+            guarded = true
+            return true
+        }
+        let selected = SettingsRoute(section: .styles, itemID: "clock")
+        navigation.reflect(selected)
+        XCTAssertEqual(navigation.route, selected)
+        XCTAssertEqual(navigation.searchText, "Clock")
+        XCTAssertFalse(guarded)
     }
 
     func testReopeningUsesLastDestinationAndTab() {

@@ -4,7 +4,7 @@
 theme = "celestial"
 leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
 center = ["active-window"]
-trailing = ["hidden-bar", "clock", "status", "system-stats", "power"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock", "power"]
 
 [workspaceBar]
 position = "left"
@@ -20,6 +20,19 @@ solidBlackBackground = false
 showLabels = false
 xOffset = 0
 yOffset = 0
+
+[widgets.workspaces]
+indicator = "pills"
+
+[widgets.volume]
+step = 5
+
+[widgets.clock]
+date = false
+icon = true
+
+[widgets.active-window]
+maxWidth = 320
 
 [drawer.dashboard]
 edge = "top"

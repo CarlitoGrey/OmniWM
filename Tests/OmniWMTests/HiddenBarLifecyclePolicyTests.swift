@@ -335,6 +335,47 @@ final class HiddenBarLifecyclePolicyTests: XCTestCase {
     }
 
     @MainActor
+    func testReconcealmentWaitsForNativePanelToClose() async {
+        let controller = WindowAdmissionTestSupport.controller(prefix: "HiddenBarNativePanelGuard")
+        let hiddenBar = controller.hiddenBarController
+        addTeardownBlock { [weak hiddenBar] in
+            XCTAssertNil(hiddenBar)
+        }
+        controller.settings.hiddenBar.rehideIntervalSeconds = 5
+        let startedAt = ContinuousClock().now
+        var now = startedAt
+        var panelOpen = true
+        let menuBar = CGRect(x: 0, y: 0, width: 2560, height: 24)
+        let panel = HiddenBarMenuGuard.WindowInfo(
+            layer: Int(CGWindowLevelForKey(.statusWindow)), ownerPID: 500, title: nil,
+            bounds: CGRect(x: 2150, y: 24, width: 280, height: 180)
+        )
+        hiddenBar.reconcealment.menuGuardNow = { now }
+        hiddenBar.reconcealment.menuGuardSleeper = { [weak hiddenBar] delay in
+            now = now.advanced(by: delay)
+            if startedAt.duration(to: now) >= .seconds(8), panelOpen {
+                XCTAssertEqual(hiddenBar?.temporarilyRevealedBundleIDsForTests.isEmpty, false)
+                panelOpen = false
+            }
+            await Task.yield()
+        }
+        hiddenBar.reconcealment.menuOpenProviderForTests = { _ in
+            HiddenBarMenuGuard.isMenuOpen(
+                windows: panelOpen ? [panel] : [], menuOwnerPIDs: [500], menuBarFrames: [menuBar]
+            )
+        }
+        hiddenBar.performance.begin()
+        hiddenBar.startReconcealForTests(revealedBundleIDs: ["com.omniwm.native-panel"])
+        await driveReconcealTask(hiddenBar)
+
+        XCTAssertFalse(panelOpen)
+        XCTAssertGreaterThanOrEqual(startedAt.duration(to: now), .seconds(13))
+        XCTAssertEqual(hiddenBar.performance.end()?.terminalReason, .concealed)
+        XCTAssertTrue(hiddenBar.temporarilyRevealedBundleIDsForTests.isEmpty)
+        hiddenBar.cleanup()
+    }
+
+    @MainActor
     func testDefinitelyOpenMenuUsesWatchdogInsteadOfUnknownBound() async {
         let controller = WindowAdmissionTestSupport.controller(prefix: "HiddenBarWatchdog")
         let hiddenBar = controller.hiddenBarController

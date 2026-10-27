@@ -12,7 +12,8 @@ struct SettingsSearchEntry: Identifiable {
     }
 
     var context: String {
-        [route.section.displayName, route.tab?.capitalized].compactMap { $0 }.joined(separator: " › ")
+        [route.section.displayName, route.tab.map(SettingsSearchIndex.tabTitle)].compactMap { $0 }
+            .joined(separator: " › ")
     }
 }
 
@@ -232,6 +233,12 @@ enum SettingsSearchIndex {
         setting("Edge navigation interval", section: .mouseTrackpad, tab: "mouse", anchor: "Edge navigation interval"),
         setting("Quake Terminal", section: .quakeTerminal, anchor: "Quake Terminal"),
         setting("Enable Quake Terminal", section: .quakeTerminal, anchor: "Enable Quake Terminal"),
+        setting("Terminal", section: .quakeTerminal, anchor: "Terminal"),
+        setting("Kitty Placement", section: .quakeTerminal, anchor: "Kitty Placement"),
+        setting("Override Kitty Placement", section: .quakeTerminal, anchor: "Override Kitty Placement"),
+        setting("Kitty Behavior", section: .quakeTerminal, anchor: "Kitty Behavior"),
+        setting("Kitty Appearance", section: .quakeTerminal, anchor: "Kitty Appearance"),
+        setting("Override Kitty Opacity", section: .quakeTerminal, anchor: "Override Kitty Opacity"),
         setting("Position & Size", section: .quakeTerminal, anchor: "Position & Size"),
         setting("Position", section: .quakeTerminal, anchor: "Position"),
         setting("Show On", section: .quakeTerminal, anchor: "Show On"),
@@ -286,30 +293,30 @@ enum SettingsSearchIndex {
         setting("Diagnostics recording", section: .reportIssue, anchor: "Diagnostics recording"),
         setting("Stop, Save & Include Recording", section: .reportIssue, anchor: "Stop, Save & Include Recording"),
         setting("Additional evidence", section: .reportIssue, anchor: "Additional evidence"),
-        setting("Custom Bar", section: .bar, tab: "layout"),
-        setting("Bar Widgets", section: .bar, tab: "layout"),
-        setting("Position", section: .bar, tab: "layout"),
-        setting("Notch Mode", section: .bar, tab: "layout"),
-        setting("Bar Thickness", section: .bar, tab: "appearance"),
-        setting("Background Opacity", section: .bar, tab: "appearance"),
-        setting("Notification Badges", section: .bar, tab: "behavior"),
-        setting("Auto-Hide", section: .bar, tab: "behavior"),
-        setting("Excluded Apps", section: .bar, tab: "apps"),
-        setting("Icon Overrides", section: .bar, tab: "apps"),
-        setting("Enable Island", section: .island, tab: "placement"),
-        setting("Island Widgets", section: .island, tab: "widgets"),
-        setting("Component Regions", section: .island, tab: "widgets"),
-        setting("Island Appearance", section: .island, tab: "appearance"),
-        setting("Island Interaction", section: .island, tab: "interaction"),
-        setting("Island Motion", section: .island, tab: "interaction"),
+        setting("Custom Bar", section: .styles, tab: "lanes"),
+        setting("Bar Widgets", section: .styles, tab: "lanes"),
+        setting("Position", section: .styles, tab: "placement"),
+        setting("Notch Mode", section: .styles, tab: "placement"),
+        setting("Bar Thickness", section: .styles, tab: "appearance"),
+        setting("Background Opacity", section: .styles, tab: "appearance"),
+        setting("Notification Badges", section: .styles, tab: "behavior"),
+        setting("Auto-Hide", section: .styles, tab: "behavior"),
+        setting("Excluded Apps", section: .styles, tab: "apps"),
+        setting("Icon Overrides", section: .styles, tab: "apps"),
+        setting("Show Dynamic Island", section: .styles, tab: "island", anchor: "placement"),
+        setting("Island Widgets", section: .styles, tab: "island"),
+        setting("Component Regions", section: .styles, tab: "island"),
+        setting("Island Appearance", section: .styles, tab: "island", anchor: "appearance"),
+        setting("Island Interaction", section: .styles, tab: "island", anchor: "interaction"),
+        setting("Island Motion", section: .styles, tab: "island", anchor: "interaction"),
         setting("Style Profile", section: .styles),
         setting("Color Palette", section: .styles),
         setting("Wallpaper Colors", section: .styles),
-        setting("Clock", section: .widgets, itemID: "clock"),
-        setting("Weather", section: .widgets, itemID: "weather"),
-        setting("World Clock", section: .widgets, itemID: "world-clock"),
-        setting("Volume", section: .widgets, itemID: "volume"),
-        setting("Drawer", section: .widgets, anchor: "Drawers"),
+        setting("Clock", section: .styles, itemID: "clock"),
+        setting("Weather", section: .styles, itemID: "weather"),
+        setting("World Clock", section: .styles, itemID: "world-clock"),
+        setting("Volume", section: .styles, itemID: "volume"),
+        setting("Drawer", section: .styles, tab: "drawers"),
         setting("Settings File", section: .advanced, anchor: "Configuration Files"),
         setting("Shell Folder", section: .advanced, anchor: "Shell Development"),
         setting("IPC", section: .advanced, anchor: "Automation"),
@@ -318,14 +325,47 @@ enum SettingsSearchIndex {
 }
 
 extension SettingsSearchIndex {
+    static func tabTitle(_ tab: String) -> String {
+        switch tab {
+        case "lanes": String(localized: "Bar Widgets")
+        case "island": String(localized: "Dynamic Island")
+        case "drawers": String(localized: "Drawers")
+        case "placement": String(localized: "Placement")
+        case "appearance": String(localized: "Appearance")
+        case "behavior": String(localized: "Behavior")
+        case "apps": String(localized: "Apps")
+        case "status": String(localized: "macOS Status Item")
+        case "hidden": String(localized: "Hidden Bar")
+        default: tab.capitalized
+        }
+    }
+
     private static func aliases(for section: SettingsSection) -> [String] {
         switch section {
         case .general: ["language", "startup", "login", "updates"]
         case .appearance: ["theme", "dark", "light", "animations", "corners", "borders", "glow"]
-        case .styles: ["shell", "profile", "preset", "palette", "theme", "wallpaper"]
-        case .bar: ["shell", "custom bar", "workspace bar", "widgets"]
-        case .island: ["shell", "dynamic island", "lake", "focus ribbon", "components"]
-        case .widgets: ["shell", "widget", "clock", "calendar", "weather", "media", "volume", "drawer"]
+        case .styles: [
+                "shell",
+                "profile",
+                "preset",
+                "palette",
+                "theme",
+                "wallpaper",
+                "custom bar",
+                "workspace bar",
+                "widgets",
+                "widget",
+                "clock",
+                "calendar",
+                "weather",
+                "media",
+                "volume",
+                "drawer",
+                "dynamic island",
+                "lake",
+                "focus ribbon",
+                "components"
+            ]
         case .menuBar: ["status bar", "hidden bar", "menu bar", "icons"]
         case .layouts: ["spacing", "gaps", "margins", "niri", "dwindle", "columns", "tiling"]
         case .monitors: ["monitors", "displays", "screens", "routing"]

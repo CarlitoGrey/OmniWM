@@ -153,6 +153,7 @@ final class HiddenBarMenuSessionTests: XCTestCase {
         let session = fixture.session()
 
         XCTAssertEqual(session.open(target: fixture.target(), cachedItems: [fixture.target()]), .unavailable)
+        XCTAssertFalse(session.lastOpenFailedReading)
     }
 
     func testSoleUnnamedItemCanLoadItsMenu() {
@@ -303,6 +304,7 @@ final class HiddenBarMenuSessionTests: XCTestCase {
         let session = fixture.session()
 
         XCTAssertEqual(session.open(target: fixture.target(), cachedItems: [fixture.target()]), .unavailable)
+        XCTAssertTrue(session.lastOpenFailedReading)
         XCTAssertNil(session.page)
         XCTAssertNil(session.bundleID)
         XCTAssertTrue(fixture.pressed.isEmpty)

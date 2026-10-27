@@ -17,7 +17,7 @@ An island has two parts: a **root widget** owns its shape and interactions, and 
 
 ## 1. Create separate folders
 
-Record your current style in **Settings > Styles**, so you can return to it afterward. Create these new folders:
+Record your current style in **Settings > Styles & Widgets**, so you can return to it afterward. Create these new folders:
 
 ```sh
 mkdir -p ~/.config/omniwm/shell/tutorial-island/widgets/tutorial-root
@@ -83,7 +83,7 @@ omniwmctl shell profile tutorial-island
 omniwmctl query shell-widgets
 ```
 
-Selecting this profile changes the shared style for the bar and island, and keeps your previous profile's saved choices. It does not enable the island. Open **Settings > Dynamic Island** and turn **Enable Dynamic Island** on.
+Selecting this profile changes the shared style for the bar and island, and keeps your previous profile's saved choices. It does not enable the island. Open **Settings > Styles & Widgets > Island** and turn **Show Dynamic Island** on.
 
 You should see **My desk: [local time]** in the compact capsule on your main display. Click to expand it and see the larger time and date. Click outside to collapse it; click the capsule again and press Escape to collapse and release its keyboard focus. Try these interactions while an ordinary app is active to check focus restoration on your Mac.
 
@@ -91,9 +91,9 @@ Change `label = "My desk"` to `label = "Studio"` in the profile file and save. T
 
 ## 6. Add the component to Lake
 
-1. Select **Lake** in **Settings > Styles**, then choose **Use Style** (or run `omniwmctl shell profile lake`).
-2. Open **Settings > Dynamic Island > Widgets** and select **Add Widget…**.
-3. Choose **Demo clock**. Open its **Options…** and set its label and placement.
+1. Select **Lake** in **Settings > Styles & Widgets**, then choose **Use Style** (or run `omniwmctl shell profile lake`).
+2. Open the **Island** tab and select **Add Widget…**.
+3. Add **Demo clock**, then set its label and placement.
 4. Expand Lake and select the new clock to see its expanded view.
 
 Lake creates its own instance ID and mounts the same component package; you do not copy the tutorial root or replace Lake's component list. Existing Lake instances stay in place. Return to the style you recorded in step 1 when finished, or keep Lake selected.

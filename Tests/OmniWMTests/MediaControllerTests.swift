@@ -235,7 +235,12 @@ final class MediaControllerTests: XCTestCase {
         }
         let elapsed = try XCTUnwrap(frames["0:30"])
         let duration = try XCTUnwrap(frames["3:20"])
-        XCTAssertEqual(elapsed.x, 12, accuracy: 0.5)
-        XCTAssertEqual(duration.x + duration.width, 288, accuracy: 0.5)
+        let handle = try XCTUnwrap(widget.surface.layout.core.elements(matching: { _ in true }).first {
+            widget.surface.layout.core.kind(of: $0) == .slider
+        })
+        let slider = widget.surface.layout.core.absoluteFrame(of: handle)
+        XCTAssertEqual(elapsed.x, slider.x, accuracy: 0.5)
+        XCTAssertEqual(duration.x + duration.width, slider.x + slider.width, accuracy: 0.5)
+        XCTAssertGreaterThan(slider.width, duration.x - elapsed.x)
     }
 }

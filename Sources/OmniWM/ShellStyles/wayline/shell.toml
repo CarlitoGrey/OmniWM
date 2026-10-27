@@ -2,12 +2,14 @@
 # Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
 theme = "wayline"
-leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads"]
+leading = ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
 center = ["clock"]
-trailing = ["media", "calendar", "weather", "volume", "battery", "system-stats"]
+trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
 
 [workspaceBar]
+position = "overlappingMenuBar"
 height = 40
+fullWidth = true
 reserveLayoutSpace = true
 transparentBackground = false
 backgroundOpacity = 1
@@ -18,4 +20,6 @@ showLabels = true
 xOffset = 0
 yOffset = 0
 barFill = "surface"
-barBorder = "border"
+
+[widgets.clock]
+icon = true

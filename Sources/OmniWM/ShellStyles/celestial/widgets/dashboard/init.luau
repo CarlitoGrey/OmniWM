@@ -1,6 +1,9 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+require("../lib/calendar")
+require("../lib/media")
+require("../lib/weather")
 local dash = require("../lib/dash")
 local mediatab = require("../lib/mediatab")
 local performance = require("../lib/performance")

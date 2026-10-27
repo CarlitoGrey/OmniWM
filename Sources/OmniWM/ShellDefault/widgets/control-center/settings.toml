@@ -4,5 +4,5 @@
 [options.tab]
 type = "choice"
 title = "Initial tab"
-default = "audio"
-choices = ["audio", "media", "calendar", "weather", "system"]
+default = "overview"
+choices = ["overview", "audio", "media", "calendar", "weather", "system"]

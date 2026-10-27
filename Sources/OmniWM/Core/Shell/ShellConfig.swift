@@ -11,7 +11,7 @@ enum ShellLane: String, Equatable, CaseIterable, Sendable {
 }
 
 struct ShellDrawerConfig: Equatable {
-    enum Edge: String {
+    enum Edge: String, CaseIterable {
         case left
         case right
         case top
@@ -42,6 +42,7 @@ struct ShellConfig: Equatable {
     var trailing: [String] = []
     var widgetSettings: [String: [UInt8]] = [:]
     var widgetIntervals: [String: Double] = [:]
+    var scratchpadIcons = 3
     var weather: ShellWeatherLocation?
     var barOverride: WorkspaceBarProfileOverride?
     var barShader: ShellBarShader?
@@ -49,6 +50,7 @@ struct ShellConfig: Equatable {
     var hiddenBarWidget: String?
     var systemStatsWidget: String?
     var drawers: [ShellDrawerConfig] = []
+    var styleDrawers: Set<String> = []
     var island: ShellIslandConfig?
 
     static func bundledWidget(_ name: String) -> URL? {
@@ -57,6 +59,15 @@ struct ShellConfig: Equatable {
 
     func widget(_ name: String) -> URL? {
         Self.isName(name) ? file("widgets/\(name)/init.luau") : nil
+    }
+
+    func builtInWidget(_ name: String, replacing source: URL) -> URL? {
+        guard Self.isName(name) else { return nil }
+        let managed = directories.last?.appendingPathComponent("widgets/\(name)/init.luau")
+        return [Self.bundledWidget(name), managed].lazy.compactMap(\.self).first {
+            $0.standardizedFileURL != source.standardizedFileURL
+                && FileManager.default.fileExists(atPath: $0.path)
+        }
     }
 
     func file(_ path: String) -> URL? {
@@ -155,6 +166,9 @@ extension ShellConfig {
         }
         if case let .string(name)? = table["theme"] {
             config.styleThemeName = name
+        }
+        if case let .table(drawers)? = table["drawer"] {
+            config.styleDrawers = Set(drawers.keys)
         }
         let own = ownLayer(top, profile: config.profile, &problems)
         table = merged(table, own)
@@ -309,6 +323,11 @@ extension ShellConfig {
                let interval = number(settings["interval"]).flatMap(ShellWidgetDeclaration.validInterval)
             {
                 config.widgetIntervals[name] = interval
+            }
+            if name == bundledScratchpads, case let .table(settings) = node,
+               let icons = number(settings["shownWindows"])
+            {
+                config.scratchpadIcons = Int(min(6, max(0, icons)))
             }
         }
     }

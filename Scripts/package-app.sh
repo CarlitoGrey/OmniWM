@@ -6,6 +6,11 @@ SIGN_AND_NOTARIZE="${2:-true}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 APP_NAME="${OMNIWM_APP_NAME:-OmniWM}"
 BUNDLE_ID="${OMNIWM_BUNDLE_ID:-com.barut.OmniWM}"
+CANARY_TAG="${OMNIWM_CANARY_TAG:-}"
+if [[ -n "$CANARY_TAG" && ! "$CANARY_TAG" =~ ^canary-[0-9]{8}-[0-9]{4}-[0-9]+-[0-9]+$ ]]; then
+  echo "package-app: invalid Canary release tag" >&2
+  exit 1
+fi
 case "$APP_NAME" in
   .|..|*/*)
     echo "package-app: the app name must be a single directory name" >&2
@@ -46,6 +51,9 @@ cp "$CLI_EXECUTABLE" "$APP_DIR/Contents/MacOS/omniwmctl"
 cp "$ROOT_DIR/Info.plist" "$APP_DIR/Contents/Info.plist"
 if command -v plutil >/dev/null 2>&1; then
   plutil -replace OMNIWMGitHash -string "$(git -C "$ROOT_DIR" rev-parse --short HEAD 2>/dev/null || echo SNAPSHOT)" "$APP_DIR/Contents/Info.plist"
+  if [[ -n "$CANARY_TAG" ]]; then
+    plutil -replace OMNIWMCanaryTag -string "$CANARY_TAG" "$APP_DIR/Contents/Info.plist"
+  fi
   if [ "$APP_NAME" != "OmniWM" ] || [ "$BUNDLE_ID" != "com.barut.OmniWM" ]; then
     plutil -replace CFBundleIdentifier -string "$BUNDLE_ID" "$APP_DIR/Contents/Info.plist"
     plutil -replace CFBundleName -string "$APP_NAME" "$APP_DIR/Contents/Info.plist"

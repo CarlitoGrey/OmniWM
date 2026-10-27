@@ -45,7 +45,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         await coordinator.flush()
     }
 
-    func testPreviewingSystemKeepsLakeSelectedAndSupportsItsSimpleIsland() async throws {
+    func testPreviewingDefaultKeepsLakeSelectedAndSupportsItsSimpleIsland() async throws {
         let shell = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: shell) }
         _ = ShellDefaults.sync(into: shell)
@@ -53,12 +53,12 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
         try await coordinator.refresh()
         let before = try Data(contentsOf: shell.appendingPathComponent("shell.toml"))
-        let system = try await coordinator.previewConfig(profile: "system")
-        XCTAssertEqual(system.profile, "system")
-        XCTAssertEqual(system.island?.root, "focus-ribbon")
+        let defaultProfile = try await coordinator.previewConfig(profile: "default")
+        XCTAssertEqual(defaultProfile.profile, "default")
+        XCTAssertEqual(defaultProfile.island?.root, "focus-ribbon")
         XCTAssertEqual(coordinator.config.profile, "lake")
         XCTAssertEqual(try Data(contentsOf: shell.appendingPathComponent("shell.toml")), before)
-        try await coordinator.selectProfile("system")
+        try await coordinator.selectProfile("default")
         try await coordinator.set("main", key: "displays", table: "island")
         XCTAssertEqual(coordinator.config.island?.root, "focus-ribbon")
         XCTAssertEqual(coordinator.config.island?.displays, .main)
@@ -119,11 +119,11 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         await fulfillment(of: [entered], timeout: 5)
         XCTAssertTrue(coordinator.isSaving)
         XCTAssertEqual(coordinator.config.island?.components.count, initialCount)
-        let switched = Task { try await coordinator.selectProfile("system") }
+        let switched = Task { try await coordinator.selectProfile("default") }
         release.signal()
         _ = try await island.value
         _ = try await switched.value
-        XCTAssertEqual(coordinator.config.profile, "system")
+        XCTAssertEqual(coordinator.config.profile, "default")
         let lake = try await coordinator.previewConfig(profile: "lake")
         XCTAssertEqual(lake.island?.components.count, (initialCount ?? 0) + 1)
         await coordinator.flush()
@@ -268,12 +268,12 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: shell) }
         let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
         try await coordinator.ensureLoaded()
-        let system = try await coordinator.previewConfig(profile: "system")
+        let defaultProfile = try await coordinator.previewConfig(profile: "default")
         let revision = coordinator.revision
         try Data("not valid = [".utf8).write(to: shell.appendingPathComponent("shell.toml"))
         try await coordinator.ensureLoaded()
-        let cached = try await coordinator.previewConfig(profile: "system")
-        XCTAssertEqual(cached, system)
+        let cached = try await coordinator.previewConfig(profile: "default")
+        XCTAssertEqual(cached, defaultProfile)
         XCTAssertEqual(coordinator.revision, revision)
         do {
             try await coordinator.refresh()
@@ -552,7 +552,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: shell) }
         let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
         try await coordinator.refresh()
-        let selected = try await coordinator.selectProfile("system")
+        let selected = try await coordinator.selectProfile("default")
         XCTAssertTrue(selected)
         let selectedTheme = try await coordinator.selectTheme("nocturne")
         XCTAssertTrue(selectedTheme)
@@ -563,11 +563,11 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(Array(coordinator.config.leading.prefix(3)), ["apple-menu", "app-menu", "omniwm"])
         let document = try parsedBarConfiguration(shell)
-        XCTAssertEqual(document["profile"], .string("system"))
+        XCTAssertEqual(document["profile"], .string("default"))
         guard case let .table(profiles)? = document["profiles"],
-              case let .table(profile)? = profiles["system"]
+              case let .table(profile)? = profiles["default"]
         else {
-            return XCTFail("Expected retained system profile theme")
+            return XCTFail("Expected retained default profile theme")
         }
         XCTAssertNil(profile["leading"])
         XCTAssertNil(profile["center"])

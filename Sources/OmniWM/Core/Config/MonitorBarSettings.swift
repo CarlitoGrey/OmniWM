@@ -168,7 +168,7 @@ struct MonitorBarSettings: MonitorSettingsType {
     }
 }
 
-struct ResolvedBarSettings {
+struct ResolvedBarSettings: Equatable {
     let enabled: Bool
     let showLabels: Bool
     let showFloatingWindows: Bool

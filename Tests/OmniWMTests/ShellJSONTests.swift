@@ -85,10 +85,16 @@ final class ShellJSONTests: XCTestCase {
 
     func testFourMiBInputAndOutputCapsAreExplicit() throws {
         try check(#"""
+        local ascii = string.rep("a", 64 * 1024)
+        local asciiJSON = '"' .. ascii .. '"'
+        assert(json.decode(asciiJSON) == ascii)
+        assert(json.encode(ascii) == asciiJSON)
         local limit = 4 * 1024 * 1024
-        local text = '"' .. string.rep("a", limit - 2) .. '"'
+        local repeats = (limit - 4) / 6
+        local text = '"' .. string.rep("\\u0000", repeats) .. 'aa"'
+        assert(#text == limit)
         local decoded, err = json.decode(text)
-        assert(decoded and #decoded == limit - 2 and err == nil)
+        assert(decoded and #decoded == repeats + 2 and err == nil)
         assert(#assert(json.encode(decoded)) == limit)
         local tooLarge, inputError = json.decode(text .. " ")
         assert(tooLarge == nil and type(inputError) == "string")

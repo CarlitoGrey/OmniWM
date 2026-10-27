@@ -344,8 +344,8 @@ extension ShellWidgetHost {
                 trips[name] = nil
                 continue
             }
-            if let bundled = ShellConfig.bundledWidget(name) {
-                packages[name] = bundled
+            if let builtIn = config.builtInWidget(name, replacing: trip.source) {
+                packages[name] = builtIn
             }
         }
         return (packages, directories)

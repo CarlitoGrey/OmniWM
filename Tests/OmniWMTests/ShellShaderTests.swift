@@ -318,29 +318,6 @@ final class ShellShaderTests: XCTestCase {
         XCTAssertEqual(try alpha(1), 255)
     }
 
-    func testTheBundledMeterShaderFillsACapsuleWithItsTintGradient() async throws {
-        executionTimeAllowance = 60
-        let bundled = try XCTUnwrap(ShellDefaults.bundledFile("shaders/meter.metal"))
-        let program = try await compiled("meter.metal", String(contentsOf: bundled, encoding: .utf8))
-        let pipeline = try XCTUnwrap(program.pipeline, program.failure ?? "")
-        var colors = ShellShaderInput.Colors(repeating: .zero)
-        colors[ShellRole.green.rawValue] = SIMD4(0, 0.5, 0, 1)
-        let pixel = { (width: CGFloat) in
-            try Self.pixel(pipeline, ShellShaderInput(values: SIMD4(2, 0, 0, 0), rate: 0, colors: colors).uniforms(
-                size: CGSize(width: width, height: 6),
-                scale: 1,
-                elapsed: 0,
-                now: 0,
-                transition: .settled,
-                stage: ShellShaderStage(anchor: .zero, content: .zero)
-            ))
-        }
-        let center = try pixel(100)
-        XCTAssertEqual(Double(center[1]), 150, accuracy: 2)
-        XCTAssertEqual(Double(center[2]), 13, accuracy: 2)
-        XCTAssertEqual(center[3], 255)
-    }
-
     func effectPipeline(_ name: String) async throws -> any MTLRenderPipelineState {
         let file = "effects-\(name).metal"
         let source = try String(contentsOf: XCTUnwrap(ShellDefaults.bundledFile("shaders/" + file)), encoding: .utf8)

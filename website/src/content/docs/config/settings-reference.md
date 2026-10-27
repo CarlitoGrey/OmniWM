@@ -49,7 +49,7 @@ Global switches: hotkeys, Hyper key, default layout, sleep, updates, IPC, animat
 | `ipcEnabled` | boolean | `false` | Enables the IPC server used by `omniwmctl`. |
 | `animationsEnabled` | boolean | `true` | Animates window layout changes and other OmniWM-authored motion. macOS Reduce Motion turns them off regardless of this key. |
 | `animationSpeed` *(optional)* | float | `1.0` | Tiling animation speed multiplier: `2.0` is twice as fast, `0.5` is half as fast. Applies to Niri focus, window/column movement and resizing, Dwindle layout changes, and workspace swipe settling. Values are clamped to `0.25`–`4.0`; nonfinite values use `1.0`. Changes apply to newly started transitions. Direct gesture tracking, inertial scrolling, Overview, and Quake terminal animations keep their own behavior. |
-| `language` | string | unset | Interface language as a packaged localization code, such as `"ja"` or `"sr-Latn"`. Leave it unset to follow macOS. Takes effect the next time OmniWM starts. |
+| `language` *(optional)* | string | unset | Interface language as a packaged localization code, such as `"ja"` or `"sr-Latn"`. Leave it unset to follow macOS. Takes effect the next time OmniWM starts. |
 | `workspaceAutoBackAndForth` *(optional)* | boolean | `false` | When a workspace shortcut or command palette entry targets the workspace you are already on, switch to the previously active workspace instead, like i3's `workspace_auto_back_and_forth`. `omniwmctl` workspace commands are unaffected. Settings > Workspaces > Workspace Switching. Unreleased: available when building from `main`. |
 
 ## focus
@@ -212,16 +212,20 @@ Border and gradient colors resolve per macOS appearance: dark values apply when 
 
 ## overview
 
-Zoom and colors for the Overview.
+Overview visibility, zoom, input and colors.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
 | `enabled` *(optional)* | boolean | `true` | Enables Overview. When off, its shortcuts, mouse button, trackpad gesture, and direct commands cannot open it; saved input assignments remain available when re-enabled. |
-| `zoom` | float | `1.0` | Overview zoom factor. |
-| `backdrop` | color table | `0.05, 0.05, 0.08, 1.0` | Backdrop behind the zoomed-out workspaces. |
+| `zoom` | float | `1.0` | Overview zoom factor, clamped to `0.5`–`1.5`. Zoom changes made in Overview are saved when it closes. |
+| `backdrop` | color table | `0.05, 0.05, 0.08, 0.0` | Backdrop behind the zoomed-out workspaces; transparent by default. |
 | `windowBorders.normal` | color table | `0.3, 0.3, 0.35, 0.5` | Border for windows at rest. |
 | `windowBorders.hovered` | color table | `0.4, 0.6, 1.0, 1.0` | Border for the hovered window. |
-| `windowBorders.selected` | color table | `0.3, 0.8, 0.4, 1.0` | Border for the selected window. |
+| `windowBorders.selected` | color table | `0.3, 0.8, 0.4, 1.0` | Border for the selected window when `matchFocusBorder` is false. |
+| `matchFocusBorder` *(optional)* | boolean | `true` | Uses the focused-window border's appearance for the selected Overview card. Turn off to use `windowBorders.selected`. |
+| `invertScrollDirection` *(optional)* | boolean | `false` | Reverses mouse and trackpad scrolling relative to the system Natural Scrolling setting. |
+| `mouseScrollSpeed` *(optional)* | float | `1.0` | Mouse-wheel speed multiplier, clamped to `0.05`–`2.0`. Trackpad speed is unaffected. |
+| `mouseButton` *(optional)* | integer | unset | Mouse button that toggles Overview: `2` (middle button), `3`, `4`, or `5`. Omit to leave unassigned. Cannot share a button with a hotkey or `systemHyperTrigger`. |
 
 ## windowSwitcher
 
@@ -257,9 +261,9 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 | `showFloatingWindows` | boolean | `false` | Includes floating windows' icons in workspace pills. |
 | `windowLevel` | string | `"popup"` | Bar window level: `normal`, `floating`, `status`, `popup`, `screensaver`. |
 | `position` | string | `"overlappingMenuBar"` | `overlappingMenuBar`, `belowMenuBar`, `bottom`, `left`, or `right`. Bottom and side placements follow the usable display edge, avoiding a visible Dock. |
-| `notchMode` | string | `"moveBelowMenuBar"` | Notch handling: `off`, `moveBelowMenuBar`, `splitActiveLeft`, `splitActiveRight`, or `fillLeftOfNotch`. The last fills the menu-bar area left of the notch and covers app menus; without a notch it uses the left half of the menu bar. At top positions, this mode overrides `position`, `xOffset`, `yOffset`, and `height`: the bar uses the menu-bar height. With `reserveLayoutSpace` on, the bar visible, and `autoHide` off, it reserves any space the bar occupies in the usable frame. For a notched display or visible menu bar (not automatically hidden in System Settings), macOS already reserves the top of the screen and shrinks the usable frame accordingly, so this is only non-zero for a notch-less display with a hidden menu bar. Bottom/left/right ignore notch modes without changing the saved preference. |
+| `notchMode` | string | `"moveBelowMenuBar"` | Notch handling: `off`, `moveBelowMenuBar`, `rightOfNotch`, `splitActiveLeft`, `splitActiveRight`, or `fillLeftOfNotch`. `rightOfNotch` centers the bar without a notch, or places it 8 points to the right of the notch; offsets still apply. `fillLeftOfNotch` fills the menu-bar area left of the notch and covers app menus; without a notch it uses the left half of the menu bar. At top positions, this mode overrides `position`, `xOffset`, `yOffset`, and `height`: the bar uses the menu-bar height. With `reserveLayoutSpace` on, the bar visible, and `autoHide` off, it reserves any space the bar occupies in the usable frame. For a notched display or visible menu bar (not automatically hidden in System Settings), macOS already reserves the top of the screen and shrinks the usable frame accordingly, so this is only non-zero for a notch-less display with a hidden menu bar. Bottom/left/right ignore notch modes without changing the saved preference. |
 | `notchActiveZoneWidth` | float | `180.0` | Width in points of the active zone around the notch. |
-| `fullWidth` *(optional)* | boolean | `false` | Spans the whole screen edge, with the shell's `leading`, `center` and `trailing` widgets at its start, middle and end (top, middle and bottom on a side bar). `notchMode`, `notchActiveZoneWidth` and the offset along the bar don't apply. Over the menu bar it sits at the top of the screen, above the native menu bar, and sets macOS's **Automatically hide and show the menu bar** to Always, on every display, unless it already is. Your previous choice comes back when the last full-width bar leaves the menu bar or turns off, or OmniWM quits (after a crash, at the next launch). Unreleased: available when building from `main`. |
+| `fullWidth` *(optional)* | boolean | `false` | Spans the whole screen edge, with the shell's `leading`, `center` and `trailing` widgets at its start, middle and end (top, middle and bottom on a side bar). `notchMode`, `notchActiveZoneWidth` and the offset along the bar don't apply. An enabled full-width bar at any edge sets macOS's **Automatically hide and show the menu bar** to Always on every display, including while automatic hiding, Reveal on modifier hold or native fullscreen hides the bar. Overlapping the menu bar also places the bar at the screen top, above native menus. Your previous choice returns when the last full-width bar is disabled or hidden with Toggle Workspace Bar, or OmniWM quits normally. A crash can leave automatic hiding active; relaunch OmniWM and disable its full-width bars or quit normally to restore the saved preference. Unreleased: available when building from `main`. |
 | `fullWidthNotchMode` *(optional)* | string | `"rightOfNotch"` | Where a full-width bar's `center` widgets go on a display with a notch: `off` (centered under the notch), `moveBelowMenuBar` (the whole bar moves below the menu bar), `rightOfNotch`, `leftOfNotch`, or `splitAroundNotch` (the first half left of the notch, the rest right of it). Bottom/left/right ignore it. Unreleased: available when building from `main`. |
 | `systemStatsButton` | boolean | `false` | Adds a system stats button to the bar. When building from `main`, the button and the `Toggle System Stats` hotkey need the shell's `system-stats` widget in one of the bar's groups. |
 | `deduplicateAppIcons` | boolean | `false` | Collapses repeated icons of the same app within a pill. |
@@ -275,9 +279,9 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 | `hideInNativeFullscreen` | boolean | `false` | Hides the bar while a native-fullscreen space is active. Effective `fillLeftOfNotch` at a top position always hides there, regardless of this setting. |
 | `height` | float | `24.0` | Bar thickness in points: height for horizontal bars, width for left/right bars. Side bars scroll when content exceeds the usable display height. |
 | `backgroundOpacity` | float | `0.1` | Bar background opacity (`0.0`–`1.0`). |
-| `inactiveIconOpacity` *(optional)* | float | unset | Opacity of unfocused app icons; finite values clamp to `0.0`–`1.0`. Omit to use the built-in appearance; Reset to System Default clears the override. |
-| `transparentBackground` *(optional)* | boolean | `false` | Hides the bar material, tint, and border while keeping its contents interactive. Takes precedence over `solidBlackBackground`. |
-| `solidBlackBackground` *(optional)* | boolean | `false` | Uses a solid black bar background when `transparentBackground` is false. |
+| `inactiveIconOpacity` *(optional)* | float | unset | Opacity of unfocused app icons; finite values clamp to `0.0`–`1.0`. Omit to use the built-in appearance. |
+| `transparentBackground` *(optional)* | boolean | `false` | Hides the bar material, tint, and border while keeping its contents interactive, unless `solidBlackBackground` is enabled. |
+| `solidBlackBackground` *(optional)* | boolean | `false` | Uses a solid black bar background. Takes precedence over `transparentBackground`. |
 | `showItemBackgrounds` *(optional)* | boolean | `true` | Shows backgrounds behind workspace groups, floating windows, scratchpads, and stats. |
 | `showAccentHighlights` *(optional)* | boolean | `true` | Shows the focused-workspace outline and focused-icon glow. |
 | `xOffset` | float | `0.0` | Horizontal offset in points. |
@@ -292,6 +296,16 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 "com.apple.Safari" = "~/Pictures/safari-alt.png"
 "com.mitchellh.ghostty" = "bundle-resource:AppIcon"
 ```
+
+## island
+
+The Dynamic Island master switch. The table is optional; when absent, the island is disabled. Unreleased: available when building from `main`.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | boolean | `false` | Shows the active shell profile's Dynamic Island independently of the Workspace Bar. Selecting a profile does not turn it on. |
+
+The island's root, placement and component configuration belong to the selected profile in `shell.toml`. See [Islands and components](/omnishell/configuration/islands-components/#enable-and-place-an-island).
 
 ## gestures
 
@@ -362,11 +376,11 @@ Clipboard history limits. History content itself is stored in the state director
 | `maxItems` | integer | `200` | Maximum number of unpinned history entries. |
 | `maxItemBytes` | integer | `8388608` | Maximum size of a single entry (8 MiB). |
 | `maxTotalBytes` | integer | `67108864` | Maximum total history size, including pins (64 MiB). |
-| `ignoredTypes` | string array | `[]` | Exact pasteboard type identifiers that exclude a copy from history. |
+| `ignoredTypes` *(optional)* | string array | `[]` | Exact pasteboard type identifiers that exclude a copy from history. |
 
 ## quakeTerminal
 
-The drop-down (Quake) terminal.
+The drop-down (Quake) terminal. `enabled` and `provider` apply to either provider; the position, size, animation, auto-hide and appearance keys below configure Ghostty. Kitty uses its own configuration and the optional [Kitty overrides](#quaketerminalkitty).
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -380,6 +394,30 @@ The drop-down (Quake) terminal.
 | `backgroundEffect` | string | `"standardBlur"` | Background material: `standardBlur`, `glassRegular`, `glassClear`. |
 | `backgroundBlurRadius` *(optional)* | integer | `0` | Background blur radius; `0` disables the extra blur. |
 | `monitorMode` *(optional)* | string | `"focusedWindow"` | Which monitor it appears on: `mouseCursor`, `focusedWindow`, `mainMonitor`. |
+| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded) or `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`). Unreleased: available when building from `main`. |
+
+### quakeTerminal.kitty
+
+Unreleased: available when building from `main`.
+
+Optional overrides for OmniWM's Kitty Quake panel. When a new Kitty quick-access process starts, omitted keys use `quick-access-terminal.conf`. Removing an override keeps its last applied value in the running process; Kitty's configured value takes effect when a new quick-access process starts. Hiding and showing the panel reuses the current process. Ghostty's values above are not used for Kitty.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `autoHide` *(optional)* | boolean | Kitty config | Hides the Kitty panel when it loses focus. |
+| `opacity` *(optional)* | float | Kitty config | Kitty background opacity (`0.0`–`1.0`). Turning on **Override Kitty Opacity** in Settings initializes the override to `0.85`. |
+
+Opacity changes apply live to the running Kitty panel. If Kitty created the panel without transparency support, OmniWM reports that limitation in Settings. Such a panel may need to be closed and reopened once; shell sessions are never restarted automatically.
+
+### quakeTerminal.kitty.placement
+
+Optional. When present, OmniWM positions and sizes the Kitty panel below the OmniShell bar; all three keys are required. The defaults below are the initial values when **Override Kitty Placement** is enabled in Settings. Placement changes apply the next time the panel is shown.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `position` | string | `"top"` | Panel position: `top`, `bottom`, `left`, `right`, `center`. |
+| `widthPercent` | float | `100.0` | Width as a percentage of the monitor's available screen area (`10`–`100`). |
+| `heightPercent` | float | `50.0` | Height as a percentage of the monitor's available screen area (`10`–`100`). |
 
 ## scratchpads
 

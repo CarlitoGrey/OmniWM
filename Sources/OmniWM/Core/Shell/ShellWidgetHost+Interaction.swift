@@ -135,7 +135,9 @@ extension ShellWidgetHost {
                     NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration())
                 }
             case .dismiss,
-                 .reply:
+                 .reply,
+                 .dismissAll,
+                 .cancelDismissAll:
                 ShellNotificationTrace.record(
                     "host.command",
                     fields: "kind=action focusedSurface=\(focusedSurface != nil)"

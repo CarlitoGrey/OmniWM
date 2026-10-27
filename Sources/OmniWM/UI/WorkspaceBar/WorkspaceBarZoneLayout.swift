@@ -34,9 +34,10 @@ struct WorkspaceBarZoneLayout: Layout {
         func lane(_ lane: ShellLane) -> ArraySlice<Int> {
             ArraySlice(items.indices.filter { items[$0].lane == lane })
         }
+        let leading = lane(.leading)
         let center = lane(.center)
         let trailing = lane(.trailing)
-        run(lane(.leading), from: inset, into: &offsets)
+        run(leading, from: inset, into: &offsets)
         run(trailing, from: length - inset - extent(trailing), into: &offsets)
         let gap = WorkspaceBarGeometry.notchGap
         switch (zones.notch, zones.mode) {
@@ -49,7 +50,9 @@ struct WorkspaceBarZoneLayout: Layout {
             run(left, from: notch.lowerBound - gap - extent(left), into: &offsets)
             run(center.dropFirst(left.count), from: notch.upperBound + gap, into: &offsets)
         default:
-            run(center, from: (length - extent(center)) / 2, into: &offsets)
+            let lower = inset + (leading.isEmpty ? 0 : extent(leading) + spacing)
+            let upper = length - inset - (trailing.isEmpty ? 0 : extent(trailing) + spacing) - extent(center)
+            run(center, from: max(lower, min((length - extent(center)) / 2, upper)), into: &offsets)
         }
         return offsets
     }

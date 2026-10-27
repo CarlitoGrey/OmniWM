@@ -646,9 +646,6 @@
     "Dynamic Island" : {
 
     },
-    "Enable Island" : {
-
-    },
     "Full Width" : {
       "localizations" : {
         "ar" : {
@@ -1146,6 +1143,7 @@
       }
     },
     "Where the Center widgets go on a display with a notch: centered under it (Off), with the whole bar below the menu bar, beside the notch, or split around it, with the first half on its left. Notch modes are ignored at Bottom, Left, and Right." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2513,6 +2511,7 @@
       }
     },
     "No widgets" : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5272,7 +5271,6 @@
       }
     },
     "Customize terminal tab and pane shortcuts in ~/.config/ghostty/config.ghostty. Reload with Cmd + Shift + , or relaunch OmniWM." : {},
-    "Move below the menu bar, place it to the right of the notch (centered on displays without a notch), split around it, or fill the area to its left, covering application menus. Without a notch, Fill Left covers the left half of the menu bar. Notch modes are ignored at Bottom, Left, and Right." : {},
     "Right of Notch" : {
       "localizations" : {
         "ar" : {
@@ -102993,113 +102991,12 @@
       }
     },
     "Position Offset" : {
+      "extractionState" : "stale",
       "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置オフセット"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positionsverschiebung"
-          }
-        },
-        "nb" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Posisjonsforskyvning"
-          }
-        },
-        "sv" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positionsförskjutning"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Desplazamiento de posición"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置偏移量"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "स्थिति ऑफसेट"
-          }
-        },
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "إزاحة الموضع"
-          }
-        },
-        "sr-Latn" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pomak pozicije"
-          }
-        },
-        "el" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Μετατόπιση θέσης"
-          }
-        },
-        "he" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "היסט מיקום"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Смещение позиции"
-          }
-        },
-        "pl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Przesunięcie położenia"
-          }
-        },
-        "uk" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Позиційний зсув"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Décalage de position"
-          }
-        },
-        "nl" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Positieverschuiving"
-          }
-        },
-        "it" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spostamento posizione"
-          }
-        },
-        "fi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sijainnin siirtymä"
           }
         },
         "da" : {
@@ -103108,10 +103005,112 @@
             "value" : "Positionsforskydning"
           }
         },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positionsverschiebung"
+          }
+        },
+        "el" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Μετατόπιση θέσης"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Desplazamiento de posición"
+          }
+        },
+        "fi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sijainnin siirtymä"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Décalage de position"
+          }
+        },
+        "he" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "היסט מיקום"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "स्थिति ऑफसेट"
+          }
+        },
+        "it" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spostamento posizione"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置オフセット"
+          }
+        },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "위치 오프셋"
+          }
+        },
+        "nb" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Posisjonsforskyvning"
+          }
+        },
+        "nl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positieverschuiving"
+          }
+        },
+        "pl" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Przesunięcie położenia"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Смещение позиции"
+          }
+        },
+        "sr-Latn" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pomak pozicije"
+          }
+        },
+        "sv" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Positionsförskjutning"
+          }
+        },
+        "uk" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Позиційний зсув"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置偏移量"
           }
         }
       }
@@ -166613,7 +166612,6 @@
     },
     "%lld pt" : {},
     "Reset to Style Defaults" : {},
-    "Settings are saved for the “%@” shell profile." : {},
     "Unable to Save Shell Settings" : {},
     "Apple Menu" : {},
     "App Menu" : {},
@@ -166621,9 +166619,6 @@
 
     },
     "%lld min" : {
-
-    },
-    "A compact bar with workspace and app controls." : {
 
     },
     "A custom style you added." : {
@@ -166653,12 +166648,6 @@
     "Actions" : {
 
     },
-    "Active Style" : {
-
-    },
-    "Add Bar Widget" : {
-
-    },
     "Add Clock" : {
 
     },
@@ -166680,16 +166669,10 @@
     "Add a rule to choose how an app’s windows are managed." : {
 
     },
-    "Add a widget to begin." : {
-
-    },
     "Add the CLI directory to your PATH to use omniwmctl in Terminal." : {
 
     },
     "Add to Bar" : {
-
-    },
-    "Add to Island" : {
 
     },
     "Advanced Motion" : {
@@ -166705,9 +166688,6 @@
 
     },
     "All Rules" : {
-
-    },
-    "All Widgets" : {
 
     },
     "Allows local commands and scripts to control OmniWM." : {
@@ -166728,19 +166708,7 @@
     "App Appearance" : {
 
     },
-    "Apply Locations" : {
-
-    },
-    "Apply Weather Location" : {
-
-    },
     "Apps" : {
-
-    },
-    "Arrange widgets and customize the bar on your displays." : {
-
-    },
-    "Arrange your widgets. The layout is shared by all displays in this style." : {
 
     },
     "Audio, media, calendar, weather, and system controls." : {
@@ -166758,9 +166726,6 @@
     "Bar" : {
 
     },
-    "Bar and Island" : {
-
-    },
     "Battery charge and power information." : {
 
     },
@@ -166774,12 +166739,6 @@
         }
       }
     },
-    "Browsing previews leaves your active style unchanged. Use Style preserves settings saved for both styles." : {
-
-    },
-    "Build Your Island" : {
-
-    },
     "CLI Location" : {
 
     },
@@ -166789,22 +166748,10 @@
     "Celsius" : {
 
     },
-    "Changes to this style’s controls apply immediately." : {
-
-    },
     "Character Size" : {
 
     },
     "Check app health and record a problem or performance capture." : {
-
-    },
-    "Choose System for Focus Ribbon or Lake for an island with customizable widgets." : {
-
-    },
-    "Choose a Style…" : {
-
-    },
-    "Choose a look for your desktop. Preview a style, then use it when you are ready." : {
 
     },
     "Choose a widget" : {
@@ -166873,25 +166820,13 @@
     "Custom Bar" : {
 
     },
-    "Custom Width" : {
-
-    },
     "Customize the workspace overview and its controls." : {
-
-    },
-    "Customize your island, with or without a workspace bar." : {
 
     },
     "Desktop" : {
 
     },
-    "Discover widgets, choose where they appear, and edit their options." : {
-
-    },
     "Display" : {
-
-    },
-    "Display Surfaces" : {
 
     },
     "Display settings are saved while the global Workspace Bar is off." : {
@@ -166901,9 +166836,6 @@
 
     },
     "Displays with a Notch" : {
-
-    },
-    "Done" : {
 
     },
     "Drawer" : {
@@ -166918,9 +166850,6 @@
     "Dwindle" : {
 
     },
-    "Edge Activation Area" : {
-
-    },
     "Edit Settings File…" : {
 
     },
@@ -166931,9 +166860,6 @@
 
     },
     "Enable Background Effect" : {
-
-    },
-    "Enable Dynamic Island" : {
 
     },
     "Enable the Workspace Bar or Dynamic Island to load this drawer and register its shortcut." : {
@@ -167049,16 +166975,10 @@
     "Island Appearance" : {
 
     },
-    "Island Instance: %@" : {
-
-    },
     "Island Interaction" : {
 
     },
     "Island Motion" : {
-
-    },
-    "Island Preview" : {
 
     },
     "Island Widgets" : {
@@ -167128,9 +167048,6 @@
     "Mouse & Focus" : {
 
     },
-    "Move" : {
-
-    },
     "Move Earlier" : {
 
     },
@@ -167164,16 +167081,10 @@
     "Now Playing and playback controls." : {
 
     },
-    "On Bar · %@" : {
-
-    },
     "Open on Hover" : {
 
     },
     "Open the command palette." : {
-
-    },
-    "Opens a persistent copy in your external editor. Visual options are available in Widgets." : {
 
     },
     "Options" : {
@@ -167182,34 +167093,19 @@
     "Options…" : {
 
     },
-    "Order and placement are saved for this style. Each instance has its own options." : {
-
-    },
     "Organize workspaces and choose their layouts and home displays." : {
 
     },
     "Palette" : {
 
     },
-    "Palettes change colors while keeping the style’s layout and widgets." : {
-
-    },
     "Petal Size" : {
-
-    },
-    "Place in" : {
 
     },
     "Placement" : {
 
     },
     "Prepare a report and choose the evidence you want to share." : {
-
-    },
-    "Preview Unavailable" : {
-
-    },
-    "Preview a desktop style and choose its color palette." : {
 
     },
     "Previous Widget" : {
@@ -167245,9 +167141,6 @@
     "Sakura Petals" : {
 
     },
-    "Sample data. Your desktop uses live information and system material effects." : {
-
-    },
     "Screen Edge" : {
 
     },
@@ -167269,25 +167162,16 @@
     "Settings File" : {
 
     },
-    "Shared weather data for bar widgets, the calendar, and the island." : {
-
-    },
     "Shell Development" : {
 
     },
     "Shell Folder" : {
 
     },
-    "Show Dynamic Island" : {
-
-    },
     "Show Island" : {
 
     },
     "Show Panel Background" : {
-
-    },
-    "Show Workspace Bar" : {
 
     },
     "Show the menu-bar items you have hidden." : {
@@ -167305,28 +167189,16 @@
     "Still" : {
 
     },
-    "Style" : {
-
-    },
     "Style Profile" : {
 
     },
-    "Styles" : {
-
-    },
     "Support" : {
-
-    },
-    "Surface" : {
 
     },
     "Sweep Glow" : {
 
     },
     "Temperature" : {
-
-    },
-    "The bar and island have independent switches. System includes Focus Ribbon; Lake includes configurable island widgets." : {
 
     },
     "The focused app and window title." : {
@@ -167378,9 +167250,6 @@
     "Trackpad" : {
 
     },
-    "Try Again" : {
-
-    },
     "Tune window spacing, scrolling columns, and split layouts." : {
 
     },
@@ -167414,12 +167283,6 @@
     "Weather Location" : {
 
     },
-    "Widget Library" : {
-
-    },
-    "Widget Removed" : {
-
-    },
     "Widget Source" : {
 
     },
@@ -167432,13 +167295,7 @@
     "World Clock Locations" : {
 
     },
-    "Your Widgets" : {
-
-    },
     "Your scratchpad windows." : {
-
-    },
-    "Your widget layout, excluded apps, and icon overrides are kept." : {
 
     },
     "Controls OmniWM’s item in the macOS menu bar. Show Workspace adds the active workspace and enables the app name and icon options.": {},
@@ -172790,6 +172647,375 @@
           }
         }
       }
+    },
+    "A change could not be saved. Retry or discard it first." : {
+
+    },
+    "Active" : {
+
+    },
+    "Active: %@" : {
+
+    },
+    "Add to" : {
+
+    },
+    "All Displays (sample preview)" : {
+
+    },
+    "All styles" : {
+
+    },
+    "Bar Settings" : {
+
+    },
+    "Built-in" : {
+
+    },
+    "Check the highlighted values before saving." : {
+
+    },
+    "Display Overrides" : {
+
+    },
+    "Drop widget here" : {
+
+    },
+    "Edits save to %@" : {
+
+    },
+    "Failed" : {
+
+    },
+    "Intensity" : {
+
+    },
+    "Loaded" : {
+
+    },
+    "Loading" : {
+
+    },
+    "Motion Speed" : {
+
+    },
+    "Move to" : {
+
+    },
+    "Notch modes apply to the top edge only." : {
+
+    },
+    "Preview could not update: %@" : {
+
+    },
+    "Previewing %@" : {
+
+    },
+    "Reset %@ to Style default" : {
+
+    },
+    "Retry" : {
+
+    },
+    "Sample data and schematic geometry. Your desktop uses live information." : {
+
+    },
+    "Sample data at this display’s bar geometry." : {
+
+    },
+    "Save changes before continuing?" : {
+
+    },
+    "Settings are saved for the “%@” style." : {
+
+    },
+    "Shared by all displays in this style." : {
+
+    },
+    "Shared by all styles" : {
+
+    },
+    "Source" : {
+
+    },
+    "Status" : {
+
+    },
+    "Style default" : {
+
+    },
+    "Styles & Widgets" : {
+
+    },
+    "These controls apply to every style, including the active style." : {
+
+    },
+    "This effect is shared by all displays in this style." : {
+
+    },
+    "Unavailable" : {
+
+    },
+    "Unsaved Changes" : {
+
+    },
+    "Updating" : {
+
+    },
+    "Use at most %lld characters per line." : {
+
+    },
+    "Using built-in fallback" : {
+
+    },
+    "Widget Lanes" : {
+
+    },
+    "Widget layout, display overrides, effects and All styles settings are kept." : {
+
+    },
+    "Workspace Bar Behavior" : {
+
+    },
+    "Your shell folder" : {
+
+    },
+    "Your unsaved changes stay here until you save or discard them." : {
+
+    },
+    "Your widget options are kept." : {
+
+    },
+    "%@ (Main)" : {
+
+    },
+    "Loading style…" : {
+
+    },
+    "%@ %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ %2$lld"
+          }
+        }
+      }
+    },
+    "Default includes Focus Ribbon; Lake includes an island with customizable widgets." : {
+
+    },
+    "Hover and Swipe" : {
+
+    },
+    "Island Settings" : {
+
+    },
+    "Island settings unavailable" : {
+
+    },
+    "No widgets added." : {
+
+    },
+    "Order, placement and options are saved for this style." : {
+
+    },
+    "Remove from Island" : {
+
+    },
+    "Sample data. Your desktop uses live information." : {
+
+    },
+    "Show Dynamic Island" : {
+
+    },
+    "This style has no Dynamic Island." : {
+
+    },
+    "The island root changed before this draft was saved" : {
+
+    },
+    "%@ is a widget name. Choose another name." : {
+
+    },
+    "%@ is not installed." : {
+
+    },
+    "%@ · %lld widgets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@ · %2$lld widgets"
+          }
+        }
+      }
+    },
+    "%@ · 1 widget" : {
+
+    },
+    "A drawer needs at least one widget." : {
+
+    },
+    "A drawer that comes with the style can only be reset." : {
+
+    },
+    "Checking widget panels…" : {
+
+    },
+    "Choose a style, then arrange its bar, island and drawers, and adjust its look." : {
+
+    },
+    "Delete Drawer" : {
+
+    },
+    "Delete Drawer?" : {
+
+    },
+    "Delete Drawer…" : {
+
+    },
+    "Delete the “%@” drawer? Its shortcut binding will be kept." : {
+
+    },
+    "Drawer names can't contain /, \\, : or control characters." : {
+
+    },
+    "Drawer names can't contain periods." : {
+
+    },
+    "Drawer names can't contain spaces." : {
+
+    },
+    "Drawer names with spaces can't have a shortcut." : {
+
+    },
+    "Drawers load only while the Workspace Bar or Dynamic Island is on." : {
+
+    },
+    "Enter a drawer name." : {
+
+    },
+    "Hover" : {
+
+    },
+    "Hover Area Depth" : {
+
+    },
+    "Hover Area Length" : {
+
+    },
+    "Length" : {
+
+    },
+    "Limit Hover Area Length" : {
+
+    },
+    "No panel" : {
+
+    },
+    "No widgets with panels are available in this style." : {
+
+    },
+    "Opens a persistent copy in your external editor. Visual options are in Styles & Widgets." : {
+
+    },
+    "Rename this drawer in shell.toml to edit it here." : {
+
+    },
+    "Sample data and panel layout. Hover settings change the trigger area, not the panel." : {
+
+    },
+    "Shortcut" : {
+
+    },
+    "Shortcuts register while this style is active." : {
+
+    },
+    "Style" : {
+
+    },
+    "This drawer has nothing to show." : {
+
+    },
+    "This drawer name is too long." : {
+
+    },
+    "This drawer no longer exists." : {
+
+    },
+    "This style already has a drawer named %@." : {
+
+    },
+    "This style has no drawers." : {
+
+    },
+    "This widget has no panel, so it can't show in a drawer." : {
+
+    },
+    "Terminal" : {
+
+    },
+    "Kitty is not installed. Install the kitty app, or choose Ghostty." : {
+
+    },
+    "Kitty is starting. Press the Quake Terminal shortcut again in a moment." : {
+
+    },
+    "OmniWM could not start Kitty's quick-access terminal." : {
+
+    },
+    "OmniWM could not prepare Kitty's remote control socket." : {
+
+    },
+    "Kitty's quick-access terminal exited with status %lld." : {
+
+    },
+    "Kitty Quake Terminal Unavailable" : {
+
+    },
+    "Kitty did not accept the Quake Terminal command." : {
+
+    },
+    "OmniWM reserves space for the OmniShell top bar. Increase Kitty's configured lines for more terminal rows." : {
+
+    },
+    "Kitty's quick-access-terminal.conf controls tabs, splits, fonts and anything not overridden below. Overrides apply only to OmniWM's Kitty Quake panel." : {
+
+    },
+    "Kitty Placement" : {
+
+    },
+    "Override Kitty Placement" : {
+
+    },
+    "Turning an override off returns that setting to Kitty's quick-access-terminal.conf the next time the Kitty panel starts." : {
+
+    },
+    "Kitty Behavior" : {
+
+    },
+    "Kitty Config" : {
+
+    },
+    "Kitty Appearance" : {
+
+    },
+    "Override Kitty Opacity" : {
+
+    },
+    "Opacity changes apply live as you drag." : {
+
+    }
+,
+    "Placement changes apply the next time Kitty is shown." : {
+
+    },
+    "OmniWM could not prepare Kitty's panel controls." : {
+
+    },
+    "Live opacity needs a new Kitty Quake session. Close the Kitty panel when ready, then reopen it; OmniWM will not restart its shells." : {
+
     }
   },
   "version" : "1.0"

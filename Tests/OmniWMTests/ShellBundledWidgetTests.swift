@@ -11,6 +11,19 @@ import XCTest
 
 @MainActor
 final class ShellBundledWidgetTests: XCTestCase {
+    private nonisolated static let styleShell = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ShellBundledWidgetTests-\(UUID().uuidString)", isDirectory: true)
+
+    override class func setUp() {
+        super.setUp()
+        XCTAssertEqual(ShellDefaults.sync(into: styleShell), [])
+    }
+
+    override class func tearDown() {
+        XCTAssertNoThrow(try FileManager.default.removeItem(at: styleShell))
+        super.tearDown()
+    }
+
     private static let names = [
         "clock", "battery", "volume", "weather", "stats", "workspaces", "scratchpads", "omniwm", "system-stats",
         "hidden-bar", "media", "calendar", "launcher", "active-window", "input-source", "wifi", "bluetooth",
@@ -21,13 +34,13 @@ final class ShellBundledWidgetTests: XCTestCase {
         "clock", "date", "seconds", "cpu", "memory", "charging", "bar", "workspace", "app", "bundle", "title"
     ]
 
-    private func value(_ write: (inout ShellValueWriter) -> Void) -> [UInt8] {
+    func value(_ write: (inout ShellValueWriter) -> Void) -> [UInt8] {
         var writer = ShellValueWriter()
         write(&writer)
         return writer.bytes
     }
 
-    private func fullData(
+    func fullData(
         island: WorkspaceBarIslandSlice = .all,
         vertical: Bool = false,
         capsule: Bool = false,
@@ -297,23 +310,22 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
-    private func renderStyle(
+    func renderStyle(
         _ style: String,
         widget: String,
         data: [(String, [UInt8])],
         capture: ((omni_view, [UInt8], ShellTextStore) throws -> Void)? = nil,
         inspect: ((omni_view, [omni_wire_node], ShellTextStore) throws -> Void)? = nil
     ) throws {
-        let defaults = try XCTUnwrap(ShellDefaults.bundled)
-        let folder = style == "default" ? defaults
-            : try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent(style)
+        let shell = Self.styleShell
+        var problems: [String] = []
+        let config = try XCTUnwrap(ShellConfig.load(profile: style, shellDirectory: shell, problems: &problems))
+        XCTAssertEqual(problems, [])
         let path = "\(style)/widgets/\(widget)/init.luau"
-        let profileSource = folder.appendingPathComponent("widgets/\(widget)/init.luau")
+        let sourceURL = try XCTUnwrap(config.widget(widget) ?? ShellConfig.bundledWidget(widget))
         let source = try ShellWidgetSourceLoader.build(.init(
-            name: widget, shellDirectory: defaults.deletingLastPathComponent(),
-            sourceURL: FileManager.default.fileExists(atPath: profileSource.path)
-                ? profileSource : defaults.appendingPathComponent("widgets/\(widget)/init.luau"),
-            directories: [folder, defaults], profile: style
+            name: widget, shellDirectory: shell, sourceURL: sourceURL,
+            directories: config.directories, profile: config.profile
         ))
         try render(
             path, source: source.main, chunk: source.chunk,
@@ -322,10 +334,10 @@ final class ShellBundledWidgetTests: XCTestCase {
     }
 
     func testStylesKeepWorkspaceInteractionContractAtEveryEdge() throws {
-        for style in ["default", "wayline", "nocturne", "celestial", "system"] {
+        for style in ["default", "wayline", "nocturne", "celestial"] {
             for edge in ["top", "bottom", "left", "right"] {
                 let data = try fullData { bar in
-                    bar.style.height = style == "celestial" ? 60 : style == "system" ? 32 : 40
+                    bar.style.height = style == "celestial" ? 60 : style == "default" ? 32 : 40
                     bar.style.position = edge
                     bar.style.vertical = edge == "left" || edge == "right"
                 }
@@ -340,7 +352,8 @@ final class ShellBundledWidgetTests: XCTestCase {
                     let workspace = try XCTUnwrap(nodes.first { text.string($0.target) == "workspace 1" })
                     XCTAssertEqual(text.string(workspace.action), "switch-workspace 1")
                     XCTAssertNotEqual(UInt32(workspace.flags) & OMNI_NODE_DROP, 0)
-                    XCTAssertTrue(nodes.contains { text.string($0.text) == "rectangle.on.rectangle" }, style)
+                    let floating = style == "celestial" ? "filter_none" : "rectangle.on.rectangle"
+                    XCTAssertTrue(nodes.contains { text.string($0.text) == floating }, style)
                 })
                 try renderStyle(style, widget: "scratchpads", data: data, inspect: { view, nodes, text in
                     guard view == OMNI_VIEW_BAR else { return }
@@ -366,7 +379,7 @@ final class ShellBundledWidgetTests: XCTestCase {
             ("prefix", "keyboard", "Prefix"),
             ("window", "keyboard", "Window Mode")
         ]
-        for style in ["default", "wayline", "nocturne", "celestial", "system", "sakura", "matrix"] {
+        for style in ["default", "wayline", "nocturne", "celestial", "sakura", "matrix"] {
             for (mode, symbol, label) in modes {
                 for vertical in [false, true] {
                     let data = try fullData(vertical: vertical) { bar in
@@ -393,21 +406,21 @@ final class ShellBundledWidgetTests: XCTestCase {
     }
 
     func testStyleHeightScalesClockAndWorkspaceIconsTogether() throws {
-        for style in ["wayline", "nocturne", "celestial", "system"] {
-            let base = style == "celestial" ? 60.0 : style == "system" ? 32.0 : 40.0
+        for style in ["wayline", "nocturne", "celestial", "default"] {
+            let base = style == "celestial" ? 60.0 : style == "default" ? 32.0 : 40.0
             for scale in [1.0, 1.5] {
                 let data = try fullData { $0.style.height = base * scale }
                 try renderStyle(style, widget: "clock", data: data, inspect: { view, nodes, text in
                     guard view == OMNI_VIEW_BAR else { return }
                     let clock = try XCTUnwrap(nodes.first { text.string($0.text) == "9:41 AM" })
-                    let pointSize = style == "celestial" ? 17.6 : style == "system" ? 13.0 : 14.0
+                    let pointSize = style == "celestial" ? 17.6 : style == "default" ? 13.0 : 14.0
                     XCTAssertEqual(Double(clock.text_size) / 100, pointSize * scale, accuracy: 0.02, style)
                 })
                 try renderStyle(style, widget: "workspaces", data: data, inspect: { view, nodes, _ in
                     guard view == OMNI_VIEW_BAR else { return }
                     let icons = nodes.filter { UInt32($0.flags) & OMNI_NODE_ICON_MASK == OMNI_NODE_ICON_WINDOW }
                     XCTAssertFalse(icons.isEmpty)
-                    let size = style == "system" ? 18.0 : 24.0
+                    let size = style == "default" ? 18.0 : 24.0
                     for icon in icons {
                         XCTAssertEqual(Double(icon.width), size * scale, accuracy: 0.01, style)
                         XCTAssertEqual(Double(icon.height), size * scale, accuracy: 0.01, style)
@@ -418,9 +431,9 @@ final class ShellBundledWidgetTests: XCTestCase {
     }
 
     func testStylesRespectWorkspaceAppearanceOptions() throws {
-        for style in ["wayline", "nocturne", "celestial", "system"] {
+        for style in ["wayline", "nocturne", "celestial", "default"] {
             let data = try fullData { bar in
-                bar.style.height = style == "celestial" ? 60 : style == "system" ? 32 : 40
+                bar.style.height = style == "celestial" ? 60 : style == "default" ? 32 : 40
                 bar.style.backgrounds = false
                 bar.style.accents = false
                 bar.style.textColor = "#12AB34"
@@ -457,7 +470,7 @@ final class ShellBundledWidgetTests: XCTestCase {
 
     func testStylesExposeSystemHostAndStorageDetails() throws {
         let data = try fullData()
-        for style in ["default", "wayline", "nocturne", "celestial", "system"] {
+        for style in ["default", "wayline", "nocturne", "celestial"] {
             try renderStyle(style, widget: "system-stats", data: data, inspect: { view, nodes, text in
                 guard view == OMNI_VIEW_POPOUT else { return }
                 let contents = nodes.map { text.string($0.text) }.joined(separator: "\n")
@@ -526,8 +539,9 @@ final class ShellBundledWidgetTests: XCTestCase {
             + [WorkspaceBarIslandSlice.active, .secondary].flatMap { island in
                 try [false, true].map { try fullData(island: island, vertical: $0) }
             }
-        for style in ["celestial", "nocturne", "system", "wayline"] {
+        for style in ["celestial", "nocturne", "wayline"] {
             let widgets = styles.appendingPathComponent(style, isDirectory: true).appendingPathComponent("widgets")
+            guard FileManager.default.fileExists(atPath: widgets.path) else { continue }
             for name in try FileManager.default.contentsOfDirectory(atPath: widgets.path) {
                 let source = try String(
                     contentsOf: widgets.appendingPathComponent("\(name)/init.luau"),
@@ -546,8 +560,7 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
-    func testSystemWidgetsFitTheBarAndRenderEveryPopoutInBothAppearances() throws {
-        let folder = try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent("system")
+    func testDefaultWidgetsFitTheBarAndRenderEveryPopoutInBothAppearances() throws {
         let defaults = try XCTUnwrap(ShellDefaults.bundled)
         let widgets = try FileManager.default
             .contentsOfDirectory(atPath: defaults.appendingPathComponent("widgets").path)
@@ -566,17 +579,17 @@ final class ShellBundledWidgetTests: XCTestCase {
                     $0.style.position = vertical ? "left" : "belowMenuBar"
                 }
                 for widget in widgets {
-                    try renderStyle("system", widget: widget, data: data, capture: { view, bytes, text in
+                    try renderStyle("default", widget: widget, data: data, capture: { view, bytes, text in
                         let surface = ShellWidgetSurface(
                             scale: 2,
                             resources: resources,
-                            directories: [folder, defaults]
+                            directories: [defaults]
                         )
                         XCTAssertTrue(surface.apply(bytes, text: text), widget)
                         let size = surface.size
                         let kind = view == OMNI_VIEW_BAR ? "bar" : "popout"
                         let direction = vertical ? "vertical" : "horizontal"
-                        let name = "system-\(widget)-\(kind)-\(direction)-\(dark ? "dark" : "light")"
+                        let name = "default-\(widget)-\(kind)-\(direction)-\(dark ? "dark" : "light")"
                         XCTAssertTrue(size.width.isFinite && size.height.isFinite, name)
                         XCTAssertGreaterThanOrEqual(size.width, 0, name)
                         XCTAssertGreaterThanOrEqual(size.height, 0, name)
@@ -623,7 +636,7 @@ final class ShellBundledWidgetTests: XCTestCase {
         XCTAssertTrue(CGImageDestinationFinalize(destination), name)
     }
 
-    private func writeAppearanceSnapshots(_ bytes: [UInt8], text: ShellTextStore, name: String) throws {
+    func writeAppearanceSnapshots(_ bytes: [UInt8], text: ShellTextStore, name: String) throws {
         guard let directory = ProcessInfo.processInfo.environment["OMNIWM_SHELL_SNAPSHOTS"] else { return }
         for dark in [false, true] {
             let resources = ShellResources(motion: MotionPolicy(animationsEnabled: false))
@@ -642,30 +655,35 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
-    func testSystemPopoutsUseOneNativeGlassSurfaceWithFullAndMissingData() throws {
+    func testHiddenBarStripLeavesItsSurfaceToTheNativeDrawer() throws {
+        let data = try fullData { $0.style.height = 32 }
+        for style in ["default", "celestial", "lake", "matrix", "nocturne", "sakura", "wayline"] {
+            try renderStyle(style, widget: "hidden-bar", data: data, inspect: { view, nodes, _ in
+                guard view == OMNI_VIEW_POPOUT else { return }
+                let root = try XCTUnwrap(nodes.first, style)
+                XCTAssertEqual(root.fill, 0, style)
+                XCTAssertEqual(root.fill_role, 0, style)
+                XCTAssertFalse(nodes.contains { UInt32($0.flags) & OMNI_NODE_MATERIAL_MASK != 0 }, style)
+            })
+        }
+    }
+
+    func testDefaultPopoutsUseOneNativeGlassSurfaceWithFullAndMissingData() throws {
         let full = try fullData { $0.style.height = 32 }
         let variants = [full, full.filter { (Self.essentials + ["hiddenBar"]).contains($0.0) }]
         let widgets = [
-            "battery-details", "bluetooth", "calendar", "control-center", "hidden-bar", "hidden-bar-menu",
+            "battery-details", "bluetooth", "calendar", "control-center", "hidden-bar-menu",
             "input-source", "media", "stats", "system-stats", "volume", "weather", "world-clock", "wifi"
         ]
         for widget in widgets {
             for data in variants {
-                var original: [omni_wire_node] = []
                 try renderStyle("default", widget: widget, data: data, inspect: { view, nodes, _ in
-                    if view == OMNI_VIEW_POPOUT { original = nodes }
-                })
-                try renderStyle("system", widget: widget, data: data, inspect: { view, nodes, _ in
                     guard view == OMNI_VIEW_POPOUT else { return }
                     let empty = nodes.isEmpty || nodes.count == 1 && nodes[0].width == 0 && nodes[0].height == 0
-                    let wasEmpty = original.isEmpty || original.count == 1 && original[0].width == 0 && original[0]
-                        .height == 0
-                    XCTAssertEqual(empty, wasEmpty, "\(widget) preserves the default empty-data contract")
                     if empty {
                         XCTAssertTrue([
                             "battery-details", "bluetooth", "calendar", "input-source", "weather", "wifi", "world-clock"
                         ].contains(widget), widget)
-                        XCTAssertEqual(nodes.count, original.count, widget)
                         for node in nodes {
                             XCTAssertEqual(node.text, 0, widget)
                             XCTAssertEqual(node.action, 0, widget)
@@ -690,7 +708,7 @@ final class ShellBundledWidgetTests: XCTestCase {
         }
     }
 
-    func testSystemControlCenterTabsRenderWithFullAndMissingDataAndUnknownTabsShowOverview() throws {
+    func testDefaultControlCenterTabsRenderWithFullAndMissingDataAndUnknownTabsShowOverview() throws {
         let full = try fullData { $0.style.height = 32 }
         let variants = [full, full.filter { Self.essentials.contains($0.0) }]
         let tabs = [
@@ -705,14 +723,14 @@ final class ShellBundledWidgetTests: XCTestCase {
                     writer.string(tab)
                 }
                 try renderStyle(
-                    "system",
+                    "default",
                     widget: "control-center",
                     data: data + [("settings", settings)],
                     capture: { view, bytes, text in
                         guard view == OMNI_VIEW_POPOUT else { return }
                         try self.writeAppearanceSnapshots(
                             bytes, text: text,
-                            name: "system-control-center-\(tab)-\(index == 0 ? "full" : "missing")"
+                            name: "default-control-center-\(tab)-\(index == 0 ? "full" : "missing")"
                         )
                     },
                     inspect: { view, nodes, text in
@@ -742,12 +760,12 @@ final class ShellBundledWidgetTests: XCTestCase {
                     writer.string(variant)
                 }
                 try renderStyle(
-                    "system", widget: "stats", data: data + [("settings", settings)],
+                    "default", widget: "stats", data: data + [("settings", settings)],
                     capture: { view, bytes, text in
                         let kind = view == OMNI_VIEW_BAR ? "bar" : "popout"
                         try self.writeAppearanceSnapshots(
                             bytes, text: text,
-                            name: "system-stats-\(variant)-\(kind)-\(index == 0 ? "full" : "missing")"
+                            name: "default-stats-\(variant)-\(kind)-\(index == 0 ? "full" : "missing")"
                         )
                     },
                     inspect: { view, nodes, text in
@@ -764,8 +782,14 @@ final class ShellBundledWidgetTests: XCTestCase {
 
     func testCelestialDashboardTabsRenderWithFullAndMissingData() throws {
         let library = try XCTUnwrap(ShellDefaults.bundledStyles).appendingPathComponent("celestial/lib")
-        let modules = try FileManager.default.contentsOfDirectory(atPath: library.path).map {
-            try ("celestial/lib/\($0)", String(contentsOf: library.appendingPathComponent($0), encoding: .utf8))
+        let defaults = try XCTUnwrap(ShellDefaults.bundled).appendingPathComponent("lib")
+        var seen: Set<String> = []
+        let modules = try [library, defaults].flatMap { directory in
+            try FileManager.default.contentsOfDirectory(atPath: directory.path).sorted().filter {
+                $0.hasSuffix(".luau") && seen.insert($0).inserted
+            }.map {
+                try ("celestial/lib/\($0)", String(contentsOf: directory.appendingPathComponent($0), encoding: .utf8))
+            }
         }
         let full = try fullData()
         for pane in ["dash", "mediatab", "performance", "weathertab"] {

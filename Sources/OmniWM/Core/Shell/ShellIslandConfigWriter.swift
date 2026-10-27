@@ -71,7 +71,7 @@ final class ShellIslandConfigWriter: Sendable {
         _ change: ShellIslandLayout.Change, profile: String, root: String
     ) -> @Sendable (URL) throws -> Bool {
         { [self] directory in
-            let url = directory.appendingPathComponent("shell.toml")
+            let url = try SettingsFileAccess.settingsTarget(for: directory.appendingPathComponent("shell.toml"))
             let original: String
             do {
                 original = String(decoding: try readFile(url), as: UTF8.self)

@@ -38,12 +38,12 @@ local function duration(seconds: number): string
 end
 
 local function weather(ctx: Context)
-    local data = ctx.data.weather
+    local data = require("./weather").state(ctx, true)
     local content = { gap = tokens.spacing.largeIncreased }
-    content[1] = surface.icon(data and icons.weather(data.code, data.day) or "air",
+    content[1] = surface.icon(data and icons.weather(data.code, data.isDay) or "air",
         { size = tokens.icon.extraLarge * 1.6, color = "secondaryAccent" })
     content[2] = ui.column{ gap = tokens.spacing.extraSmall,
-        ui.text{ text = data and string.format("%d%s", math.round(data.temp), data.unit) or "--", font = "sans",
+        ui.text{ text = data and data.temperature or "--", font = "sans",
             size = tokens.headline.medium, weight = "semibold", color = "accent" },
         ui.text{ text = data and data.condition or omniwm.l10n("Unavailable"), font = "sans", size = tokens.body.small,
             maxWidth = WEATHER - tokens.icon.extraLarge * 1.6 - 60, lines = 2 } }
@@ -114,17 +114,19 @@ local function weekday(year: number, month: number, day: number): number
     return (y + y // 4 - y // 100 + y // 400 + MONTH_OFFSETS[month] + day) % 7
 end
 
-local function calendar(ctx: Context)
-    local data = ctx.data.calendar
-    local month = data and data.month
+local function calendar(ctx: Context, m)
+    m = m or require("./calendar").model(ctx, true)
+    local month = m and m.month
     local width = CALENDAR - 2 * tokens.padding.large
     local column = { gap = tokens.spacing.extraSmall, center = false, pad = tokens.padding.large }
     if not month then
+        local action = m and m.action
         column[#column + 1] = ui.stack{ w = width, h = BOTTOM - 2 * tokens.padding.large,
             ui.row{ h = 40, radius = 20, fill = "secondaryContainer", pad = tokens.padding.medium,
-                hover = "secondaryContainerForeground/0.08", onClick = "calendar authorize",
-                ui.text{ text = omniwm.l10n("Allow Calendar Access"), font = "sans", size = tokens.label.large,
-                    color = "secondaryContainerForeground" } } }
+                hover = m and "secondaryContainerForeground/0.08" or nil,
+                onClick = action and action.command or m and m.open,
+                ui.text{ text = action and action.text or (m and omniwm.l10n("Open Calendar") or omniwm.l10n("Unavailable")),
+                    font = "sans", size = tokens.label.large, color = "secondaryContainerForeground" } } }
         return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { ui.column(column) })
     end
     local cell = math.floor(width / 7)
@@ -134,10 +136,10 @@ local function calendar(ctx: Context)
         return day == 0 or day == 6
     end
     column[#column + 1] = ui.row{ w = width,
-        surface.button("chevron_left", "text", { onClick = "calendar month previous", glyph = tokens.icon.small }),
-        ui.stack{ grow = 1, h = 32, radius = 16, hover = "accent/0.08", onClick = "calendar month today",
+        surface.button("chevron_left", "text", { onClick = m.previous, glyph = tokens.icon.small }),
+        ui.stack{ grow = 1, h = 32, radius = 16, hover = "accent/0.08", onClick = m.today,
             ui.text{ text = month.title, font = "sans", size = tokens.title.small, weight = "medium", color = "accent" } },
-        surface.button("chevron_right", "text", { onClick = "calendar month next", glyph = tokens.icon.small }) }
+        surface.button("chevron_right", "text", { onClick = m.next, glyph = tokens.icon.small }) }
     local names = { gap = 0 }
     for index, name in month.weekdays do
         names[index] = ui.stack{ w = cell, ui.text{ text = name, font = "sans", size = tokens.body.small,
@@ -164,9 +166,7 @@ local function calendar(ctx: Context)
         end
         column[#column + 1] = ui.row(line)
     end
-    return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { onScroll = function(_, event)
-        omniwm.run(event.dy > 0 and "calendar month previous" or "calendar month next")
-    end, ui.column(column) })
+    return card(CALENDAR, BOTTOM, tokens.rounding.extraLarge, { onScroll = m.scroll, ui.column(column) })
 end
 
 local function ring(value: number?, icon: string, tint: string)
@@ -190,19 +190,8 @@ local function resources(ctx: Context)
         ring(data.disk, "hard_disk", "secondaryAccent") } })
 end
 
-local function progress(ctx: Context, media: Media): number
-    if not media.duration or media.duration <= 0 then
-        return 0
-    end
-    local elapsed = media.elapsed or 0
-    if media.playing then
-        elapsed += math.max(0, ctx.data.seconds - media.sampledAt) * media.rate
-    end
-    return math.clamp(elapsed / media.duration, 0, 1)
-end
-
 local function media(ctx: Context)
-    local data = ctx.data.media
+    local m = require("./media").model(ctx, false, true)
     local height = TOP + GAP + BOTTOM
     local thickness = tokens.dashboard.mediaThickness
     local amplitude = thickness * 0.5
@@ -210,8 +199,8 @@ local function media(ctx: Context)
     local cover = MEDIA - 2 * (tokens.padding.medium + tokens.spacing.extraSmall + band)
     local ringSize = cover + tokens.spacing.extraSmall + band * 2
     local radius = (ringSize - band) / 2
-    local playing = data ~= nil and data.playing
-    local fraction = data and progress(ctx, data) or 0
+    local playing = m ~= nil and m.playing
+    local fraction = m and m.fraction or 0
     local sweep = tokens.dashboard.mediaSweep
     local start = -90 - sweep / 2
     local middle = ringSize / 2
@@ -234,26 +223,31 @@ local function media(ctx: Context)
         ui.path{ d = shapes.path("Cookie12Sided"), viewBox = shapes.viewBox, w = cover, h = cover, mask = true,
             loop = { rotate = { 360, 0, 23.5 }, paused = not playing } },
         ui.box{ w = cover, h = cover, fill = "highestSurface" } }
-    art[#art + 1] = data and data.artwork and ui.image{ image = data.artwork, w = cover, h = cover }
+    art[#art + 1] = m and m.artwork and ui.image{ image = m.artwork, w = cover, h = cover }
         or surface.icon("art_track", { size = cover * 0.35, color = "secondaryForeground" })
     local function line(text: string, size: number, color: string)
         return ui.text{ text = text, font = "sans", size = size, color = color, maxWidth = MEDIA - 32 }
     end
     local controls = ui.row{ w = MEDIA - 2 * tokens.padding.large, gap = tokens.spacing.extraSmall,
-        surface.button("skip_previous", "tonal", { onClick = "media previous" }),
+        surface.button("skip_previous", "tonal", { onClick = m and m.previous }),
         surface.button(playing and "pause" or "play_arrow", "filled", { grow = 1, w = 0, radius = tokens.rounding.medium,
-            onClick = "media toggle" }),
-        surface.button("skip_next", "tonal", { onClick = "media next" }) }
+            onClick = m and m.toggle }),
+        surface.button("skip_next", "tonal", { onClick = m and m.next }) }
+    if not m then
+        for index = 1, #controls do
+            controls[index].hover = nil
+        end
+    end
     local column = { gap = 0, w = MEDIA,
         ui.stack{ w = MEDIA, h = ringSize + tokens.padding.medium,
             ui.stack(arc),
             ui.stack{ align = "top", dy = tokens.padding.medium + tokens.spacing.extraSmall / 2 + band, ui.stack(art) } },
         ui.box{ w = 1, h = tokens.spacing.medium },
-        line(data and data.title ~= "" and data.title or omniwm.l10n("Nothing is playing"), tokens.title.small, "accent"),
+        line(m and m.title or omniwm.l10n("Nothing is playing"), tokens.title.small, "accent"),
         ui.box{ w = 1, h = tokens.spacing.small },
-        line(data and data.album or "", tokens.body.small, "mutedForeground"),
+        line(m and m.album or "", tokens.body.small, "mutedForeground"),
         ui.box{ w = 1, h = tokens.spacing.small },
-        line(data and data.artist or "", tokens.body.medium, "secondaryAccent"),
+        line(m and m.artist or "", tokens.body.medium, "secondaryAccent"),
         ui.box{ w = 1, h = tokens.spacing.medium },
         controls,
         ui.box{ w = 1, h = tokens.spacing.small },

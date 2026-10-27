@@ -37,7 +37,10 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             contentSize: NSSize(width: 1040, height: 760),
             minSize: NSSize(width: 760, height: 560),
-            configure: { [weak self] window in window.delegate = self },
+            configure: { [weak self] window in
+                window.delegate = self
+                self?.navigation.closeWindow = { [weak window] in window?.close() }
+            },
             onWillClose: { [weak self] in self?.navigation.ruleEditorState.isDirty = false },
             content: {
                 SettingsView(
@@ -52,6 +55,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
+        if navigation.leaveGuard?(nil) == true { return false }
         guard navigation.ruleEditorState.isDirty else { return true }
         let alert = NSAlert()
         alert.messageText = String(localized: "Discard unsaved changes?")

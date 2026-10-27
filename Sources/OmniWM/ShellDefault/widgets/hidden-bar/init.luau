@@ -1,6 +1,8 @@
 -- SPDX-License-Identifier: GPL-2.0-only
 -- Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+local look = require("../lib/look")
+
 function render(ctx: Context)
     return ui.row{}
 end
@@ -9,7 +11,7 @@ local function glyph(item: HiddenBarItem)
     if item.image then
         return ui.image{ image = item.image, w = item.w, h = item.h }
     end
-    return ui.symbol{ name = "app.dashed", w = 16, h = 16, color = "secondaryForeground" }
+    return look.glyph{ name = "app.dashed", w = 16, h = 16, color = "secondaryForeground" }
 end
 
 local function lineRanges(widths: { number }, hidden: HiddenBar): { { number } }
@@ -38,7 +40,7 @@ function popout(ctx: Context)
     local cell = hidden and hidden.cell or 20
     if not hidden or #hidden.items == 0 then
         return ui.stack{ w = 140, h = cell + 4,
-            ui.text{ text = omniwm.l10n("No hidden items"), style = "small", color = "secondaryForeground" } }
+            look.text{ text = omniwm.l10n("No hidden items"), style = "small", color = "secondaryForeground" } }
     end
     local vertical = hidden.vertical
     local widths = {}
@@ -57,7 +59,8 @@ function popout(ctx: Context)
             local width = vertical and column or widths[index]
             line[#line + 1] = ui.stack{ key = item.id, w = width, h = cell, help = item.name,
                 onClick = "hidden-bar activate " .. item.id,
-                ui.box{ w = width - 4, h = cell - 4, radius = 6, hover = "foreground/0.12" },
+                ui.box{ w = width - 4, h = cell - 4, radius = look.radius(6),
+                    hover = look.hiddenBarHover or look.hover },
                 glyph(item) }
         end
         line[#line + 1] = vertical and ui.box{ w = 1, h = 2 } or ui.box{ w = 2, h = 1 }

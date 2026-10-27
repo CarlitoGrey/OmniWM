@@ -16,6 +16,10 @@ struct ShellConfigurationInputs: Sendable {
 
     let metadata: [String: SettingsFileAccess.Fingerprint]
 
+    var sources: [String: SettingsFileAccess.Fingerprint] {
+        files.filter { $0.key != directory.appendingPathComponent("shell.toml").path }
+    }
+
     init(directory: URL, config: ShellConfig) throws {
         let directory = try SettingsFileAccess.canonicalURL(for: directory)
         var files: [String: SettingsFileAccess.Fingerprint] = [:]

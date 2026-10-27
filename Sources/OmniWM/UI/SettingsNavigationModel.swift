@@ -19,6 +19,8 @@ final class SettingsNavigationModel {
     private(set) var hasPendingMonitorSetupPresentation = false
     let ruleEditorState = AppRulesEditorState()
     var searchText = ""
+    @ObservationIgnored var leaveGuard: (@MainActor (SettingsRoute?) -> Bool)?
+    @ObservationIgnored var closeWindow: (@MainActor () -> Void)?
 
     var section: SettingsSection {
         get { route.section }
@@ -29,10 +31,20 @@ final class SettingsNavigationModel {
         guard route != destination else { return }
         if route.section == .appRules, ruleEditorState.isDirty {
             pendingRoute = destination
-        } else {
+        } else if destination.section == route.section || leaveGuard?(destination) != true {
             route = destination
             searchText = ""
         }
+    }
+
+    func proceed(to destination: SettingsRoute?) {
+        guard let destination else { return closeWindow?() ?? () }
+        route = destination
+        if destination.section == .appRules, let pendingRuleDraft {
+            ruleEditorState.requestedDraft = pendingRuleDraft
+            self.pendingRuleDraft = nil
+        }
+        searchText = ""
     }
 
     func discardAndNavigate() {
@@ -47,8 +59,14 @@ final class SettingsNavigationModel {
         searchText = ""
     }
 
+    func reflect(_ destination: SettingsRoute) {
+        route = destination
+    }
+
     func cancelNavigation() {
-        if pendingRoute?.section == .monitors { hasPendingMonitorSetupPresentation = false }
+        if pendingRoute?.section == .monitors || route.section != .monitors {
+            hasPendingMonitorSetupPresentation = false
+        }
         pendingRoute = nil
         pendingRuleDraft = nil
     }
@@ -64,7 +82,8 @@ final class SettingsNavigationModel {
             pendingRuleDraft = draft
         } else {
             request(destination)
-            ruleEditorState.requestedDraft = draft
+            if route == destination { ruleEditorState.requestedDraft = draft }
+            else { pendingRuleDraft = draft }
         }
     }
 

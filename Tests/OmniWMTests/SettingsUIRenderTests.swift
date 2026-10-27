@@ -11,7 +11,7 @@ import XCTest
 
 @MainActor
 final class SettingsUIRenderTests: XCTestCase {
-    private struct WindowClass {
+    struct WindowClass {
         let size: CGSize
         let dark: Bool
         var suffix: String {
@@ -19,13 +19,13 @@ final class SettingsUIRenderTests: XCTestCase {
         }
     }
 
-    private let windowClasses = [
+    let windowClasses = [
         WindowClass(size: CGSize(width: 760, height: 560), dark: true),
         WindowClass(size: CGSize(width: 1040, height: 760), dark: false)
     ]
 
     @MainActor
-    private final class Fixture {
+    final class Fixture {
         let directory: URL
         let settings: SettingsStore
         let controller: WMController
@@ -101,8 +101,8 @@ final class SettingsUIRenderTests: XCTestCase {
                         root, fixture: fixture, windowClass: windowClass,
                         section: section,
                         name: "settings-\(section.rawValue)-\(windowClass.suffix)",
-                        requiredText: [String(localized: "Search settings"), section.subtitle, contentLabel(section)]
-                            + paneLabels(section)
+                        requiredText: [String(localized: "Search settings"), section.subtitle, contentLabel(section)],
+                        requiredObservations: paneLabels(section)
                     )
                     XCTAssertNil(fixture.controller.workspaceBarManager.shellHost, section.rawValue)
                     XCTAssertEqual(
@@ -183,9 +183,144 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
-    private func render<Content: View>(
+    func testUnappliedGestureProposalStaysCurrentWhileItsTabIsHidden() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let gestures = fixture.settings.gestures
+            gestures.scrollEnabled = true
+            gestures.fingerCount = .three
+            gestures.workspaceSwipeEnabled = false
+            gestures.overviewGestureEnabled = true
+            gestures.overviewGestureFingerCount = .four
+            gestures.windowMoveEnabled = false
+            gestures.windowResizeEnabled = false
+            let editor = GestureAssignmentEditor()
+            editor.submit(
+                .init(action: .move, change: .enabled(true)),
+                settings: fixture.settings,
+                monitors: Monitor.current()
+            )
+            XCTAssertNotNil(editor.proposal)
+            let navigation = SettingsNavigationModel()
+            navigation.section = .mouseTrackpad
+            let root = MouseTrackpadSettingsTab(
+                settings: fixture.settings, controller: fixture.controller, gestureEditor: editor
+            ).environment(navigation)
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "gesture-proposal-tab-round-trip",
+                requiredText: [String(localized: "Cancel")],
+                beforeCapture: { _ in
+                    let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" })
+                    navigation.selectTab("mouse")
+                    await self.display(window, appearance: window.effectiveAppearance)
+                    gestures.adoptNativeResize.toggle()
+                    await self.display(window, appearance: window.effectiveAppearance)
+                    navigation.selectTab("trackpad")
+                    await self.display(window, appearance: window.effectiveAppearance)
+                }
+            )
+            XCTAssertEqual(editor.proposal?.refreshed, true)
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testTabKeepsItsScrollPositionAcrossTabSwitches() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let navigation = SettingsNavigationModel()
+            navigation.request(SettingsRoute(section: .layouts, tab: "niri"))
+            let root = SettingsView(
+                settings: fixture.settings, controller: fixture.controller,
+                windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+            )
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "settings-tab-scroll-round-trip",
+                requiredText: [],
+                beforeCapture: { _ in
+                    @MainActor func scrollViews(in view: NSView) -> [NSScrollView] {
+                        ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+                    }
+                    let window = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" })
+                    let content = try XCTUnwrap(window.contentView)
+                    let scroll = try XCTUnwrap(scrollViews(in: content).first { view in
+                        view.convert(view.bounds, to: content).minX >= 220
+                            && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height + 300
+                    })
+                    let clip = scroll.contentView
+                    let offset = try XCTUnwrap(scroll.documentView).isFlipped
+                        ? 300 : try XCTUnwrap(scroll.documentView).bounds.height - clip.bounds.height - 300
+                    clip.scroll(to: CGPoint(x: clip.bounds.minX, y: offset))
+                    scroll.reflectScrolledClipView(clip)
+                    navigation.selectTab("dwindle")
+                    await self.display(window, appearance: window.effectiveAppearance)
+                    navigation.selectTab("niri")
+                    await self.display(window, appearance: window.effectiveAppearance)
+                    XCTAssertNotNil(scroll.window, "Niri's form was rebuilt")
+                    XCTAssertEqual(clip.bounds.minY, offset)
+                }
+            )
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testTabbedPagesOpenedInVisibleWindowKeepTabsLegible() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let searchResult = try XCTUnwrap(SettingsSearchIndex.results(for: "gap").first {
+                $0.route.section == .layouts && $0.route.tab == "spacing"
+            })
+            let destinations: [(search: String, route: SettingsRoute, tabs: [String])] = [
+                ("gap", searchResult.route, ["Spacing", "Niri", "Dwindle"]),
+                ("", SettingsRoute(section: .appearance), ["App & Motion", "Window Borders"]),
+                ("", SettingsRoute(section: .styles), ["Bar", "Island", "Drawers"]),
+                ("", SettingsRoute(section: .menuBar), ["macOS Status Item", "Hidden Bar"]),
+                ("", SettingsRoute(section: .monitors), ["Arrangement", "Behavior"]),
+                ("", SettingsRoute(section: .mouseTrackpad), ["Trackpad", "Mouse & Focus"])
+            ]
+            for windowClass in windowClasses {
+                for destination in destinations {
+                    let navigation = SettingsNavigationModel()
+                    navigation.searchText = destination.search
+                    let root = SettingsView(
+                        settings: fixture.settings, controller: fixture.controller,
+                        windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+                    )
+                    let name = "settings-open-\(destination.route.section.rawValue)-\(windowClass.suffix)"
+                    try await render(
+                        root, fixture: fixture, windowClass: windowClass, name: name,
+                        requiredText: [],
+                        requiredObservations: destination.tabs.map { String(localized: String.LocalizationValue($0)) },
+                        beforeCapture: { _ in navigation.request(destination.route) }
+                    )
+                    XCTAssertEqual(navigation.route, destination.route, name)
+                    XCTAssertEqual(navigation.searchText, "", name)
+                }
+            }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func render<Content: View>(
         _ content: Content, fixture: Fixture, windowClass: WindowClass, section: SettingsSection? = nil,
-        name: String, requiredText: [String]
+        name: String, requiredText: [String], requiredObservations: [String] = [],
+        forbiddenText: [String] = [], scrollEditorForm: Bool = false,
+        editorFormScrollOffset: CGFloat? = nil,
+        beforeCapture: (@MainActor (CGFloat) async throws -> Void)? = nil
     ) async throws {
         let appearance = try XCTUnwrap(NSAppearance(named: windowClass.dark ? .darkAqua : .aqua))
         let originalAppearance = NSApp.appearance
@@ -220,6 +355,7 @@ final class SettingsUIRenderTests: XCTestCase {
         try await preparePreviews(
             fixture: fixture, section: section, dark: windowClass.dark, scale: window.backingScaleFactor
         )
+        try await beforeCapture?(window.backingScaleFactor)
         if section == .styles {
             let configuration = fixture.controller.workspaceBarManager.shellConfiguration
             let revision = configuration.revision
@@ -239,22 +375,41 @@ final class SettingsUIRenderTests: XCTestCase {
         await display(window, appearance: appearance)
         let viewport = hosting.convert(window.contentLayoutRect, from: nil)
         XCTAssertEqual(viewport.size, windowClass.size, name)
+        if scrollEditorForm || editorFormScrollOffset != nil {
+            try positionEditorForm(in: hosting, offset: editorFormScrollOffset)
+            await display(window, appearance: appearance)
+        }
         let bitmap = try await capture(window)
         XCTAssertEqual(bitmap.pixelsWide, Int(windowClass.size.width * window.backingScaleFactor), name)
         XCTAssertEqual(bitmap.pixelsHigh, Int(windowClass.size.height * window.backingScaleFactor), name)
-        let request = VNRecognizeTextRequest()
-        request.recognitionLevel = .accurate
-        request.recognitionLanguages = ["en-US"]
-        request.usesLanguageCorrection = true
-        request.customWords = ["OmniWM", "Niri", "Dwindle", "Luau", "OmniShell"]
-        try VNImageRequestHandler(cgImage: try XCTUnwrap(bitmap.cgImage)).perform([request])
-        let texts = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+        let renderedImage = try XCTUnwrap(bitmap.cgImage)
+        var texts = try recognizedText(in: renderedImage)
         XCTAssertFalse(texts.isEmpty, "\(name): no native content was produced")
-        let renderedText = normalizedText(texts.joined(separator: " "))
+        var renderedText = normalizedText(texts.joined(separator: " "))
+        if section == .styles, requiredText.contains(where: { !renderedText.contains(normalizedText($0)) })
+            || !containsObservations(requiredObservations, in: texts)
+        {
+            let sidebar = 220 * window.backingScaleFactor
+            let detail = try XCTUnwrap(renderedImage.cropping(to: CGRect(
+                x: sidebar, y: 0, width: CGFloat(bitmap.pixelsWide) - sidebar, height: CGFloat(bitmap.pixelsHigh)
+            )))
+            texts += try recognizedText(in: detail)
+            renderedText = normalizedText(texts.joined(separator: " "))
+        }
         for text in requiredText {
             XCTAssertTrue(
                 renderedText.contains(normalizedText(text)),
                 "\(name): missing \(text); rendered \(texts)"
+            )
+        }
+        XCTAssertTrue(
+            containsObservations(requiredObservations, in: texts),
+            "\(name): missing individual observations \(requiredObservations); rendered \(texts)"
+        )
+        for text in forbiddenText {
+            XCTAssertFalse(
+                renderedText.contains(normalizedText(text)),
+                "\(name): unexpected \(text); rendered \(texts)"
             )
         }
         var colors: Set<Int> = []
@@ -278,39 +433,65 @@ final class SettingsUIRenderTests: XCTestCase {
         withExtendedLifetime(window) {}
     }
 
+    private func positionEditorForm(in hosting: NSView, offset requested: CGFloat? = nil) throws {
+        func scrollViews(in view: NSView) -> [NSScrollView] {
+            let current = (view as? NSScrollView).map { [$0] } ?? []
+            return current + view.subviews.flatMap { scrollViews(in: $0) }
+        }
+        let scroll = try XCTUnwrap(scrollViews(in: hosting).first { view in
+            let frame = view.convert(view.bounds, to: hosting)
+            return frame.minX >= 220 && frame.width > 300
+                && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height
+        }, "The editor must expose a vertical Form scroll view")
+        let document = try XCTUnwrap(scroll.documentView)
+        let clip = scroll.contentView
+        let limit = max(0, document.bounds.height - clip.bounds.height)
+        let offset = min(requested ?? (hosting.bounds.width < 1000 ? 300 : 180), limit)
+        let original = clip.bounds.origin
+        clip.scroll(to: CGPoint(x: original.x, y: document.isFlipped ? offset : limit - offset))
+        scroll.reflectScrolledClipView(clip)
+        XCTAssertNotEqual(clip.bounds.origin, original)
+    }
+
     private func preparePreviews(
         fixture: Fixture, section: SettingsSection?, dark: Bool, scale: CGFloat
     ) async throws {
-        guard let section, [.styles, .bar, .island].contains(section) else { return }
+        guard section == .styles else { return }
         let configuration = fixture.controller.workspaceBarManager.shellConfiguration
-        let profiles = section == .styles ? configuration.profiles : [configuration.config.profile]
+        let profiles = configuration.profiles
         for profile in profiles {
             let config = try await configuration.previewConfig(profile: profile)
-            if section != .island {
-                _ = try await ShellSettingsPreview.cachedImage(for: .init(
-                    config: config, surface: .bar,
-                    style: ShellSettingsPreview.style(settings: fixture.settings.workspaceBar, config: config),
-                    scale: scale, dark: dark,
-                    fullWidth: config.barOverride?.settings.fullWidth
-                        ?? (section == .styles ? fixture.settings.workspaceBar.fullWidth : false),
-                    revision: configuration.revision
-                ))
-            }
-            if config.profile == configuration.config.profile, config.island != nil, section != .bar {
-                _ = try await ShellSettingsPreview.cachedImage(for: .init(
-                    config: config, surface: .island(expanded: false), style: ShellBarStyle(),
-                    scale: scale, dark: dark, fullWidth: config.barOverride?.settings.fullWidth ?? false,
-                    revision: configuration.revision
-                ))
-            }
+            _ = try await ShellSettingsPreview.cachedImage(for: .init(
+                config: config, surface: .bar,
+                style: ShellSettingsPreview.style(settings: fixture.settings.workspaceBar, config: config),
+                scale: scale, dark: dark,
+                fullWidth: config.barOverride?.settings.fullWidth ?? fixture.settings.workspaceBar.fullWidth,
+                sourceGeneration: configuration.sourceGeneration
+            ))
         }
     }
 
-    private func requireNativeRendering() throws {
+    func requireNativeRendering() throws {
         guard ProcessInfo.processInfo.environment["OMNIWM_RUN_SETTINGS_UI_RENDER_TESTS"] == "1" else {
             throw XCTSkip("Native settings rendering requires OMNIWM_RUN_SETTINGS_UI_RENDER_TESTS=1")
         }
         _ = try XCTUnwrap(CGPreflightScreenCaptureAccess() ? true : nil, "Screen Recording permission is required")
+    }
+
+    private func recognizedText(in image: CGImage) throws -> [String] {
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.recognitionLanguages = ["en-US"]
+        request.usesLanguageCorrection = true
+        request.customWords = ["OmniWM", "Niri", "Dwindle", "Luau", "OmniShell"]
+        try VNImageRequestHandler(cgImage: image).perform([request])
+        return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+    }
+
+    private func containsObservations(_ required: [String], in texts: [String]) -> Bool {
+        let observations = Set(texts.map(normalizedText))
+        let combined = normalizedText(required.joined(separator: " "))
+        return required.allSatisfy { observations.contains(normalizedText($0)) || observations.contains(combined) }
     }
 
     private func normalizedText(_ text: String) -> String {
@@ -355,8 +536,7 @@ final class SettingsUIRenderTests: XCTestCase {
 
     private func paneLabels(_ section: SettingsSection) -> [String] {
         switch section {
-        case .bar: [String(localized: "Layout"), String(localized: "Behavior"), String(localized: "Apps")]
-        case .island: [String(localized: "Interaction"), String(localized: "Placement")]
+        case .styles: [String(localized: "Bar"), String(localized: "Island"), String(localized: "Drawers")]
         default: []
         }
     }
@@ -365,10 +545,7 @@ final class SettingsUIRenderTests: XCTestCase {
         switch section {
         case .general: String(localized: "App Language")
         case .appearance: String(localized: "App Appearance")
-        case .styles: String(localized: "Default")
-        case .bar: String(localized: "Enable Workspace Bar")
-        case .island: String(localized: "Enable Dynamic Island")
-        case .widgets: String(localized: "Widget Library")
+        case .styles: String(localized: "Bar Widgets")
         case .menuBar: String(localized: "Show Workspace")
         case .workspaces: String(localized: "Layout Algorithm")
         case .layouts: String(localized: "Spacing")

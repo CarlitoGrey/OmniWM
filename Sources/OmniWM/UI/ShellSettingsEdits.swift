@@ -5,20 +5,6 @@ import SwiftUI
 
 @MainActor
 enum ShellSettingsEdits {
-    static func apply(
-        settings: SettingsStore,
-        controller: WMController,
-        _ change: @escaping @Sendable (URL, ShellConfig) throws -> Bool
-    ) async throws {
-        _ = try await controller.workspaceBarManager.shellConfiguration.editFile { directory in
-            var problems: [String] = []
-            guard let config = ShellConfig.load(shellDirectory: directory, problems: &problems) else {
-                throw ShellBarLayout.Unreadable(problem: problems.last ?? "shell.toml")
-            }
-            return try change(directory, config)
-        }
-    }
-
     static func set<Value: Encodable>(
         _ value: Value?,
         key: String,
@@ -35,19 +21,6 @@ enum ShellSettingsEdits {
         controller: WMController
     ) async throws {
         try await controller.workspaceBarManager.shellConfiguration.reset(table: table)
-    }
-
-    static func updateMonitor(
-        _ monitor: Monitor,
-        settings: SettingsStore,
-        controller: WMController,
-        change: (@MainActor (inout MonitorBarSettings) -> Void)?
-    ) async throws {
-        try await controller.workspaceBarManager.shellConfiguration.updateMonitor(monitor, change: change)
-    }
-
-    static func setSystemStatsEnabled(_ enabled: Bool, settings: SettingsStore, controller: WMController) async throws {
-        try await controller.workspaceBarManager.shellConfiguration.setSystemStatsEnabled(enabled)
     }
 }
 

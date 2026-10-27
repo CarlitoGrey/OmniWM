@@ -48,13 +48,7 @@ struct SettingsDetailView: View {
                 windowCornerPreferences: windowCornerPreferences
             )
         case .styles:
-            ShellStyleSettingsPage(settings: settings, controller: controller)
-        case .bar:
-            WorkspaceBarSettingsTab(settings: settings, controller: controller)
-        case .island:
-            DynamicIslandSettingsPage(settings: settings, controller: controller)
-        case .widgets:
-            WidgetsSettingsPage(settings: settings, controller: controller)
+            ShellDesktopEditorPage(settings: settings, controller: controller)
         case .menuBar:
             MenuBarSettingsPage(settings: settings, controller: controller)
         case .workspaces:

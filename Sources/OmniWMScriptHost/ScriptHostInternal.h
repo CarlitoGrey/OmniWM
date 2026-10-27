@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cstdint>
 #include <dispatch/dispatch.h>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -117,6 +118,7 @@ void copyMessage(const char *message, char *error, size_t capacity);
 void copyValueMessage(lua_State *L, int index, char *error, size_t capacity);
 uint64_t threadCPU() noexcept;
 lua_CompileOptions scriptCompileOptions();
+std::shared_ptr<const std::string> compiledBytecode(omni_vm *vm, const char *source, size_t length);
 int16_t shellAtom(lua_State *L, const char *s, size_t length);
 int encodeEntry(lua_State *L);
 int popoutAction(lua_State *L);

@@ -60,7 +60,7 @@ final class ShellSettingsEditsTests: XCTestCase {
         XCTAssertFalse(settings.hiddenBar.resolvedEnabled)
         XCTAssertNil(controller.workspaceBarManager.shellHost)
         XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("shell.toml")), originalFile)
-        try await ShellSettingsEdits.updateMonitor(monitor, settings: settings, controller: controller) {
+        try await controller.workspaceBarManager.shellConfiguration.updateMonitor(monitor) {
             $0.enabled = true
             $0.position = .bottom
             $0.height = 80
@@ -73,7 +73,7 @@ final class ShellSettingsEditsTests: XCTestCase {
         let stored = try XCTUnwrap(ShellConfig.load(shellDirectory: directory)?.barOverride)
         XCTAssertEqual(MonitorSettingsStore.get(for: monitor, in: stored.monitorOverrides)?.height, 80)
 
-        try await ShellSettingsEdits.updateMonitor(monitor, settings: settings, controller: controller, change: nil)
+        try await controller.workspaceBarManager.shellConfiguration.updateMonitor(monitor, change: nil)
         XCTAssertTrue(settings.workspaceBar.profileOverride?.monitorOverrides.isEmpty == true)
         XCTAssertEqual(settings.workspaceBar.resolved(for: monitor).position, .left)
         XCTAssertEqual(settings.workspaceBar.resolved(for: monitor).height, 60)

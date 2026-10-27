@@ -13,7 +13,6 @@ function button.render(ctx: Context, props)
         else ui.icon{ app = props.app, pid = props.pid, w = icon, h = icon, placeholder = "app.dashed" }
     return ui.stack{ w = size, h = size, onClick = props.action, help = props.help,
         radius = if capsule then size / 2 else 4, hover = if style.solidBlack then "#FFFFFF1F" else "foreground/0.12",
-        fill = if capsule then "surface" else nil, border = if capsule then "border" else nil, borderWidth = 0.5,
         image }
 end
 

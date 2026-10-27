@@ -37,11 +37,14 @@ final class ShellSakuraTests: XCTestCase {
             ["apple-menu", "app-menu", "omniwm", "workspaces", "scratchpads", "active-window"]
         )
         XCTAssertEqual(config.center, ["clock"])
-        XCTAssertEqual(config.trailing, ["privacy", "media", "wifi", "battery-details", "control-center"])
+        XCTAssertEqual(
+            config.trailing,
+            ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats"]
+        )
         XCTAssertEqual(config.barOverride?.settings.height, 40)
         XCTAssertEqual(config.barOverride?.settings.fullWidth, true)
         XCTAssertEqual(config.barOverride?.settings.reserveLayoutSpace, true)
-        XCTAssertNil(config.island)
+        XCTAssertEqual(config.island?.root, "focus-ribbon")
         XCTAssertEqual(config.barShader, ShellBarShader(
             source: "sakura-petals.metal", fps: 30, values: SIMD4(0.55, 1, 10, 0)
         ))
@@ -49,12 +52,11 @@ final class ShellSakuraTests: XCTestCase {
             config.widget("effects-lab"), shell.appendingPathComponent("default/widgets/effects-lab/init.luau")
         )
         let styled = shell.appendingPathComponent("sakura/widgets")
-        let names = try FileManager.default.contentsOfDirectory(atPath: styled.path)
-        XCTAssertEqual(names.count, 22)
-        XCTAssertFalse(names.contains("focus-ribbon"))
-        for name in names {
-            XCTAssertEqual(config.widget(name), styled.appendingPathComponent("\(name)/init.luau"))
-        }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: styled.path))
+        XCTAssertEqual(
+            config.widget("control-center"),
+            shell.appendingPathComponent("default/widgets/control-center/init.luau")
+        )
     }
 
     func testPresetWidgetsFitBothOrientationsAndPopoutsContainTheirShader() async throws {
@@ -264,6 +266,7 @@ final class ShellSakuraTests: XCTestCase {
         )
         var bar = ShellBarData()
         bar.style.height = 40
+        bar.style.hidesMenuBar = true
         bar.style.vertical = vertical
         bar.style.position = vertical ? "left" : "top"
         bar.style.backgrounds = false

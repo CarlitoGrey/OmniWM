@@ -152,6 +152,8 @@ struct SettingsExport: Equatable {
         var backgroundEffect: QuakeTerminalBackgroundEffect
         var backgroundBlurRadius: Int?
         var monitorMode: QuakeTerminalMonitorMode?
+        var provider: QuakeTerminalProvider?
+        var kitty: KittyQuakeSettings?
     }
 
     struct Borders: Codable, Equatable {
@@ -421,7 +423,9 @@ extension SettingsExport.QuakeTerminal {
             opacity: 1.0,
             backgroundEffect: .standardBlur,
             backgroundBlurRadius: QuakeTerminalAppearancePolicy.disabledBackgroundBlurRadius,
-            monitorMode: .focusedWindow
+            monitorMode: .focusedWindow,
+            provider: .ghostty,
+            kitty: nil
         )
     }
 }

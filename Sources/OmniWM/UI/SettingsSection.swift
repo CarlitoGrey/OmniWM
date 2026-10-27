@@ -4,7 +4,7 @@
 import SwiftUI
 
 enum SettingsSection: String, CaseIterable, Identifiable {
-    case general, appearance, styles, bar, island, widgets, menuBar
+    case general, appearance, styles, menuBar
     case workspaces, layouts, monitors, appRules, overview, windowSwitcher
     case hotkeys, mouseTrackpad, quakeTerminal, diagnostics, reportIssue, advanced
 
@@ -52,27 +52,9 @@ enum SettingsSection: String, CaseIterable, Identifiable {
             )
         case .styles:
             Presentation(
-                String(localized: "Styles"),
+                String(localized: "Styles & Widgets"),
                 "square.grid.2x2",
-                String(localized: "Preview a desktop style and choose its color palette.")
-            )
-        case .bar:
-            Presentation(
-                String(localized: "Workspace Bar"),
-                "menubar.rectangle",
-                String(localized: "Arrange widgets and customize the bar on your displays.")
-            )
-        case .island:
-            Presentation(
-                String(localized: "Dynamic Island"),
-                "capsule",
-                String(localized: "Customize your island, with or without a workspace bar.")
-            )
-        case .widgets:
-            Presentation(
-                String(localized: "Widgets"),
-                "puzzlepiece.extension",
-                String(localized: "Discover widgets, choose where they appear, and edit their options.")
+                String(localized: "Choose a style, then arrange its bar, island and drawers, and adjust its look.")
             )
         case .menuBar:
             Presentation(
@@ -176,7 +158,7 @@ enum SettingsSectionGroup: String, CaseIterable, Identifiable {
     var sections: [SettingsSection] {
         switch self {
         case .app: [.general, .appearance]
-        case .desktop: [.styles, .bar, .island, .widgets, .menuBar]
+        case .desktop: [.styles, .menuBar]
         case .windows: [.workspaces, .layouts, .monitors, .appRules, .overview, .windowSwitcher]
         case .input: [.hotkeys, .mouseTrackpad]
         case .tools: [.quakeTerminal]

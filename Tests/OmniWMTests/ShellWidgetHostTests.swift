@@ -166,7 +166,8 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         try FileManager.default.createDirectory(at: widget, withIntermediateDirectories: true)
         try Data("function render(ctx) return ui.text{ text = \"hello\" } end".utf8)
             .write(to: widget.appendingPathComponent("init.luau"))
-        try Data("profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\n".utf8)
+        try Data("profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\n"
+            .utf8)
             .write(to: config.appendingPathComponent("shell/shell.toml"))
         controller = WMController(settings: settings)
     }
@@ -315,7 +316,9 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 + (style.textColor == "#FF0000FF" and 100 or 0) + (style.vertical and 1000 or 0) }
         end
         """.utf8).write(to: widget)
-        controller.settings.workspaceBar.position = .bottom
+        XCTAssertTrue(try ShellProfiles.setValue(
+            "bottom", at: ShellProfiles.key("workspaceBar", of: "default") + ["position"], in: shell
+        ))
         XCTAssertTrue(try ShellProfiles.setValue(
             SettingsColor(red: 1, green: 0, blue: 0, alpha: 1),
             at: ShellProfiles.key("workspaceBar", of: "default") + ["textColor"],
@@ -435,7 +438,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 260, h = 30 } end
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -519,6 +522,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         profiles.default.hiddenBarWidget = "drawer"
         """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
@@ -534,6 +538,11 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         let session = controller.hiddenBarController.menuSession
         let key = MenuBarItemKey(bundleID: "com.example.menu", ordinal: 0)
         let host = try XCTUnwrap(manager.shellHost)
+        let alone = [display.frame]
+        let besideAnother = alone + [display.frame.offsetBy(dx: display.frame.width, dy: 0)]
+        let belowAnother = alone + [display.frame.offsetBy(dx: 0, dy: display.frame.height)]
+        PanelDismissalMonitor.screenFrames = { alone }
+        defer { PanelDismissalMonitor.screenFrames = { NSScreen.screens.map(\.frame) } }
 
         for removeBar in [false, true] {
             let placement = try XCTUnwrap(manager.hiddenBarPanelPlacement(on: display.id))
@@ -567,6 +576,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 panels: [instance.primary.panel], isExemptWindow: { _ in false },
                 onDismiss: { screenChangeHandled.fulfill() }
             )
+            PanelDismissalMonitor.screenFrames = { besideAnother }
             NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
             await fulfillment(of: [screenChangeHandled], timeout: 5)
             ordinaryPanel.stop()
@@ -592,6 +602,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
                 host.closeHiddenBarMenu()
                 XCTAssertTrue(host.popout === popout)
                 XCTAssertEqual(popout.drawerPlacement, latest)
+                PanelDismissalMonitor.screenFrames = { belowAnother }
                 NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: nil)
                 await until { host.popout == nil }
                 XCTAssertNil(host.popout)
@@ -618,7 +629,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 260, h = 30 } end
         """.utf8).write(to: drawer.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\"]\nprofiles.default.hiddenBarWidget = \"drawer\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -682,6 +693,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: widget.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.controls]
         widgets = ["test"]
@@ -714,6 +726,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         """.utf8).write(to: widget.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.dashboard]
         edge = "top"
@@ -775,7 +788,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         function popout(ctx) return ui.box{ w = 50, h = 30 } end
         """.utf8).write(to: stats.appendingPathComponent("init.luau"))
         try Data(
-            "profiles.default.leading = []\nprofiles.default.trailing = [\"test\", \"stats\"]\nprofiles.default.systemStatsWidget = \"stats\"\n"
+            "profiles.default.leading = []\nprofiles.default.center = []\nprofiles.default.trailing = [\"test\", \"stats\"]\nprofiles.default.systemStatsWidget = \"stats\"\n"
                 .utf8
         )
         .write(to: shell.appendingPathComponent("shell.toml"))
@@ -829,6 +842,7 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = []
         [profiles.default.workspaceBar]
         height = 31
@@ -886,8 +900,15 @@ final class ShellWidgetBarLifecycleTests: XCTestCase {
         XCTAssertNil(host.resources.bitmap(second))
     }
 
-    func testSplitBarsGiveEachIslandItsOwnShellWidgets() async {
+    func testSplitBarsGiveEachIslandItsOwnShellWidgets() async throws {
         executionTimeAllowance = 60
+        let shell = ShellWidgetHost.shellDirectory(in: controller.settings.settingsFileURL.deletingLastPathComponent())
+        XCTAssertTrue(try ShellProfiles.setValue(
+            "overlappingMenuBar", at: ShellProfiles.key("workspaceBar", of: "default") + ["position"], in: shell
+        ))
+        XCTAssertTrue(try ShellProfiles.setValue(
+            false, at: ShellProfiles.key("workspaceBar", of: "default") + ["fullWidth"], in: shell
+        ))
         controller.settings.workspaceBar.notchMode = .splitActiveLeft
         let manager = makeManager()
         defer { manager.cleanup() }
@@ -996,15 +1017,17 @@ final class ShellWidgetClickTests: XCTestCase {
 
     private func harness(
         _ source: String,
+        widget: String = "test",
         world: ShellWorldData = ShellWorldData(),
         bars: [ShellBarKey: ShellBarData] = [Harness.bar: ShellBarData()],
         animations: Bool = false,
-        files: [String: String] = [:]
+        files: [String: String] = [:],
+        notifications: ShellNotificationsController? = nil
     ) throws -> Harness {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let contents = ["shell.toml": "profiles.default.trailing = [\"test\"]\n"]
+        let contents = ["shell.toml": "profiles.default.trailing = [\"\(widget)\"]\n"]
             .merging(files, uniquingKeysWith: { $1 })
-            .merging(["widgets/test/init.luau": source], uniquingKeysWith: { $1 })
+            .merging(["widgets/\(widget)/init.luau": source], uniquingKeysWith: { $1 })
         for (path, contents) in contents {
             let url = root.appendingPathComponent("shell/" + path)
             try FileManager.default.createDirectory(
@@ -1020,6 +1043,7 @@ final class ShellWidgetClickTests: XCTestCase {
         DispatchQueue.main.asyncAfter(deadline: .now() + 30) { changed.finish() }
         let resources = ShellResources(
             motion: MotionPolicy(animationsEnabled: animations),
+            notifications: notifications,
             iconOverride: { _ in sink.iconOverride }
         )
         let host = ShellWidgetHost(
@@ -1046,6 +1070,113 @@ final class ShellWidgetClickTests: XCTestCase {
     private func click(_ surface: ShellWidgetSurface, at point: CGPoint) {
         surface.press(at: point)
         surface.release(at: point)
+    }
+
+    func testFinishedNotificationBatchSurvivesHostPopoutAndDrawerReopening() async throws {
+        executionTimeAllowance = 60
+        guard let screen = NSScreen.screens.first(where: { $0.displayId == CGMainDisplayID() }) else {
+            throw XCTSkip("notification popouts and drawers need the main display")
+        }
+        let main = Monitor.ID(displayId: try XCTUnwrap(screen.displayId))
+        let id = UUID()
+        let snapshot = ShellNotificationsData(state: "ready", items: [.object([
+            "id": .text(id.uuidString.lowercased()),
+            "bundle": .text("com.example.NotificationHostFixture"),
+            "title": .text("Retained host fixture")
+        ])])
+        let batchEntered = expectation(description: "injected notification batch runs")
+        batchEntered.assertForOverFulfill = true
+        let notifications = ShellNotificationsController(
+            url: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+                .appendingPathComponent("notifications.db"),
+            load: { _ in snapshot },
+            perform: { _ in
+                XCTFail("The host fixture must not perform individual native actions")
+                return .failed
+            },
+            dismissAll: { requests, progress in
+                batchEntered.fulfill()
+                XCTAssertEqual(requests.map(\.id), [id])
+                for _ in requests { progress(.dispatched) }
+                return .dispatched
+            }
+        )
+        let harness = try harness("""
+        function render(ctx)
+            return ui.box{ w = ctx.data.notifications and 20 or 10, h = 20, onClick = ui.popout }
+        end
+        function popout(ctx)
+            local value = ctx.data.notifications
+            local batch = value and value.dismissAll
+            return ui.text{ w = 180, h = 24,
+                text = batch and (batch.state .. ":" .. tostring(batch.completed) .. "/" .. tostring(batch.total)) or "none" }
+        end
+        """, widget: "notifications", bars: [ShellBarKey(monitor: main): ShellBarData()], files: [
+            "shell.toml": """
+            profiles.default.leading = []
+            profiles.default.center = []
+            profiles.default.trailing = ["notifications"]
+            [profiles.default.drawer.notification-history]
+            edge = "right"
+            widgets = ["notifications"]
+            """
+        ], notifications: notifications)
+        defer { harness.close() }
+        XCTAssertTrue(harness.resources.notifications === notifications)
+        await until {
+            notifications.isListening && notifications.current.state == "ready"
+                && harness.host.slots(for: main).first?.id == "notifications"
+        }
+        let expectedFeedback = "completed:1/1"
+        func hasFeedback(_ surface: ShellWidgetSurface) -> Bool {
+            !surface.layout.core.elements { surface.text?.string($0.text) == expectedFeedback }.isEmpty
+        }
+        XCTAssertTrue(harness.host.togglePopout(of: "notifications", on: main))
+        let firstPopout = try XCTUnwrap(harness.host.popout)
+        XCTAssertTrue(notifications.perform(.dismissAll))
+        let actionTask = try XCTUnwrap(notifications.actionTask)
+        await actionTask.value
+        await fulfillment(of: [batchEntered], timeout: 10)
+        await notifications.task?.value
+        let finished = try XCTUnwrap(notifications.current.dismissAll)
+        XCTAssertEqual(finished.fields?["state"]?.string, "completed")
+        await until { hasFeedback(firstPopout.surface) }
+        XCTAssertTrue(hasFeedback(firstPopout.surface))
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closePopout(animated: false)
+        XCTAssertNil(harness.host.popout)
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertTrue(harness.host.togglePopout(of: "notifications", on: main))
+        let reopenedPopout = try XCTUnwrap(harness.host.popout)
+        XCTAssertFalse(reopenedPopout === firstPopout)
+        await until { hasFeedback(reopenedPopout.surface) }
+        XCTAssertTrue(hasFeedback(reopenedPopout.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closePopout(animated: false)
+        XCTAssertTrue(harness.host.toggleDrawer("notification-history", on: main))
+        let firstDrawer = try XCTUnwrap(harness.host.drawer)
+        let firstSection = try XCTUnwrap(firstDrawer.sections.first)
+        XCTAssertEqual(firstSection.widget, "notifications")
+        await until { hasFeedback(firstSection.surface) }
+        XCTAssertTrue(hasFeedback(firstSection.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+
+        harness.host.closeDrawer(animated: false)
+        XCTAssertNil(harness.host.drawer)
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertTrue(harness.host.toggleDrawer("notification-history", on: main))
+        let reopenedDrawer = try XCTUnwrap(harness.host.drawer)
+        XCTAssertFalse(reopenedDrawer === firstDrawer)
+        let reopenedSection = try XCTUnwrap(reopenedDrawer.sections.first)
+        await until { hasFeedback(reopenedSection.surface) }
+        XCTAssertTrue(hasFeedback(reopenedSection.surface))
+        XCTAssertEqual(notifications.current.dismissAll, finished)
+        XCTAssertEqual(notifications.current.items, snapshot.items)
+        XCTAssertEqual(notifications.current.dispatched, [id.uuidString.lowercased()])
     }
 
     func testHostAsksForWindowTitlesOnlyWhileAWidgetReadsThem() async throws {
@@ -1725,14 +1856,17 @@ final class ShellWidgetClickTests: XCTestCase {
 
     func testBrokenOverrideOfABundledWidgetFallsBackUntilItIsFixed() async throws {
         executionTimeAllowance = 60
-        let harness = try harness(
-            "function render(ctx) return ui.box{ w = 10, h = 10 } end",
-            files: ["shell.toml": "profiles.default.trailing = [\"test\", \"clock\"]\n"]
-        )
+        let harness = try harness("function render(ctx) return ui.box{ w = 10, h = 10 } end")
         defer { harness.close() }
+        try Data("profiles.default.trailing = [\"test\", \"clock\"]\n".utf8)
+            .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
+        harness.host.rescan()
         var layoutChanges = harness.layoutChanges.makeAsyncIterator()
-        try await layoutChanges.change()
         let clock = { harness.host.slots(for: Harness.monitor).first { $0.id == "clock" } }
+        while clock()?.size.width ?? 0 == 0 {
+            try await layoutChanges.change()
+        }
         let source = harness.root.appendingPathComponent("shell/widgets/clock/init.luau")
         try FileManager.default.createDirectory(
             at: source.deletingLastPathComponent(),
@@ -1740,16 +1874,101 @@ final class ShellWidgetClickTests: XCTestCase {
         )
         try Data("function render(ctx) return ui.box{ w = 33, h = 10 }".utf8).write(to: source)
         harness.host.rescan()
-        while clock()?.failure == nil || clock()?.size.width ?? 0 == 0 {
+        while clock()?.failure?.message.hasPrefix("Using the built-in clock:") != true || clock()?.size
+            .width ?? 0 == 0
+        {
             try await layoutChanges.change()
         }
         XCTAssertNotEqual(clock()?.size.width, 33)
-        XCTAssertTrue(clock()?.failure?.source.path.hasSuffix("widgets/clock/init.luau") == true)
+        XCTAssertEqual(clock()?.failure?.source.resolvingSymlinksInPath(), source.resolvingSymlinksInPath())
 
         try Data("function render(ctx) return ui.box{ w = 33, h = 10 } end".utf8).write(to: source)
         harness.host.rescan()
         while clock()?.size.width != 33 || clock()?.failure != nil {
             try await layoutChanges.change()
+        }
+    }
+
+    func testBrokenUserLibraryFallsBackToBundledWidgetWithoutReloading() async throws {
+        for userOverride in [false, true] {
+            let context = "userOverride=\(userOverride)"
+            let harness = try harness("function render(ctx) return ui.box{ w = 10, h = 10 } end")
+            defer { harness.close() }
+            let shell = harness.root.appendingPathComponent("shell")
+            XCTAssertEqual(ShellDefaults.sync(into: shell), [], context)
+            let library = shell.appendingPathComponent("lib/look.luau")
+            try FileManager.default.createDirectory(
+                at: library.deletingLastPathComponent(), withIntermediateDirectories: true
+            )
+            try Data("return {".utf8).write(to: library)
+            if userOverride {
+                let source = shell.appendingPathComponent("widgets/clock/init.luau")
+                try FileManager.default.createDirectory(
+                    at: source.deletingLastPathComponent(), withIntermediateDirectories: true
+                )
+                try Data("local look = require(\"../lib/look\")\nfunction render(ctx) return look.bar(ctx, {}) end"
+                    .utf8)
+                    .write(to: source)
+            }
+            try Data("""
+            profiles.default.leading = []
+            profiles.default.center = []
+            profiles.default.trailing = ["test", "clock"]
+            """.utf8).write(to: shell.appendingPathComponent("shell.toml"))
+            harness.host.rescan()
+            var changes = harness.layoutChanges.makeAsyncIterator()
+            while harness.host.widgetReport.widgets.first(where: { $0.name == "clock" })?.state != "fallback" {
+                try await changes.change()
+            }
+            let state = try XCTUnwrap(harness.host.widgets["clock"], context)
+            XCTAssertNotNil(state.fallback, context)
+            XCTAssertNil(state.lastFailure, context)
+            XCTAssertNotNil(state.package, context)
+            XCTAssertNil(state.loadingPackage, context)
+            XCTAssertFalse(harness.host.hasFallback(state), context)
+            let expected = try XCTUnwrap(ShellConfig.bundledWidget("clock"), context)
+            XCTAssertEqual(state.sourceURL, expected, context)
+            let generation = state.generation
+            let nextGeneration = harness.host.nextGeneration
+            harness.host.rescan(reloadConfiguration: false)
+            XCTAssertTrue(harness.host.widgets["clock"] === state, context)
+            XCTAssertEqual(state.generation, generation, context)
+            XCTAssertEqual(harness.host.nextGeneration, nextGeneration, context)
+            XCTAssertNil(state.lastFailure, context)
+            XCTAssertNil(state.loadingPackage, context)
+        }
+    }
+
+    func testBrokenMenuOverridesUseBundledLibrariesAndRecoverWhenFixed() async throws {
+        executionTimeAllowance = 60
+        for name in ["apple-menu", "app-menu", "omniwm"] {
+            let harness = try harness(
+                "function render(ctx) return ui.box{ w = 10, h = 10 } end",
+                files: [
+                    "shell.toml": "profiles.default.trailing = [\"test\", \"\(name)\"]\n",
+                    "widgets/\(name)/init.luau": "function render(ctx) return ui.box{ w = 33, h = 10 }",
+                    "lib/menu-button.luau": "error('broken user menu library')",
+                    "lib/keyboard-mode.luau": "error('broken user keyboard library')"
+                ]
+            )
+            defer { harness.close() }
+            let bundled = try XCTUnwrap(ShellConfig.bundledWidget(name))
+            await until("bundled fallback for \(name)") {
+                guard let state = harness.host.widgets[name], state.sourceURL == bundled else { return false }
+                return state.package != nil || state.lastFailure != nil
+            }
+            let fallback = try XCTUnwrap(harness.host.widgets[name])
+            XCTAssertNotNil(fallback.package, name)
+            XCTAssertNil(fallback.lastFailure, name)
+            XCTAssertNotNil(fallback.fallback, name)
+
+            let source = harness.root.appendingPathComponent("shell/widgets/\(name)/init.luau")
+            try Data("function render(ctx) return ui.box{ w = 33, h = 10 } end".utf8).write(to: source)
+            harness.host.rescan()
+            let slot = { harness.host.slots(for: Harness.monitor).first { $0.id == name } }
+            await until("repaired user widget for \(name)") {
+                slot()?.size.width == 33 && slot()?.failure == nil
+            }
         }
     }
 
@@ -2088,11 +2307,15 @@ final class ShellWidgetClickTests: XCTestCase {
             bars: [Harness.bar: bar]
         )
         defer { harness.close() }
-        try Data("profiles.default.leading = [\"workspaces\", \"test\"]\n".utf8)
-            .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        try Data("""
+        profiles.default.leading = ["workspaces", "test"]
+        profiles.default.center = []
+        profiles.default.trailing = []
+        """.utf8).write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         var layoutChanges = harness.layoutChanges.makeAsyncIterator()
-        while harness.host.slots(for: Harness.monitor).first(where: { $0.id == "workspaces" })?.size.width ?? 0 == 0 {
+        while harness.host.slots(for: Harness.monitor).count < 2 {
             try await layoutChanges.change()
         }
         let slots = harness.host.slots(for: Harness.monitor)
@@ -2137,6 +2360,7 @@ final class ShellWidgetClickTests: XCTestCase {
         """.utf8).write(to: side.appendingPathComponent("init.luau"))
         try Data("profiles.default.leading = [\"workspaces\", \"test\"]\nprofiles.default.trailing = [\"side\"]\n".utf8)
             .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         let placed = { (island: WorkspaceBarIslandSlice) in
             harness.host.slots(for: Harness.monitor).filter { $0.island == island }
@@ -2453,7 +2677,7 @@ final class ShellWidgetClickTests: XCTestCase {
             WorkspaceBarShellWidget(id: id, size: CGSize(width: width, height: 24), lane: .leading)
         }
         let compact = { (slots: [WorkspaceBarShellWidget], width: CGFloat) in
-            WorkspaceBarManager.compactScratchpads(snapshot, beside: slots, availableWidth: width)
+            WorkspaceBarManager.compactScratchpads(snapshot, beside: slots, availableWidth: width, icons: 3)
         }
         XCTAssertEqual(compact([slot("workspaces", 100), slot("scratchpads", 900)], 400), [])
         XCTAssertEqual(compact([slot("workspaces", 230)], 400), [1])
@@ -2756,6 +2980,7 @@ final class ShellWidgetClickTests: XCTestCase {
         let clockWidth = { harness.host.slots(for: Harness.monitor).first { $0.id == "clock" }?.size.width ?? 0 }
         try Data("profiles.default.trailing = [\"test\", \"clock\"]\n".utf8)
             .write(to: harness.root.appendingPathComponent("shell/shell.toml"))
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         while clockWidth() == 0 {
             try await layoutChanges.change()
@@ -2936,6 +3161,7 @@ final class ShellWidgetClickTests: XCTestCase {
         """.utf8).write(to: second.appendingPathComponent("init.luau"))
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test", "second"]
         [profiles.default.drawer.controls]
         edge = "right"
@@ -3367,6 +3593,8 @@ final class ShellWidgetClickTests: XCTestCase {
         )
         let harness = try harness(source, bars: [ShellBarKey(monitor: main): ShellBarData()])
         defer { harness.close() }
+        XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
+        harness.host.rescan()
         let items = (0 ..< 6).map {
             ShellHiddenBarItem(id: "com.example.\($0)#0", name: "\($0)", image: nil, width: 30, height: 16)
         }
@@ -4005,6 +4233,7 @@ extension ShellWidgetClickTests {
         let shell = harness.root.appendingPathComponent("shell")
         try Data("""
         profiles.default.leading = []
+        profiles.default.center = []
         profiles.default.trailing = ["test"]
         [profiles.default.drawer.controls]
         widgets = ["test"]

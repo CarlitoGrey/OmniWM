@@ -20189,17 +20189,6 @@
         }
       }
     },
-    "Available" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Available"
-          }
-        }
-      }
-    },
     "Data (%lld bytes)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20211,39 +20200,6 @@
         }
       }
     },
-    "Details" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Details"
-          }
-        }
-      }
-    },
-    "Encoded data (%lld characters)" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Encoded data (%lld characters)"
-          }
-        }
-      }
-    },
-    "Hide Details" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Hide Details"
-          }
-        }
-      }
-    },
     "Loading notifications…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20251,17 +20207,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Loading notifications…"
-          }
-        }
-      }
-    },
-    "Nested metadata" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nested metadata"
           }
         }
       }
@@ -20321,17 +20266,6 @@
         }
       }
     },
-    "Open App" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Open App"
-          }
-        }
-      }
-    },
     "Previous" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -20350,17 +20284,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Previous Text"
-          }
-        }
-      }
-    },
-    "Refresh" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Refresh"
           }
         }
       }
@@ -20449,17 +20372,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Cancel"
-          }
-        }
-      }
-    },
-    "Dismiss" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dismiss"
           }
         }
       }
@@ -21565,6 +21477,177 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "时区"
+          }
+        }
+      }
+    },
+    "%lld days ago" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld days ago"
+          }
+        }
+      }
+    },
+    "%lld hr ago" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld hr ago"
+          }
+        }
+      }
+    },
+    "%lld min ago" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min ago"
+          }
+        }
+      }
+    },
+    "Clear All" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All"
+          }
+        }
+      }
+    },
+    "Clear All cancelled. Processed %lld of %lld; %lld failed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All cancelled. Processed %lld of %lld; %lld failed."
+          }
+        }
+      }
+    },
+    "Clear All could not finish." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All could not finish."
+          }
+        }
+      }
+    },
+    "Clear All finished. Failed: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear All finished. Failed: %lld"
+          }
+        }
+      }
+    },
+    "Clearing notifications: %lld of %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clearing notifications: %lld of %lld"
+          }
+        }
+      }
+    },
+    "Dismissal requested: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dismissal requested: %lld"
+          }
+        }
+      }
+    },
+    "Show Less" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Less"
+          }
+        }
+      }
+    },
+    "Show More" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show More"
+          }
+        }
+      }
+    },
+    "Stopping after the current notification…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopping after the current notification…"
+          }
+        }
+      }
+    },
+    "macOS kept notifications: %lld" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS kept notifications: %lld"
+          }
+        }
+      }
+    },
+    "Notification Center closed." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notification Center closed."
+          }
+        }
+      }
+    },
+    "Icon color" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon color"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图标颜色"
           }
         }
       }

@@ -35,7 +35,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
             let request = ShellSettingsPreview.Request(
                 config: config, surface: .bar, style: ShellSettingsPreview.style(settings: settings, config: config),
                 scale: 2, dark: false, fullWidth: config.barOverride?.settings.fullWidth ?? settings.fullWidth,
-                revision: 0
+                sourceGeneration: 0
             )
             let image = try await ShellSettingsPreview.render(request)
             try inspect(image, name: "settings-\(profile)-bar")
@@ -43,12 +43,34 @@ final class ShellSettingsPreviewTests: XCTestCase {
         }
     }
 
+    func testSymlinkedShellRendersAllInstalledStylePreviews() async throws {
+        let directory = try fixture()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let link = directory.appendingPathExtension("symlink")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: directory.deletingLastPathComponent())
+        defer { try? FileManager.default.removeItem(at: link) }
+        let linkedDirectory = link.appendingPathComponent(directory.lastPathComponent, isDirectory: true)
+        let settings = WorkspaceBarSettings()
+        let profiles = ShellProfiles.names(in: directory)
+        XCTAssertEqual(ShellProfiles.names(in: linkedDirectory), profiles)
+        for profile in profiles {
+            let config = try config(profile, in: linkedDirectory)
+            let request = ShellSettingsPreview.Request(
+                config: config, surface: .bar, style: ShellSettingsPreview.style(settings: settings, config: config),
+                scale: 2, dark: false, fullWidth: config.barOverride?.settings.fullWidth ?? settings.fullWidth,
+                sourceGeneration: 0
+            )
+            let image = try await ShellSettingsPreview.render(request)
+            try inspect(image, name: "settings-\(profile)-symlink-bar")
+        }
+    }
+
     func testIslandCompactAndExpandedSamplesRenderAtBothScalesAndAppearances() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        for profile in ["system", "lake"] {
+        for profile in ["default", "lake"] {
             let config = try config(profile, in: directory)
-            XCTAssertEqual(config.island?.root, profile == "system" ? "focus-ribbon" : "lake")
+            XCTAssertEqual(config.island?.root, profile == "default" ? "focus-ribbon" : "lake")
             if profile == "lake" {
                 let island = try XCTUnwrap(config.island)
                 XCTAssertEqual(island.components.count, 6)
@@ -74,7 +96,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
                     for expanded in [false, true] {
                         let request = ShellSettingsPreview.Request(
                             config: config, surface: .island(expanded: expanded), style: .init(),
-                            scale: scale, dark: dark, fullWidth: false, revision: 0
+                            scale: scale, dark: dark, fullWidth: false, sourceGeneration: 0
                         )
                         let image = try await ShellSettingsPreview.render(request)
                         let island = try XCTUnwrap(config.island)
@@ -93,7 +115,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
     func testBarOrientationAndBackingScaleAreExplicitPreviewInputs() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let config = try config("system", in: directory)
+        let config = try config("default", in: directory)
         for vertical in [false, true] {
             for scale: CGFloat in [1, 2] {
                 var style = ShellSettingsPreview.style(settings: WorkspaceBarSettings(), config: config)
@@ -101,12 +123,13 @@ final class ShellSettingsPreviewTests: XCTestCase {
                 style.position = vertical ? "left" : "belowMenuBar"
                 style.height = 40
                 let request = ShellSettingsPreview.Request(
-                    config: config, surface: .bar, style: style, scale: scale, dark: true, fullWidth: true, revision: 0
+                    config: config, surface: .bar, style: style, scale: scale, dark: true, fullWidth: true,
+                    sourceGeneration: 0
                 )
                 let image = try await ShellSettingsPreview.render(request)
                 XCTAssertEqual(vertical ? image.width : image.height, Int(style.height * scale))
                 XCTAssertGreaterThan(vertical ? image.height : image.width, 800 * Int(scale))
-                try inspect(image, name: "settings-system-\(vertical ? "vertical" : "horizontal")-\(Int(scale))x")
+                try inspect(image, name: "settings-default-\(vertical ? "vertical" : "horizontal")-\(Int(scale))x")
             }
         }
     }
@@ -114,7 +137,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
     func testOversizedIslandRetainsNativeGeometryAndSelectionWithinBitmapBounds() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        var config = try config("system", in: directory)
+        var config = try config("default", in: directory)
         config.island?.width = 8192
         config.island?.height = 8192
         let island = try XCTUnwrap(config.island)
@@ -142,7 +165,7 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertEqual(sampleIsland.fields?["navigation"]?.fields?["focused"]?.string, "sample-safari")
         let request = ShellSettingsPreview.Request(
             config: config, surface: .island(expanded: true), style: .init(), scale: 2,
-            dark: true, fullWidth: false, revision: 0
+            dark: true, fullWidth: false, sourceGeneration: 0
         )
         let image = try await ShellSettingsPreview.render(request)
         XCTAssertLessThanOrEqual(image.width, ShellSettingsPreviewResolution.maximumDimension)
@@ -150,19 +173,19 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertLessThanOrEqual(image.width * image.height, ShellSettingsPreviewResolution.maximumPixels)
         XCTAssertEqual(image.width, 2048)
         XCTAssertEqual(image.height, 2048)
-        try inspect(image, name: "settings-system-oversized-island")
+        try inspect(image, name: "settings-default-oversized-island")
     }
 
     func testSolidBlackBarRemainsOpaqueAtZeroBackgroundOpacity() async throws {
         let directory = try fixture()
         defer { try? FileManager.default.removeItem(at: directory) }
-        let config = try config("system", in: directory)
+        let config = try config("default", in: directory)
         var style = ShellSettingsPreview.style(settings: WorkspaceBarSettings(), config: config)
         style.solidBlack = true
         style.transparent = true
         style.opacity = 0
         let image = try await ShellSettingsPreview.render(.init(
-            config: config, surface: .bar, style: style, scale: 1, dark: false, fullWidth: true, revision: 0
+            config: config, surface: .bar, style: style, scale: 1, dark: false, fullWidth: true, sourceGeneration: 0
         ))
         let bytes = try XCTUnwrap(image.dataProvider?.data) as Data
         XCTAssertEqual(Array(bytes.prefix(4)), [0, 0, 0, 255])
@@ -210,11 +233,31 @@ final class ShellSettingsPreviewTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("store").path))
     }
 
+    func testBundledMenuFallbacksRenderWithoutUsingUserLibraries() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let library = directory.appendingPathComponent("lib", isDirectory: true)
+        try FileManager.default.createDirectory(at: library, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        for name in ["menu-button", "keyboard-mode"] {
+            try "error('broken user library')".write(
+                to: library.appendingPathComponent("\(name).luau"), atomically: true, encoding: .utf8
+            )
+        }
+        var config = ShellConfig()
+        config.directories = [directory]
+        config.leading = ["apple-menu", "app-menu", "omniwm"]
+        let request = ShellSettingsPreview.Request(
+            config: config, surface: .bar, style: .init(), scale: 1, dark: false, fullWidth: false, sourceGeneration: 0
+        )
+        let image = try await ShellSettingsPreview.render(request)
+        try inspect(image, name: "settings-bundled-menu-fallbacks")
+    }
+
     private func fixture() throws -> URL {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         _ = ShellDefaults.sync(into: directory)
-        try "profile = \"system\"\n".write(
+        try "profile = \"default\"\n".write(
             to: directory.appendingPathComponent("shell.toml"),
             atomically: true,
             encoding: .utf8

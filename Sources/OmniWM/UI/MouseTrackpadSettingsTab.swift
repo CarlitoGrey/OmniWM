@@ -8,35 +8,41 @@ struct MouseTrackpadSettingsTab: View {
     @Bindable var settings: SettingsStore
     @Bindable var controller: WMController
     @State private var missionControlGestureProbe: MissionControlGestureProbe
+    @State private var gestureEditor: GestureAssignmentEditor
     @Environment(SettingsNavigationModel.self) private var navigation
     @State private var connectedMonitors: [Monitor] = Monitor.current()
 
     init(
         settings: SettingsStore,
         controller: WMController,
-        missionControlGestureProbe: MissionControlGestureProbe = MissionControlGestureProbe()
+        missionControlGestureProbe: MissionControlGestureProbe = MissionControlGestureProbe(),
+        gestureEditor: GestureAssignmentEditor = GestureAssignmentEditor()
     ) {
         self.settings = settings
         self.controller = controller
         _missionControlGestureProbe = State(initialValue: missionControlGestureProbe)
+        _gestureEditor = State(initialValue: gestureEditor)
     }
 
     var body: some View {
-        TabView(selection: Binding(
-            get: { navigation.route.tab ?? "trackpad" },
-            set: { navigation.selectTab($0) }
-        )) {
-            Tab("Trackpad", systemImage: "hand.draw", value: "trackpad") {
-                Form {
-                    TrackpadGesturesSettingsPanel(settings: settings, monitors: connectedMonitors)
-                    macOSGestureSection
-                }
-                .formStyle(.grouped)
-            }
-            Tab("Mouse & Focus", systemImage: "computermouse", value: "mouse") {
+        SettingsTabs(
+            selection: Binding(get: { navigation.route.tab ?? "trackpad" }, set: { navigation.selectTab($0) }),
+            tabs: [("Trackpad", "trackpad"), ("Mouse & Focus", "mouse")]
+        ) { tab in
+            if tab == "mouse" {
                 Form {
                     mouseMoveAndResizeSection
                     focusFollowsMouseSection
+                }
+                .formStyle(.grouped)
+            } else {
+                Form {
+                    TrackpadGesturesSettingsPanel(
+                        settings: settings,
+                        monitors: connectedMonitors,
+                        editor: gestureEditor
+                    )
+                    macOSGestureSection
                 }
                 .formStyle(.grouped)
             }

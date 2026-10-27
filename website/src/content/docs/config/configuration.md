@@ -22,7 +22,7 @@ Both commands recreate the file from the running settings if it was deleted, so 
 
 ## Settings window
 
-The searchable Settings window groups controls by task. **Desktop** contains Styles, Workspace Bar, Dynamic Island, Widgets, and Menu Bar; **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
+The searchable Settings window groups controls by task. **Desktop** contains Styles & Widgets and Menu Bar; **Windows** contains Workspaces, Layouts, Displays, App Rules, and Overview. **Appearance** holds app appearance, motion, borders, and system-wide window corners. **Layouts** has Spacing, Niri, and Dwindle tabs. App Rules now uses the same settings window, with Save/Revert and discard protection for drafts. Clipboard retention limits and scratchpad labels are edited in TOML; clipboard history can be enabled from the [Command Palette's Clipboard mode](/features/command-palette/#clipboard-history).
 
 **Start at Login** is managed by macOS, and **System-wide Window Corners** changes a macOS preference. Neither is stored in `settings.toml`.
 
@@ -76,9 +76,11 @@ The full schema is documented key by key in the [Settings Reference](/config/set
 | [`[niri]`](/config/settings-reference/#niri) | Scrolling (Niri) layout options |
 | [`[dwindle]`](/config/settings-reference/#dwindle) | Dwindle (BSP) layout options |
 | [`[borders]`](/config/settings-reference/#borders) | Focused-window border |
-| [`[overview]`](/config/settings-reference/#overview) | Overview zoom and colors |
+| [`[overview]`](/config/settings-reference/#overview) | Overview visibility, zoom, input and colors |
 | [`[windowSwitcher]`](/config/settings-reference/#windowswitcher) | Command-Tab / Option-Tab window switcher |
+| [`[keyboardModes]`](/config/settings-reference/#keyboardmodes) | Shortcut pause timeout |
 | [`[workspaceBar]`](/config/settings-reference/#workspacebar) | Workspace bar appearance and behavior |
+| [`[island]`](/config/settings-reference/#island) | Dynamic Island master switch |
 | [`[gestures]`](/config/settings-reference/#gestures) | Mouse and trackpad gestures |
 | [`[statusBar]`](/config/settings-reference/#statusbar) | Menu bar icon extras |
 | [`[hiddenBar]`](/config/settings-reference/#hiddenbar) | Menu bar icon concealment |

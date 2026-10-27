@@ -49,21 +49,24 @@ final class WorkspaceBarNotificationBadgeTests: XCTestCase {
 
     func testBadgesFitTheIconSlotAndGiveTwoDigitsRoom() throws {
         let widget = try ShellRenderedWidget("workspaces")
-        for (height, icon) in [(20.0, 12.0), (28, 18), (40, 30)] {
+        for height in [20.0, 28, 40] {
+            let icon = 18 * height / 32
+            let slot = 22 * height / 32
             var widths: [String: CGFloat] = [:]
             for label in ["7", "42", "999+", "123456789 unread messages"] {
                 var data = bar(height: height, badge: label)
                 data.badges = "text"
                 widget.render(data)
-                let badgeHeight = max(9, icon * 0.55)
+                let badgeHeight = max(12 * min(1, height / 32), icon * 0.55)
+                let badgeColor = widget.resources.palette.color(.clear, default: .badge)
                 let badges = widget.layers().filter {
-                    $0.backgroundColor != nil && $0.borderWidth == 0 && abs($0.bounds.height - badgeHeight) < 0.5
+                    $0.backgroundColor == badgeColor && $0.borderWidth == 0 && abs($0.bounds.height - badgeHeight) < 0.5
                         && abs($0.cornerRadius - badgeHeight / 2) < 0.5
                 }
                 XCTAssertEqual(badges.count, 1, "\(label) \(height)")
                 for badge in badges {
                     XCTAssertGreaterThan(badge.bounds.width, 0)
-                    XCTAssertLessThanOrEqual(badge.bounds.width, max(16, icon + 4), "\(label) \(height)")
+                    XCTAssertLessThanOrEqual(badge.bounds.width, slot, "\(label) \(height)")
                     XCTAssertLessThanOrEqual(badge.bounds.height, icon)
                     widths[label] = badge.bounds.width
                 }

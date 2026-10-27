@@ -35,15 +35,15 @@ The **Desktop** group in Settings gives the shell its own destinations. Search S
 
 | Destination | What you can change |
 |---|---|
-| **Styles** | Browse previews, choose **Use Style**, then select a **Palette** or wallpaper colors for the active style. |
-| **Workspace Bar** | Use **Layout**, **Appearance**, **Behavior**, and **Apps** tabs to arrange widgets, choose placement and display overrides, adjust the bar’s look, and manage app exclusions and icon overrides. |
-| **Dynamic Island** | Preview compact and expanded states, choose displays and fullscreen behavior, and configure the selected style’s island. Lake exposes native widget, appearance, interaction, and placement editors. |
-| **Widgets** | Search the library, see Bar/Island availability and current placements, add widgets, open **Options…**, and configure edge drawers. |
+| **Styles & Widgets** | Select a style to preview and edit it, choose **Use Style** to activate it, and select a **Palette** or wallpaper colors for the selected style. |
+| **Styles & Widgets > Bar** | Arrange widgets, add them with **Add Widget…**, open their options, choose placement and display overrides, adjust the bar’s look, and manage app exclusions and icon overrides. |
+| **Styles & Widgets > Island** | Preview compact and expanded states, choose displays and fullscreen behavior, and configure the selected style’s island. Lake exposes native widget, appearance, interaction, and placement editors. |
+| **Styles & Widgets > Drawers** | Add drawers and configure their placement, hover, widgets and shortcut. |
 | **Menu Bar** | Change OmniWM’s status item and configure the **Hidden Bar** tab. |
 
-You can configure the bar and island while their enable switches are off. The switches are independent: either surface can run alone, or both can run together. A **style** is a profile that supplies layout, widgets, and appearance; a **palette** changes its colors. Browsing a style preview leaves your desktop unchanged until you choose **Use Style**. Visual options apply to the active style, and saved choices stay with that style when you switch away and return.
+You can configure the bar and island while their enable switches are off. The switches are independent: either surface can run alone, or both can run together. A **style** is a profile that supplies layout, widgets, and appearance; a **palette** changes its colors. Browsing a style preview leaves your desktop unchanged until you choose **Use Style**. Style options save to the selected style, and saved choices stay with that style when you switch away and return.
 
-The previews render the actual widget sources with sample data. System materials and motion are shown on the live desktop. Matrix Rain and Sakura Petals have named effect controls under **Workspace Bar > Appearance**; choosing a preset does not rewrite its source or change its menus and commands.
+The previews render the actual widget sources with sample data. System materials and motion are shown on the live desktop. Matrix Rain and Sakura Petals have named effect controls under **Styles & Widgets > Bar**.
 
 For source customization, open **Settings > Advanced > Shell Development**, choose **Widget Source**, and select **Edit Widget Source…**. OmniWM opens a persistent copy in your external editor. **Open Shell Folder…** and the CLI remain available for creating widgets and profiles; Settings does not include a Luau editor.
 
