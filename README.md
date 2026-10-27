@@ -151,11 +151,11 @@ OmniWM is a free, open-source, Developer ID-signed and Apple-notarized tiling wi
       <sub>@MuhammadKh</sub>
     </td>
     <td align="center" valign="top">
-      <a href="https://github.com/indrive">
-        <img src="https://avatars.githubusercontent.com/u/47465744?v=4" width="72" alt="inDrive">
+      <a href="https://github.com/inDriver">
+        <img src="https://avatars.githubusercontent.com/u/22284207?v=4" width="72" alt="inDrive">
       </a>
       <br>
-      <a href="https://github.com/indrive"><strong>inDrive</strong></a>
+      <a href="https://github.com/inDriver"><strong>inDrive</strong></a>
       <br>
       <sub>━━━━━━━━</sub>
       <br>
