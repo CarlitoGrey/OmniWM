@@ -36,7 +36,9 @@ extension ShellWidgetPackage {
                 ($0.id, $0)
             })
             componentDescriptors = source.componentDescriptors
-            rootNetwork = Set(source.network.map(ShellHTTPPolicy.canonicalHost))
+            httpDeclarations.update(source, components: Array(configuredComponents.values), permissions: permissions)
+            rootPurpose = source.purpose
+            if !closing { revalidateNetwork() }
         }
         updateProviderConfigurations(providers)
         if let script { drainServices(in: script) }

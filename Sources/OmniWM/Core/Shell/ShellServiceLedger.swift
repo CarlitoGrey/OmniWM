@@ -21,6 +21,7 @@ struct ShellServiceCompletion: Sendable {
     let payload: [UInt8]
     let resource: ShellResourceCompletion?
     let desktopResources: [ShellResourceID]?
+    let authorization: ShellHTTPAuthorization?
     var onDiscard: (@Sendable (ShellServiceCompletion) -> Void)?
 
     init(
@@ -28,13 +29,15 @@ struct ShellServiceCompletion: Sendable {
         revision: UInt64 = 0,
         payload: [UInt8],
         desktopResources: [ShellResourceID]? = nil,
-        resource: ShellResourceCompletion? = nil
+        resource: ShellResourceCompletion? = nil,
+        authorization: ShellHTTPAuthorization? = nil
     ) {
         self.id = id
         self.revision = revision
         self.payload = payload
         self.desktopResources = desktopResources
         self.resource = resource
+        self.authorization = authorization
     }
 
     func discardUndelivered() {

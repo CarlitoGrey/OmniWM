@@ -34,6 +34,7 @@ struct CanonicalTOMLConfig: Codable, Equatable {
     var monitorNiriOverrides: [MonitorNiriSettings]
     var monitorDwindleOverrides: [MonitorDwindleSettings]
     var monitorGapOverrides: [MonitorGapSettings]
+    var shellPermissions: ShellPermissionDecisions
 
     struct General: Codable, Equatable {
         var hotkeysEnabled: Bool
@@ -117,6 +118,8 @@ extension CanonicalTOMLConfig {
         ) ?? []
         monitorGapOverrides = try container
             .decodeIfPresent([MonitorGapSettings].self, forKey: .monitorGapOverrides) ?? []
+        shellPermissions = try container
+            .decodeIfPresent(ShellPermissionDecisions.self, forKey: .shellPermissions) ?? ShellPermissionDecisions()
     }
 }
 
@@ -165,6 +168,7 @@ extension CanonicalTOMLConfig {
         monitorNiriOverrides = export.monitorNiriSettings
         monitorDwindleOverrides = export.monitorDwindleSettings
         monitorGapOverrides = export.monitorGapSettings
+        shellPermissions = export.shellPermissions
     }
 
     func toSettingsExport() -> SettingsExport {
@@ -208,7 +212,8 @@ extension CanonicalTOMLConfig {
             clipboard: clipboard,
             quakeTerminal: quakeTerminal,
             appearanceMode: appearance.mode,
-            tabRailAppIcons: appearance.tabRailAppIcons
+            tabRailAppIcons: appearance.tabRailAppIcons,
+            shellPermissions: shellPermissions
         )
     }
 

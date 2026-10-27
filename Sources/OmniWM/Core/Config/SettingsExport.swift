@@ -58,6 +58,7 @@ struct SettingsExport: Equatable {
 
     var appearanceMode: AppearanceMode
     var tabRailAppIcons: Bool
+    var shellPermissions = ShellPermissionDecisions()
 
     struct Island: Codable, Equatable {
         var enabled: Bool

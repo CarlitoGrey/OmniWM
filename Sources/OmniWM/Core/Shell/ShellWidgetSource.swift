@@ -19,4 +19,6 @@ struct ShellWidgetSource: Sendable {
     var assetPackages: [String: URL] = [:]
     var profile = ShellDefaults.profile
     var network: [String] = []
+    var principal: ShellWidgetPrincipal?
+    var purpose: String?
 }

@@ -75,6 +75,9 @@ extension ShellWidgetPackage {
         var retained = ShellWidgetSource(chunk: source.chunk, main: source.main, modules: [])
         retained.components = configuredComponents.values.filter { !retired.contains($0.id) }.sorted { $0.id < $1.id }
         retained.componentDescriptors = componentDescriptors
+        retained.network = source.network
+        retained.principal = source.principal
+        retained.purpose = source.purpose
         if let failure = configureComponents(retained, in: script.vm) {
             outbox.fail(name: name, generation: generation, failure: failure)
             return false

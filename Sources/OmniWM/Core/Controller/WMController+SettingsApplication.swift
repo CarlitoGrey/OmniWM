@@ -11,6 +11,7 @@ extension WMController {
     }
 
     func applyPersistedSettings(_ settings: SettingsStore, startServices: Bool = true) {
+        workspaceBarManager.updateShellPermissions(settings, reloadingManagedPolicy: true)
         setAnimationsEnabled(settings.animationsEnabled, persist: false)
         setAnimationSpeed(settings.animationSpeed, persist: false)
         applyCurrentAppearanceMode()

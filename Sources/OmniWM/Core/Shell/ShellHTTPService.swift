@@ -5,19 +5,35 @@ import Foundation
 import Synchronization
 
 enum ShellHTTPPolicy: Sendable {
-    case hosts(Set<String>)
+    case denied
+    case widget(ShellWidgetPrincipal, hosts: Set<String>, permissions: ShellNetworkPermissions)
+    case declared(ShellHTTPDeclarations, owner: String?)
 
     static let loopbackHosts: Set<String> = ["localhost", "127.0.0.1", "::1"]
 
+    var current: ShellHTTPPolicy {
+        guard case let .declared(declarations, owner) = self else { return self }
+        return declarations[owner]
+    }
+
+    static func root(_ source: ShellWidgetSource, permissions: ShellNetworkPermissions) -> ShellHTTPPolicy {
+        guard let principal = source.principal else { return .denied }
+        return .widget(principal, hosts: Set(source.network.map(canonicalHost)), permissions: permissions)
+    }
+
     static func resolve(
-        component: String?, instances: some Sequence<ShellComponentInstance>, descriptors: [ShellComponentDescriptor]
+        component: String?, instances: some Sequence<ShellComponentInstance>, descriptors: [ShellComponentDescriptor],
+        permissions: ShellNetworkPermissions
     ) -> ShellHTTPPolicy {
-        guard let component, !component.isEmpty else { return .hosts([]) }
-        guard let instance = instances.first(where: { $0.id == component && $0.enabled }),
+        guard let component, !component.isEmpty,
+              let instance = instances.first(where: { $0.id == component && $0.enabled }),
               let descriptor = descriptors.first(where: { $0.widget == instance.widget })
-        else { return .hosts([]) }
-        return .hosts(Set((descriptor.capabilities.network + (instance.capabilities?.network ?? []))
-                .map(canonicalHost)))
+        else { return .denied }
+        return .widget(
+            descriptor.principal,
+            hosts: Set((descriptor.capabilities.network + (instance.capabilities?.network ?? [])).map(canonicalHost)),
+            permissions: permissions
+        )
     }
 
     static func canonicalHost(_ host: String) -> String {
@@ -26,15 +42,33 @@ enum ShellHTTPPolicy: Sendable {
         return result
     }
 
-    func allows(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased(), let host = url.host, !host.isEmpty,
+    func decide(_ url: URL) -> ShellNetworkDecision {
+        guard case let .widget(principal, hosts, permissions) = current,
+              let scheme = url.scheme?.lowercased(), let host = url.host, !host.isEmpty,
               url.user == nil, url.password == nil
-        else { return false }
+        else { return .denied }
         let canonical = Self.canonicalHost(host)
-        guard scheme == "https" || scheme == "http" && Self.loopbackHosts.contains(canonical) else { return false }
-        switch self {
-        case let .hosts(hosts): return hosts.contains(canonical)
-        }
+        guard scheme == "https" || scheme == "http" && Self.loopbackHosts.contains(canonical),
+              hosts.contains(canonical) else { return .denied }
+        return permissions.decide(canonical, for: principal)
+    }
+
+    func failure(_ url: URL?) -> ShellHTTPFailure? {
+        guard let url else { return ShellHTTPFailure("network_denied") }
+        return decide(url).failure
+    }
+
+    func failure(_ task: URLSessionTask?, request: ShellHTTPRequest) -> ShellHTTPFailure? {
+        failure(task?.currentRequest?.url ?? URL(string: request.url))
+    }
+}
+
+struct ShellHTTPAuthorization: Sendable {
+    let policy: ShellHTTPPolicy
+    let url: URL?
+
+    var failure: ShellHTTPFailure? {
+        policy.failure(url)
     }
 }
 
@@ -198,15 +232,6 @@ final class ShellHTTPService: Sendable {
         return true
     }
 
-    struct TransferState {
-        var task: URLSessionDataTask?
-        var deadline: (any DispatchSourceTimer)?
-        var body = Data()
-        var status = 0
-        var headers: [String: String] = [:]
-        var finished = false
-    }
-
     private final class Transfer: Sendable {
         let id: ShellServiceID
         let request: ShellHTTPRequest
@@ -277,8 +302,7 @@ final class ShellHTTPService: Sendable {
             guard let transfer = state.withLock({ $0.transfers[id] }) else { return }
             do {
                 let request = try transfer.request.request()
-                guard let url = request.url,
-                      transfer.policy.allows(url) else { throw ShellHTTPFailure("network_denied") }
+                if let failure = transfer.policy.failure(request.url) { throw failure }
                 let task = session.dataTask(with: request)
                 let deadline = DispatchSource.makeTimerSource(queue: queue)
                 deadline.schedule(deadline: .now() + transfer.request.timeout)
@@ -301,6 +325,14 @@ final class ShellHTTPService: Sendable {
                 }
             } catch {
                 finish(id, error: (error as? ShellHTTPFailure)?.code ?? "invalid_request")
+            }
+        }
+
+        func revalidate() {
+            for transfer in state.withLock({ Array($0.transfers.values) }) {
+                guard let task = transfer.state.withLock({ $0.task }),
+                      let failure = transfer.policy.failure(task, request: transfer.request) else { continue }
+                finish(transfer.id, error: failure.code)
             }
         }
 
@@ -344,6 +376,8 @@ final class ShellHTTPService: Sendable {
                 state.task = nil
                 return result
             }
+            let url = snapshot.3?.currentRequest?.url ?? URL(string: transfer.request.url)
+            let error = error ?? transfer.policy.failure(url)?.code
             if error != nil { snapshot.3?.cancel() }
             let decoder: @Sendable (Data) throws -> [UInt8]
             if removed.captureID == 0 { decoder = decodeJSON }
@@ -363,7 +397,11 @@ final class ShellHTTPService: Sendable {
                 status: snapshot.1, headers: snapshot.2, body: snapshot.0,
                 response: transfer.request.response, error: error, decodeJSON: decoder
             )
-            ledger.complete(ShellServiceCompletion(id: id, payload: bytes))
+            ledger.complete(ShellServiceCompletion(
+                id: id,
+                payload: bytes,
+                authorization: error == nil ? ShellHTTPAuthorization(policy: transfer.policy, url: url) : nil
+            ))
         }
 
         func urlSession(
@@ -412,12 +450,25 @@ final class ShellHTTPService: Sendable {
             _: URLSession, task: URLSessionTask, willPerformHTTPRedirection _: HTTPURLResponse,
             newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void
         ) {
-            guard let transfer = transfer(for: task), let url = request.url, transfer.policy.allows(url) else {
-                completionHandler(nil)
-                if let transfer = transfer(for: task) { finish(transfer.id, error: "network_denied") }
-                return
-            }
-            completionHandler(request)
+            let transfer = transfer(for: task)
+            let failure = transfer?.policy.failure(request.url)
+            completionHandler(transfer == nil || failure != nil ? nil : request)
+            if let transfer, let failure { finish(transfer.id, error: failure.code) }
         }
+    }
+}
+
+extension ShellHTTPService {
+    struct TransferState {
+        var task: URLSessionDataTask?
+        var deadline: (any DispatchSourceTimer)?
+        var body = Data()
+        var status = 0
+        var headers: [String: String] = [:]
+        var finished = false
+    }
+
+    func revalidate() {
+        driver.queue.async { [driver] in driver.revalidate() }
     }
 }

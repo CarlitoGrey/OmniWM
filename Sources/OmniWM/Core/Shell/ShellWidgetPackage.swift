@@ -64,6 +64,7 @@ enum ShellWidgetMessage: Sendable {
     case resources
     case nativeInput(ShellNativeInput)
     case capture(ShellCaptureRequest)
+    case permissions
 }
 
 struct ShellWidgetDeclaration: Equatable, Sendable {
@@ -141,6 +142,8 @@ actor ShellWidgetPackage {
     nonisolated let resourceInbox = ShellResourceInbox()
     nonisolated let nativeInput = ShellNativeInputPort()
     nonisolated let capture: ShellCapturePort
+    nonisolated let permissions: ShellNetworkPermissions
+    nonisolated let httpDeclarations = ShellHTTPDeclarations()
     var captureContext: ShellFrameTraceContext?
     var captureBeginTask: Task<Void, Never>?
     var captureEndTask: Task<UInt64, Never>?
@@ -161,6 +164,8 @@ actor ShellWidgetPackage {
     var configuredComponents: [String: ShellComponentInstance] = [:]
     var componentConfigurationValid = false
     var http: ShellHTTPService?
+    var networkApprovalRevision: UInt64 = 0
+    var networkApprovals: Set<ShellNetworkApproval.Key> = []
     var providerConfigurations: [String: ShellProviderConfiguration] = [:]
     var providerSlots: [String: ProviderSlot] = [:]
     var pendingProviderRequests: [PendingProviderRequest] = []
@@ -174,7 +179,7 @@ actor ShellWidgetPackage {
     var loadedChunk = ""
     var loadedMain = ""
     var componentDescriptors: [ShellComponentDescriptor] = []
-    var rootNetwork: Set<String> = []
+    var rootPurpose: String?
     var hasComponents = false
     var reloadRequested = false
     var states: [ShellBarKey: InstanceState] = [:]
@@ -203,6 +208,7 @@ actor ShellWidgetPackage {
 
     init(
         name: String, generation: Int, outbox: ShellWidgetOutbox, store: ShellStore = .shared,
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions(),
         latestData: ShellLatestWidgetData? = nil, resourceStore: ShellResourceStore? = nil,
         retireResourceImages: @escaping @Sendable (ShellServiceOwner) async -> Void = { _ in }
     ) {
@@ -210,6 +216,7 @@ actor ShellWidgetPackage {
         self.generation = generation
         self.outbox = outbox
         self.store = store
+        self.permissions = permissions
         self.latestData = latestData
         self.retireResourceImages = retireResourceImages
         self
@@ -238,7 +245,8 @@ actor ShellWidgetPackage {
         let loaded = ShellScript(vm: vm)
         script = loaded
         storeProfile = source.profile
-        rootNetwork = Set(source.network.map(ShellHTTPPolicy.canonicalHost))
+        httpDeclarations.update(source, components: [], permissions: permissions)
+        rootPurpose = source.purpose
         guard omni_vm_set_service_generation(vm, services.generation) == OMNI_OK else {
             script = nil
             return ShellScriptFailure(kind: .internalError, message: "service generation could not be initialized")

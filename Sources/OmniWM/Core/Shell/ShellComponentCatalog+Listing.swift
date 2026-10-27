@@ -8,6 +8,7 @@ struct ShellRootSettings: Equatable, Sendable {
     let widget: String
     let options: [String: ShellComponentOption]
     let network: [String]
+    let purpose: String?
     let folder: URL
 
     static func load(_ widget: String, directories: [URL]) throws -> ShellRootSettings? {
@@ -29,13 +30,15 @@ struct ShellRootSettings: Equatable, Sendable {
         if let key = table.keys.sorted().first(where: { $0 != "options" && $0 != "capabilities" }) {
             throw ShellComponentCatalog.Failure("\(widget)/settings.toml: unknown key \(key)")
         }
+        let capabilities = try ShellComponentCatalog.rootCapabilities(table["capabilities"], place: widget)
         return try ShellRootSettings(
             widget: widget,
             options: ShellComponentCatalog.parseOptions(
                 table["options"], place: widget,
                 reservedNames: ShellComponentCatalog.reservedOptions.subtracting(["network"])
             ),
-            network: ShellComponentCatalog.rootNetwork(table["capabilities"], place: widget),
+            network: capabilities.network,
+            purpose: capabilities.purpose,
             folder: folder
         )
     }

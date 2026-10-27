@@ -144,6 +144,7 @@ extension WorkspaceBarManager {
             resources: makeShellResources(),
             focusPolicyEngine: controller?.focusPolicyEngine,
             sessionToken: shellSessionToken,
+            permissions: shellPermissions,
             world: { [weak self] in
                 self?.controller?.shellWorld() ?? ShellWorldData()
             },
@@ -230,6 +231,14 @@ extension WorkspaceBarManager {
                 NSWorkspace.shared.activateFileViewerSelecting(backups)
             }
         }
+    }
+
+    func updateShellPermissions(_ settings: SettingsStore, reloadingManagedPolicy: Bool = false) {
+        guard shellPermissions.update(
+            decisions: settings.shellPermissions.decisions,
+            managed: reloadingManagedPolicy ? ShellManagedPolicy.current() : nil
+        ) else { return }
+        shellHost?.permissionsChanged()
     }
 
     func setShellLocked(_ locked: Bool) {

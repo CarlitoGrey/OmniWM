@@ -72,19 +72,15 @@ extension ShellWidgetPackage {
             guard id.owner.owner == 0 || componentConfigurationValid
             else { throw ShellHTTPFailure("configuration_failed") }
             let request = try ShellHTTPRequest(bytes: value)
-            let policy: ShellHTTPPolicy
-            if id.owner.owner == 0 { policy = .hosts(rootNetwork) }
-            else if let component, !component.isEmpty {
-                policy = .resolve(
-                    component: component,
-                    instances: configuredComponents.values,
-                    descriptors: componentDescriptors
-                )
-            } else { policy = .hosts([]) }
+            let policy = ShellHTTPPolicy.declared(
+                httpDeclarations,
+                owner: id.owner.owner == 0 ? nil : component ?? ""
+            )
             if request.bodyResource != nil {
                 try dispatchHTTPBody(id, component: component, request: request, policy: policy, in: script)
                 return
             }
+            try requireApproval(policy, url: request.url)
             if http == nil { http = ShellHTTPService(ledger: services, captureID: utilityCaptureID) }
             guard http?.start(id, request: request, policy: policy) == true else {
                 _ = omni_vm_cancel_service(script.vm, id.owner.wire, id.request)
@@ -104,6 +100,42 @@ extension ShellWidgetPackage {
         }
     }
 
+    nonisolated func permissionsChanged() {
+        Task { await revalidateNetwork() }
+    }
+
+    func revalidateNetwork() {
+        http?.revalidate()
+        resourceWork.removeAll { work in
+            guard case let .httpBody(id, request, policy, _) = work,
+                  let failure = policy.failure(URL(string: request.url)) else { return false }
+            services.complete(ShellServiceCompletion(id: id, payload: ShellHTTPResponse.failure(failure.code)))
+            return true
+        }
+    }
+
+    private func requireApproval(_ policy: ShellHTTPPolicy, url: String) throws {
+        guard case let .widget(principal, hosts, permissions) = policy.current, let url = URL(string: url),
+              policy.decide(url) == .notApproved else { return }
+        let pending = permissions.undecided(hosts, for: principal)
+        if pending.revision != networkApprovalRevision {
+            networkApprovalRevision = pending.revision
+            networkApprovals.removeAll()
+        }
+        let key = ShellNetworkApproval.Key(principal: principal, hosts: pending.hosts)
+        if !pending.hosts.isEmpty, networkApprovals.insert(key).inserted {
+            let purpose = principal.role == .component
+                ? componentDescriptors.first(where: { $0.principal == principal })?.capabilities.purpose
+                : rootPurpose
+            outbox.networkApproval(
+                name: name,
+                generation: generation,
+                approval: ShellNetworkApproval(key: key, purpose: purpose)
+            )
+        }
+        throw ShellHTTPFailure("network_not_approved")
+    }
+
     private func dispatchHTTPBody(
         _ id: ShellServiceID,
         component: String?,
@@ -112,8 +144,8 @@ extension ShellWidgetPackage {
         in script: ShellScript
     ) throws {
         guard permitsFiles(id.owner, component: component) else { throw ShellHTTPFailure("files_denied") }
-        guard let url = URL(string: request.url),
-              policy.allows(url) else { throw ShellHTTPFailure("network_denied") }
+        try requireApproval(policy, url: request.url)
+        if let failure = policy.failure(URL(string: request.url)) { throw failure }
         guard resourceWork.count + (resourceWorker == nil ? 0 : 1) < ShellServiceLedger.capacity else {
             throw ShellHTTPFailure("resource_work_overloaded")
         }

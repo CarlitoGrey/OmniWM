@@ -40,7 +40,7 @@ final class ShellHTTPUtilityCaptureTests: XCTestCase {
             XCTAssertTrue(service.start(
                 .init(owner: owner, request: UInt64(index + 1)),
                 request: ShellHTTPRequest(url: "https://capture.example/\(kind)/\(UUID().uuidString)", response: .json),
-                policy: .hosts(kind == "denied" ? [] : ["capture.example"])
+                policy: .approved(kind == "denied" ? [] : ["capture.example"])
             ))
             await fulfillment(of: [completion], timeout: 5)
             XCTAssertEqual(ledger.takeBatch().count, 1)

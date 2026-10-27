@@ -66,7 +66,7 @@ final class ShellResourceHTTPTests: XCTestCase {
         XCTAssertFalse(service.start(
             id,
             request: ShellHTTPRequest(url: "https://upload.example"),
-            policy: .hosts(["upload.example"]),
+            policy: .approved(["upload.example"]),
             registered: true
         ))
         XCTAssertEqual(service.activeCount, 0)

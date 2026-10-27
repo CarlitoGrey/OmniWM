@@ -44,6 +44,14 @@ actor ShellWidgetSourceLoader {
             return folder.standardizedFileURL == shellDirectory.standardizedFileURL ? "" : relativePath(folder)
         }
 
+        var principal: ShellWidgetPrincipal {
+            ShellWidgetPrincipal(
+                role: components == nil ? .bar : .root,
+                name: name,
+                folder: sourceURL.deletingLastPathComponent()
+            )
+        }
+
         var libraries: [URL] {
             libraryDirectories.map { $0.appendingPathComponent("lib", isDirectory: true) }
                 .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
@@ -73,6 +81,7 @@ actor ShellWidgetSourceLoader {
             var source = ShellWidgetSource(chunk: "=\(input.name)", main: main, modules: [])
             source.isIslandRoot = input.components != nil
             source.profile = input.profile
+            source.principal = input.principal
             return source
         }
         let resolution = try input.components
@@ -97,8 +106,10 @@ actor ShellWidgetSourceLoader {
         source.assetPackages = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.widget, $0.folder) })
         source.assetPackages[input.name] = input.sourceURL.deletingLastPathComponent()
         source.profile = input.profile
-        source.network = (try? ShellRootSettings.load(input.name, folder: input.sourceURL.deletingLastPathComponent()))?
-            .network ?? []
+        source.principal = input.principal
+        let settings = try? ShellRootSettings.load(input.name, folder: input.sourceURL.deletingLastPathComponent())
+        source.network = settings?.network ?? []
+        source.purpose = settings?.purpose
         return source
     }
 

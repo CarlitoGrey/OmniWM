@@ -126,7 +126,7 @@ final class ShellHTTPServiceTests: XCTestCase {
 
     private func run(
         _ plan: ProtocolStub.Plan, response: ShellHTTPRequest.Response = .text, maxBytes: Int = 1 << 20,
-        timeout: Double = 30, policy: ShellHTTPPolicy = .hosts(["api.example"]),
+        timeout: Double = 30, policy: ShellHTTPPolicy = .approved(["api.example"]),
         decodeJSON: @escaping @Sendable (Data) throws -> [UInt8] = ShellHTTPResponse.json
     ) async throws -> Value {
         let url = url()
@@ -216,27 +216,30 @@ final class ShellHTTPServiceTests: XCTestCase {
         let started = Mutex(false)
         let result = try await run(
             .init(started: { _ in started.withLock { $0 = true } }),
-            policy: .hosts(["other.example"])
+            policy: .approved(["other.example"])
         )
         XCTAssertEqual(result["error"], .text("network_denied"))
         XCTAssertFalse(started.withLock { $0 })
-        let policy = ShellHTTPPolicy.hosts([ShellHTTPPolicy.canonicalHost("API.EXAMPLE.")])
-        XCTAssertTrue(policy.allows(try XCTUnwrap(URL(string: "https://api.example/path"))))
-        XCTAssertFalse(policy.allows(try XCTUnwrap(URL(string: "https://sub.api.example/path"))))
-        XCTAssertFalse(policy.allows(try XCTUnwrap(URL(string: "file://api.example/path"))))
+        let policy = ShellHTTPPolicy.approved([ShellHTTPPolicy.canonicalHost("API.EXAMPLE.")])
+        XCTAssertEqual(policy.decide(try XCTUnwrap(URL(string: "https://api.example/path"))), .allowed)
+        XCTAssertEqual(policy.decide(try XCTUnwrap(URL(string: "https://sub.api.example/path"))), .denied)
+        XCTAssertEqual(policy.decide(try XCTUnwrap(URL(string: "file://api.example/path"))), .denied)
     }
 
     func testPlainHTTPIsAllowedOnlyForDeclaredLoopbackHosts() throws {
-        let policy = ShellHTTPPolicy.hosts(["api.example", "localhost", "127.0.0.1", "::1", "127.0.0.1.example"])
+        let policy = ShellHTTPPolicy.approved(["api.example", "localhost", "127.0.0.1", "::1", "127.0.0.1.example"])
         let cases = [
             "https://api.example/path": true, "http://api.example/path": false,
             "http://localhost:8080/path": true, "http://LOCALHOST./path": true, "http://127.0.0.1/path": true,
             "http://[::1]:8080/path": true, "http://127.0.0.1.example/path": false, "https://localhost/path": true
         ]
         for (url, allowed) in cases {
-            XCTAssertEqual(policy.allows(try XCTUnwrap(URL(string: url))), allowed, url)
+            XCTAssertEqual(policy.decide(try XCTUnwrap(URL(string: url))), allowed ? .allowed : .denied, url)
         }
-        XCTAssertFalse(ShellHTTPPolicy.hosts(["api.example"]).allows(try XCTUnwrap(URL(string: "http://localhost/"))))
+        XCTAssertEqual(
+            ShellHTTPPolicy.approved(["api.example"]).decide(try XCTUnwrap(URL(string: "http://localhost/"))),
+            .denied
+        )
     }
 
     func testRedirectToUndeclaredHostIsRejected() async throws {
@@ -247,10 +250,80 @@ final class ShellHTTPServiceTests: XCTestCase {
         defer { _ = ProtocolStub.plans.withLock { $0.removeValue(forKey: target.absoluteString) } }
         let result = try await run(
             .init(status: 302, headers: ["Location": target.absoluteString], redirect: target),
-            policy: .hosts(["api.example"])
+            policy: .approved(["api.example"])
         )
         XCTAssertEqual(result["error"], .text("network_denied"))
         XCTAssertFalse(targetStarted.withLock { $0 })
+    }
+
+    func testRedirectRechecksCurrentPermissionsInsteadOfAdmittedPolicy() async throws {
+        let principal = ShellHTTPPolicy.testPrincipal
+        let permissions = ShellNetworkPermissions(allowing: ["api.example", "next.example"], for: principal)
+        let target = try XCTUnwrap(URL(string: url(host: "next.example")))
+        let targetStarted = Mutex(false)
+        ProtocolStub.plans
+            .withLock { $0[target.absoluteString] = .init(started: { _ in targetStarted.withLock { $0 = true } }) }
+        defer { _ = ProtocolStub.plans.withLock { $0.removeValue(forKey: target.absoluteString) } }
+        var revoked = ShellManagedPolicy()
+        revoked.blockedHosts = ["next.example"]
+        let blocked = revoked
+        let result = try await run(
+            .init(
+                status: 302,
+                headers: ["Location": target.absoluteString],
+                redirect: target,
+                started: { _ in _ = permissions.update(managed: blocked) }
+            ),
+            policy: .widget(principal, hosts: ["api.example", "next.example"], permissions: permissions)
+        )
+        XCTAssertEqual(result["error"], .text("network_blocked"))
+        XCTAssertFalse(targetStarted.withLock { $0 })
+    }
+
+    func testRevocationFinishesTransfersAndCompletionAfterRevocationCannotSucceed() async throws {
+        let principal = ShellHTTPPolicy.testPrincipal
+        var denied = ShellPermissionDecisions()
+        denied.setNetwork(.denied, hosts: ["api.example"], for: principal)
+        let revocation = denied
+        let late = ShellNetworkPermissions(allowing: ["api.example"], for: principal)
+        let lateResult = try await run(
+            .init(chunks: [Data("late".utf8)], started: { _ in _ = late.update(decisions: revocation) }),
+            policy: .widget(principal, hosts: ["api.example"], permissions: late)
+        )
+        XCTAssertEqual(lateResult["ok"], .bool(false))
+        XCTAssertEqual(lateResult["error"], .text("network_denied"))
+        XCTAssertNil(lateResult["text"])
+
+        let permissions = ShellNetworkPermissions(allowing: ["api.example"], for: principal)
+        let ledger = ShellServiceLedger(generation: 42)
+        let service = ShellHTTPService(ledger: ledger, protocolClasses: [ProtocolStub.self])
+        let started = expectation(description: "approved transfer started")
+        let stopped = expectation(description: "revoked transfer stopped")
+        let stalled = url()
+        ProtocolStub.plans.withLock { $0[stalled] = .init(
+            stall: true,
+            started: { _ in started.fulfill() },
+            stopped: { stopped.fulfill() }
+        ) }
+        defer { ledger.close()
+            _ = ProtocolStub.plans.withLock { $0.removeValue(forKey: stalled) }
+        }
+        XCTAssertTrue(service.start(
+            id(),
+            request: .init(url: stalled),
+            policy: .widget(principal, hosts: ["api.example"], permissions: permissions)
+        ))
+        await fulfillment(of: [started], timeout: 5)
+        let completed = expectation(description: "revoked transfer reports its denial")
+        ledger.attachWake { completed.fulfill() }
+        XCTAssertTrue(permissions.update(decisions: revocation))
+        service.revalidate()
+        await fulfillment(of: [completed, stopped], timeout: 5)
+        let batch = ledger.takeBatch()
+        XCTAssertEqual(batch.count, 1)
+        var reader = Reader(bytes: try XCTUnwrap(batch.first?.payload))
+        XCTAssertEqual(reader.value()["error"], .text("network_denied"))
+        XCTAssertEqual(service.activeCount, 0)
     }
 
     func testComponentPolicyCombinesManifestAndUserHostsAndDeniesRemovedOwners() throws {
@@ -260,17 +333,31 @@ final class ShellHTTPServiceTests: XCTestCase {
             folder: URL(fileURLWithPath: "/unused")
         )
         var instance = ShellComponentInstance(id: "jobs", widget: "ci", capabilities: .init(network: ["extra.example"]))
-        let policy = ShellHTTPPolicy.resolve(component: "jobs", instances: [instance], descriptors: [descriptor])
+        let undecided = ShellHTTPPolicy.resolve(
+            component: "jobs", instances: [instance], descriptors: [descriptor], permissions: ShellNetworkPermissions()
+        )
+        let permissions = ShellNetworkPermissions(allowing: ["api.example", "extra.example"], for: descriptor.principal)
+        let policy = ShellHTTPPolicy.resolve(
+            component: "jobs", instances: [instance], descriptors: [descriptor], permissions: permissions
+        )
         for host in ["api.example", "extra.example"] {
-            XCTAssertTrue(policy.allows(try XCTUnwrap(URL(string: "https://\(host)/path"))))
+            let url = try XCTUnwrap(URL(string: "https://\(host)/path"))
+            XCTAssertEqual(undecided.decide(url), .notApproved)
+            XCTAssertEqual(policy.decide(url), .allowed)
         }
+        XCTAssertEqual(policy.decide(try XCTUnwrap(URL(string: "https://other.example/path"))), .denied)
         instance.enabled = false
-        XCTAssertFalse(ShellHTTPPolicy.resolve(component: "jobs", instances: [instance], descriptors: [descriptor])
-            .allows(try XCTUnwrap(URL(string: "https://api.example/path"))))
-        XCTAssertFalse(ShellHTTPPolicy.resolve(component: "missing", instances: [instance], descriptors: [descriptor])
-            .allows(try XCTUnwrap(URL(string: "https://api.example/path"))))
-        XCTAssertFalse(ShellHTTPPolicy.resolve(component: nil, instances: [], descriptors: [])
-            .allows(try XCTUnwrap(URL(string: "https://other.example/path"))))
+        XCTAssertEqual(ShellHTTPPolicy.resolve(
+            component: "jobs", instances: [instance], descriptors: [descriptor], permissions: permissions
+        ).decide(try XCTUnwrap(URL(string: "https://api.example/path"))), .denied)
+        XCTAssertEqual(ShellHTTPPolicy.resolve(
+            component: "missing", instances: [instance], descriptors: [descriptor], permissions: permissions
+        ).decide(try XCTUnwrap(URL(string: "https://api.example/path"))), .denied)
+        XCTAssertEqual(
+            ShellHTTPPolicy.resolve(component: nil, instances: [], descriptors: [], permissions: permissions)
+                .decide(try XCTUnwrap(URL(string: "https://other.example/path"))),
+            .denied
+        )
     }
 
     func testCancellationAndOwnerRemovalStopTasksWithoutCompletion() async throws {
@@ -289,8 +376,8 @@ final class ShellHTTPServiceTests: XCTestCase {
         defer { ledger.close()
             ProtocolStub.plans.withLock { plans in for url in urls { plans.removeValue(forKey: url) } }
         }
-        XCTAssertTrue(service.start(id(1, owner: 1), request: .init(url: urls[0]), policy: .hosts(["api.example"])))
-        XCTAssertTrue(service.start(id(2, owner: 2), request: .init(url: urls[1]), policy: .hosts(["api.example"])))
+        XCTAssertTrue(service.start(id(1, owner: 1), request: .init(url: urls[0]), policy: .approved(["api.example"])))
+        XCTAssertTrue(service.start(id(2, owner: 2), request: .init(url: urls[1]), policy: .approved(["api.example"])))
         await fulfillment(of: [started], timeout: 5)
         ledger.cancel(id(1, owner: 1))
         XCTAssertEqual(ledger.activeCount, 1)
@@ -324,7 +411,7 @@ final class ShellHTTPServiceTests: XCTestCase {
             XCTAssertTrue(service.start(
                 id(UInt64(index + 1)),
                 request: .init(url: url),
-                policy: .hosts(["api.example"])
+                policy: .approved(["api.example"])
             ))
         }
         await fulfillment(of: [started, overloaded], timeout: 5)

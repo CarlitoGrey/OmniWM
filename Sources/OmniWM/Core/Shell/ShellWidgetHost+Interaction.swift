@@ -217,6 +217,8 @@ extension ShellWidgetHost {
                 resourceStore: resourceStore,
                 source: source,
                 directories: folders(of: state),
+                permissions: permissions,
+                onNetworkApprovals: { [weak self] in self?.recordNetworkApprovals($0) },
                 onSelect: onSelect,
                 onFailure: { [weak self] in self?.closeHiddenBarMenu() },
                 onDismiss: dismiss

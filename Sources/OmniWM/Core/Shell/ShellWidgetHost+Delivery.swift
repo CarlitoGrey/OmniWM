@@ -173,6 +173,7 @@ extension ShellWidgetHost {
             .first(where: { $0.generation == delivery.generation })
         {
             deliverDesktop(delivery.desktopRequests, package: package)
+            recordNetworkApprovals(delivery.networkApprovals)
         }
         guard delivery.generation == state.generation else { return }
         let previousDemand = demand(of: state)

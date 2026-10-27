@@ -77,6 +77,8 @@ extension ShellWidgetPackage {
             await deliverResources(in: script)
         case let .nativeInput(input):
             await deliverNativeInput(input, in: script)
+        case .permissions:
+            revalidateNetwork()
         case .capture: break
         }
     }
@@ -136,6 +138,7 @@ extension ShellWidgetPackage {
         case .resources: "resources"
         case .nativeInput: "native_input"
         case .capture: "capture"
+        case .permissions: "permissions"
         }
         ShellFrameTrace.shared.record(.init(event: .packageWake, context: trace, count: 1, detail: reason))
     }

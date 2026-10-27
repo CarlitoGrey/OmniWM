@@ -254,6 +254,8 @@ final class ShellWidgetHost {
     lazy var dropIngress = ShellDropIngress(resources: resourceStore)
     let focusPolicyEngine: FocusPolicyEngine?
     let sessionToken: String
+    let permissions: ShellNetworkPermissions
+    var networkApprovals: [ShellNetworkApproval.Key: ShellNetworkApproval] = [:]
     var config = ShellConfig()
     let configurationCatalogLoader = ShellConfigurationCatalogLoader()
     var configurationCatalog: ShellConfigurationCatalog?
@@ -347,6 +349,7 @@ final class ShellWidgetHost {
         resourceStore: ShellResourceStore? = nil,
         focusPolicyEngine: FocusPolicyEngine? = nil,
         sessionToken: String = "",
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions(),
         world: @escaping @MainActor () -> ShellWorldData,
         vars: @escaping @MainActor () -> [String: String],
         bars: @escaping @MainActor () -> [ShellBarKey: ShellBarData],
@@ -373,6 +376,7 @@ final class ShellWidgetHost {
             ))
         self.focusPolicyEngine = focusPolicyEngine
         self.sessionToken = sessionToken
+        self.permissions = permissions
         self.world = world
         self.vars = vars
         barData = bars

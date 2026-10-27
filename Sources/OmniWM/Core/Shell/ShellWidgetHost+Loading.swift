@@ -24,8 +24,9 @@ extension ShellWidgetHost {
         nextGeneration += 1
         state.loadingGeneration = nextGeneration
         let package = ShellWidgetPackage(
-            name: state.name, generation: nextGeneration, outbox: outbox, latestData: latestData,
-            resourceStore: resourceStore, retireResourceImages: { [images = resources.resourceImages] owner in
+            name: state.name, generation: nextGeneration, outbox: outbox, permissions: permissions,
+            latestData: latestData, resourceStore: resourceStore,
+            retireResourceImages: { [images = resources.resourceImages] owner in
                 await images?.retire(owner)
             }
         )
