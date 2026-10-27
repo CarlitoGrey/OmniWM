@@ -419,18 +419,9 @@ extension AppDelegate {
         monitorSetupEvaluationTask?.cancel()
         monitorSetupEvaluationTask = nil
         welcomeWindowController.show(settings: settings, controller: controller, reason: reason) { [weak self] in
-            self?.welcomeDidDismiss($0, reason: reason)
-        }
-    }
-
-    private func welcomeDidDismiss(_ dismissal: WelcomeDismissal, reason: WelcomeReason) {
-        switch dismissal {
-        case .closed:
             if reason == .firstRun {
-                scheduleMonitorSetupEvaluation()
+                self?.scheduleMonitorSetupEvaluation()
             }
-        case .openedSettings:
-            stopMonitorSetupPresentationObservation()
         }
     }
 

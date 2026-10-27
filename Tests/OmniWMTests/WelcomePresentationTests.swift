@@ -100,41 +100,37 @@ final class WelcomePresentationTests: XCTestCase {
         }
     }
 
-    func testReopenedWelcomeAfterASettingsDepartureNeverSchedulesTheEvaluation() throws {
+    func testSettingsButtonsKeepTheWelcomeOpenAndTheGuideWaitsUntilItCloses() throws {
         let fixture = Fixture()
         defer { fixture.cleanup() }
         fixture.finishLaunchOverlay()
+
         try fixture.view().onOpenSettings(.styles)
-
-        fixture.reopen()
-        try fixture.close(.primaryButton)
-
-        XCTAssertEqual(fixture.recorder.routes, [.init(section: .styles, welcomeVisible: false)])
-        XCTAssertNil(fixture.delegate.monitorSetupEvaluationTask)
-    }
-
-    func testSettingsDepartureHoldsTheGuideForTheRestOfTheLaunch() throws {
-        let fixture = Fixture()
-        defer { fixture.cleanup() }
-        fixture.delegate.startMonitorSetupPresentationObservation()
-        fixture.finishLaunchOverlay()
-
         try fixture.view().onOpenSettings(.hotkeys)
+        fixture.delegate.scheduleMonitorSetupEvaluation()
 
-        XCTAssertNil(fixture.presenter.window)
-        XCTAssertEqual(fixture.recorder.routes, [.init(section: .hotkeys, welcomeVisible: false)])
-        XCTAssertNil(fixture.delegate.monitorSetupScreenObserver)
+        XCTAssertNotNil(fixture.presenter.window)
+        XCTAssertEqual(fixture.recorder.routes, [
+            .init(section: .styles, welcomeVisible: true),
+            .init(section: .hotkeys, welcomeVisible: true)
+        ])
+        XCTAssertNotNil(fixture.delegate.monitorSetupScreenObserver)
         XCTAssertNil(fixture.delegate.monitorSetupEvaluationTask)
         XCTAssertEqual(fixture.settings.monitorSetupStatus, .notPresented)
-        XCTAssertEqual(fixture.reloadedRuntimeState().monitorSetupStatus, .notPresented)
+
+        try fixture.close(.primaryButton)
+
+        XCTAssertNil(fixture.presenter.window)
+        XCTAssertNotNil(fixture.delegate.monitorSetupEvaluationTask)
     }
 
-    func testAScreenChangeQueuedBeforeASettingsDepartureNeverRestartsTheGuide() throws {
+    func testAScreenChangeQueuedAfterTheObservationStopsSchedulesNothing() {
         let fixture = Fixture()
         defer { fixture.cleanup() }
+        fixture.runtimeState.welcomePresented = true
         fixture.finishLaunchOverlay()
 
-        try fixture.view().onOpenSettings(.styles)
+        fixture.delegate.stopMonitorSetupPresentationObservation()
         fixture.delegate.scheduleMonitorSetupEvaluation()
 
         XCTAssertNil(fixture.delegate.monitorSetupScreenObserver)
@@ -177,18 +173,19 @@ final class WelcomePresentationTests: XCTestCase {
         XCTAssertNotNil(fixture.delegate.monitorSetupEvaluationTask)
     }
 
-    func testEachControlClosesTheWelcomeAndRoutesToItsSettingsSection() throws {
+    func testEachControlKeepsTheWelcomeOpenAndRoutesToItsSettingsSection() throws {
         XCTAssertEqual(WelcomeFeature.allCases.map(\.destination), [nil, .hotkeys, .quakeTerminal, .network])
         let fixture = Fixture()
         defer { fixture.cleanup() }
         let sections: [SettingsSection] = [.styles, .hotkeys, .quakeTerminal, .network]
 
+        fixture.reopen()
         for section in sections {
-            fixture.reopen()
             try fixture.view().onOpenSettings(section)
         }
 
-        XCTAssertEqual(fixture.recorder.routes, sections.map { Fixture.Route(section: $0, welcomeVisible: false) })
+        XCTAssertNotNil(fixture.presenter.window)
+        XCTAssertEqual(fixture.recorder.routes, sections.map { Fixture.Route(section: $0, welcomeVisible: true) })
     }
 
     func testBoundShortcutsShowTheirDisplayStringAndTryItSentence() throws {

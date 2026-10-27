@@ -16,11 +16,6 @@ enum WelcomeReason {
     }
 }
 
-enum WelcomeDismissal {
-    case closed
-    case openedSettings
-}
-
 struct WelcomeFeatureContent: Equatable {
     enum Shortcut: Equatable {
         case assigned(String)
@@ -137,7 +132,7 @@ final class WelcomeWindowController {
 
     private let presenter: HostedWindowPresenter
     private let showSettings: @MainActor (SettingsStore, WMController, SettingsSection) -> Void
-    private var onDismiss: (@MainActor (WelcomeDismissal) -> Void)?
+    private var onDismiss: (@MainActor () -> Void)?
 
     init(
         presenter: HostedWindowPresenter = HostedWindowPresenter(),
@@ -157,7 +152,7 @@ final class WelcomeWindowController {
         settings: SettingsStore,
         controller: WMController,
         reason: WelcomeReason,
-        onDismiss: @escaping @MainActor (WelcomeDismissal) -> Void
+        onDismiss: @escaping @MainActor () -> Void
     ) {
         if !isVisible {
             self.onDismiss = onDismiss
@@ -176,7 +171,7 @@ final class WelcomeWindowController {
                 window.standardWindowButton(.closeButton)?.keyEquivalent = "\u{1b}"
             },
             onWillClose: { [weak self] in
-                self?.dismiss(.closed)
+                self?.dismiss()
             },
             content: {
                 WelcomeView(
@@ -184,8 +179,6 @@ final class WelcomeWindowController {
                     reason: reason,
                     onOpenSettings: { [weak self, weak controller] section in
                         guard let self, let controller else { return }
-                        dismiss(.openedSettings)
-                        presenter.close()
                         showSettings(settings, controller, section)
                     },
                     onDone: { [weak self] in
@@ -196,10 +189,10 @@ final class WelcomeWindowController {
         )
     }
 
-    private func dismiss(_ dismissal: WelcomeDismissal) {
+    private func dismiss() {
         let onDismiss = onDismiss
         self.onDismiss = nil
-        onDismiss?(dismissal)
+        onDismiss?()
     }
 }
 
