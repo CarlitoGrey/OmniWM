@@ -24,7 +24,9 @@ A **profile** supplies the widgets, libraries, layout and appearance for a deskt
 └── <profile>/          # your own profiles
 ```
 
-`default/` holds the bundled widgets and themes, and OmniWM updates it with each release. If you edit a managed file, the next update keeps your copy beside it as `<file>.edited-<date>`. **Settings > Advanced > Shell Development > Edit Widget Source…** or `omniwmctl shell eject <widget>` creates a persistent user copy before you customize an inherited widget. User overrides in `widgets/` take precedence over the selected profile; widgets in your own profiles are left alone.
+`default/` holds the bundled widgets and themes, and OmniWM updates it with each release. If you edit a managed file, the next update keeps your copy beside it as `<file>.edited-<date>`. **Settings > Advanced > Shell Development > Edit Widget Source…** or `omniwmctl shell eject <widget>` creates an editable copy before you customize an inherited widget. For an OmniWM-managed profile, the copy goes into top-level `widgets/`; for your own profile, it goes into `<profile>/widgets/`. Top-level user overrides take precedence over the selected profile; widgets in your own profiles are left alone.
+
+`omniwmctl shell init <widget>` creates `<profile>/widgets/<widget>/init.luau` in the selected profile, including `default/` when that profile is selected. It leaves an existing destination folder intact. To make a widget an override for every profile, place its folder in top-level `widgets/`.
 
 A profile is any other folder in the shell folder. Choose it in **Settings > Styles & Widgets** with **Use Style**, with `profile = "<name>"` in `shell.toml`, or with `omniwmctl shell profile <name>`. The **Palette** picker recolors the selected style and `omniwmctl shell theme <name>` the active profile, and that profile keeps the choice. Anything a profile does not contain comes from `default/`.
 
