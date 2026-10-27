@@ -21,12 +21,15 @@ struct ShellConfigurationInputs: Sendable {
     }
 
     init(directory: URL, config: ShellConfig) throws {
+        var paths = SettingsFileObservationDirectories.paths(for: directory)
+        paths.insert(directory)
         let directory = try SettingsFileAccess.canonicalURL(for: directory)
         var files: [String: SettingsFileAccess.Fingerprint] = [:]
-        var paths: Set<URL> = [directory, directory.deletingLastPathComponent()]
+        paths.formUnion([directory, directory.deletingLastPathComponent()])
         var widgets: Set<String> = []
         let prefix = directory.standardizedFileURL.path + "/"
         let directories = try config.directories.compactMap { url -> URL? in
+            paths.formUnion(SettingsFileObservationDirectories.paths(for: url))
             do { return try SettingsFileAccess.canonicalURL(for: url) }
             catch let error as POSIXError where error.code == .ENOENT { return nil }
         }
@@ -84,6 +87,17 @@ struct ShellConfigurationInputs: Sendable {
         self.metadata = metadata
         self.paths = paths
         self.widgets = widgets
+    }
+
+    static func recoveryPaths(_ directory: URL, config: ShellConfig, previous: Self?) -> [URL] {
+        let profiles = ShellProfiles.names(in: directory).map { directory.appendingPathComponent($0) }
+        var paths = Set(previous?.paths ?? [])
+        for directory in Set([directory] + config.directories + profiles) {
+            let file = directory.appendingPathComponent("shell.toml")
+            paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
+            paths.formUnion([directory, file])
+        }
+        return paths.sorted { $0.path < $1.path }
     }
 
     static func load(in directory: URL, profile: String? = nil) throws -> Prepared {
