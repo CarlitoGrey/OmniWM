@@ -9,12 +9,16 @@ enum ShellProfiles {
 
     static func names(in shellDirectory: URL) -> [String] {
         let entries = (try? FileManager.default.contentsOfDirectory(
-            at: shellDirectory,
-            includingPropertiesForKeys: [.isDirectoryKey],
+            at: shellDirectory.resolvingSymlinksInPath(),
+            includingPropertiesForKeys: nil,
             options: [.skipsHiddenFiles]
         )) ?? []
         let profiles = entries
-            .filter { (try? $0.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true }
+            .filter { entry in
+                var isDirectory: ObjCBool = false
+                return FileManager.default.fileExists(atPath: entry.path, isDirectory: &isDirectory)
+                    && isDirectory.boolValue
+            }
             .map(\.lastPathComponent)
             .filter { !reserved.contains($0) && $0 != ShellDefaults.profile }
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }

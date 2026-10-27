@@ -2315,7 +2315,7 @@ final class ShellWidgetClickTests: XCTestCase {
         XCTAssertEqual(ShellDefaults.sync(into: harness.root.appendingPathComponent("shell")), [])
         harness.host.rescan()
         var layoutChanges = harness.layoutChanges.makeAsyncIterator()
-        while harness.host.slots(for: Harness.monitor).first(where: { $0.id == "workspaces" })?.size.width ?? 0 == 0 {
+        while harness.host.slots(for: Harness.monitor).count < 2 {
             try await layoutChanges.change()
         }
         let slots = harness.host.slots(for: Harness.monitor)
