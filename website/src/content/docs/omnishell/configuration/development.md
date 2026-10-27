@@ -13,23 +13,23 @@ OmniShell scripts are ordinary files under `~/.config/omniwm/shell/`. Edit them 
 
 ## Create or eject a widget
 
-Create a new user widget:
+Create a new widget in the selected profile:
 
 ```sh
 omniwmctl shell init hello-clock
 ```
 
-This creates `~/.config/omniwm/shell/widgets/hello-clock/init.luau`. Names use letters, digits, `-` and `_`. An existing folder returns `no_change` and is left intact. Follow [Build your first widget](/omnishell/guides/first-widget/) for a complete example.
+This creates `~/.config/omniwm/shell/<profile>/widgets/hello-clock/init.luau`, where `<profile>` is the selected style's profile folder, such as `default` or `lake`. Names use letters, digits, `-` and `_`. An existing folder at that destination returns `no_change` and is left intact. Follow [Build your first widget](/omnishell/guides/first-widget/) for a complete example.
 
-Before changing an inherited widget, choose **Settings > Advanced > Shell Development > Widget Source > Edit Widget Source…**, or copy it into the persistent user layer:
+Before changing an inherited widget, choose **Settings > Advanced > Shell Development > Widget Source > Edit Widget Source…**, or copy it into an editable override:
 
 ```sh
 omniwmctl shell eject clock
 ```
 
-The effective widget is copied into `shell/widgets/clock/`. A widget already there returns `no_change`. **Open Shell Folder…** opens the containing folder. Settings does not include a Luau editor.
+For an OmniWM-managed profile, the effective widget is copied into `shell/widgets/clock/`; for your own profile, it is copied into `shell/<profile>/widgets/clock/`. A widget already at the destination returns `no_change`. **Open Shell Folder…** opens the containing folder. Settings does not include a Luau editor.
 
-User widgets override all profiles, so use a unique name for a tutorial or a profile-local widget when a change should apply to only one style. The [shell folder and profile rules](/omnishell/configuration/profiles-palettes/#the-shell-folder) describe managed files, backup copies and fallback resolution.
+Top-level `shell/widgets/` overrides apply to every profile. `shell init` writes into the selected profile instead; widgets in `default/widgets/` can also be inherited by other profiles. Use a unique name for a tutorial. The [shell folder and profile rules](/omnishell/configuration/profiles-palettes/#the-shell-folder) describe managed files, backup copies and fallback resolution.
 
 ## Modules and editor types
 

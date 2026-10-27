@@ -15,11 +15,17 @@ Build **quick-menu**, a bar button with an Audio submenu, volume controls, and a
 
 ## 1. Create the menu widget
 
+For `<profile>`, use the selected style's profile folder, such as `default` or `lake`. Before creating `quick-menu`, check both `~/.config/omniwm/shell/<profile>/widgets/quick-menu/` and `~/.config/omniwm/shell/widgets/quick-menu/`.
+
+If the profile-local folder already exists, reuse it or choose another name; `shell init` leaves it intact. If the top-level folder contains `init.luau`, that override takes precedence over the profile-local copy. Edit the top-level widget or choose an unused name. If you change the widget name, update the command below and the later toggle command too.
+
+For a new widget, run:
+
 ```sh
 omniwmctl shell init quick-menu
 ```
 
-Open `~/.config/omniwm/shell/widgets/quick-menu/init.luau`. Replace its starter contents with the complete file below. Use a different name if you already have a widget called `quick-menu`; adjust the later toggle command too.
+Open `~/.config/omniwm/shell/<profile>/widgets/quick-menu/init.luau`, or the top-level `init.luau` if you reuse that override. Replace its contents with the complete file below.
 
 ## 2. Add the button, rows, and submenu
 

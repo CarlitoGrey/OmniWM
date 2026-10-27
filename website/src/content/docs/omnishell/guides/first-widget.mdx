@@ -15,19 +15,25 @@ This guide builds **hello-clock**, a bar widget that shows the local time and an
 
 ## 1. Create the widget
 
-Run:
+For `<profile>` in the paths below, use the selected style's profile folder, such as `default` or `lake`. Before creating `hello-clock`, check both `~/.config/omniwm/shell/<profile>/widgets/hello-clock/` and `~/.config/omniwm/shell/widgets/hello-clock/`.
+
+If the profile-local folder already exists, reuse it or choose another name; `shell init` leaves it intact. If the top-level folder contains `init.luau`, that override takes precedence over the profile-local copy. Edit the top-level widget and keep `settings.toml` beside it, or choose an unused name and use it for the command and every path below.
+
+For a new widget, run:
 
 ```sh
 omniwmctl shell init hello-clock
 ```
 
-The command creates `~/.config/omniwm/shell/widgets/hello-clock/init.luau`. Open that file in your editor. If the name already exists, use your existing tutorial folder or choose another name; the command does not replace it.
+The command creates `~/.config/omniwm/shell/<profile>/widgets/hello-clock/init.luau` unless that destination folder already exists.
+
+For the rest of this guide, `<widget-folder>` means the effective widget directory: `~/.config/omniwm/shell/<profile>/widgets/hello-clock` for a profile-local widget, or `~/.config/omniwm/shell/widgets/hello-clock` when reusing a top-level override. Substitute your chosen widget name if it differs from `hello-clock`. Open `<widget-folder>/init.luau` in your editor.
 
 OmniShell calls the global `render(ctx)` function to get a UI tree. The starter also includes a `popout(ctx)` function; this clock does not need a popout, so replace the starter with the file in the next step.
 
 ## 2. Render and style the time
 
-Save this complete file as `~/.config/omniwm/shell/widgets/hello-clock/init.luau`:
+Save this complete file as `<widget-folder>/init.luau`:
 
 <ExampleFile file="widgets/hello-clock/init.luau" />
 
@@ -39,7 +45,7 @@ The widget reads localized `ctx.data.clock` and `ctx.data.date`. `interval = 60`
 
 ## 3. Declare the option
 
-Save this file beside `init.luau`, at `~/.config/omniwm/shell/widgets/hello-clock/settings.toml`:
+Save this file beside `init.luau`, at `<widget-folder>/settings.toml`:
 
 <ExampleFile file="widgets/hello-clock/settings.toml" />
 
@@ -48,7 +54,7 @@ This declaration adds **Show date** to the widget's native options editor. The a
 Your final folder contains:
 
 ```text
-~/.config/omniwm/shell/widgets/hello-clock/
+<widget-folder>/
 ├── init.luau
 └── settings.toml
 ```
@@ -62,7 +68,7 @@ Your final folder contains:
 
 You should see a clock symbol, the local time, and the date. Turning the option off removes only the date. The existing bar layout stays in place; you can remove the bundled clock separately if you prefer one time display.
 
-Widgets in the top-level `widgets/` folder are available to every profile. Their placement and option values belong to each profile. See [profiles and palettes](/omnishell/configuration/profiles-palettes/).
+Widgets created by `shell init` are stored in the selected profile; other profiles can inherit widgets from `default/widgets/`. To make a profile-local widget an override for every profile, move its folder into the top-level `shell/widgets/` folder. Placement and option values belong to each profile. See [profiles and palettes](/omnishell/configuration/profiles-palettes/).
 
 ## 5. Check edits and diagnostics
 
