@@ -74,7 +74,7 @@ final class AppCLIManager {
 
         let linkURL = preferredUserLinkURL()
         let directoryOnPath = isDirectoryOnPATH(linkURL.deletingLastPathComponent())
-        if fileManager.fileExists(atPath: linkURL.path) {
+        if (try? fileManager.attributesOfItem(atPath: linkURL.path)) != nil {
             if symlinkResolvesToBundledCLI(at: linkURL) {
                 return .appManaged(linkURL: linkURL, directoryOnPath: directoryOnPath)
             }
