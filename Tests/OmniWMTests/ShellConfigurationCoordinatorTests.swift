@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import CoreServices
+import Darwin
 import Foundation
 import Observation
 @testable import OmniWM
@@ -10,6 +12,197 @@ import XCTest
 
 @MainActor
 final class ShellConfigurationCoordinatorTests: XCTestCase {
+    func testObservingBundledShellKeepsFileDescriptorsAvailable() async throws {
+        let shell = try fixture()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+        try await coordinator.refresh()
+        let inputs = try ShellConfigurationInputs(directory: shell, config: coordinator.config)
+        XCTAssertGreaterThan(inputs.paths.count, 256)
+        let before = openDescriptorCount()
+
+        coordinator.startObserving()
+        defer { coordinator.stopObserving() }
+
+        XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
+        XCTAssertFalse(try Data(contentsOf: shell.appendingPathComponent("shell.toml")).isEmpty)
+        try await coordinator.set(45, key: "height")
+        XCTAssertEqual(try load(shell).barOverride?.settings.height, 45)
+        XCTAssertNil(coordinator.metadataError)
+    }
+
+    private func openDescriptorCount() -> Int {
+        (0 ..< min(getdtablesize(), 4096)).filter { fcntl($0, F_GETFD) >= 0 }.count
+    }
+
+    func testNewNestedSourcesAndAtomicReplacementsRefreshWithoutLiveShellHost() async throws {
+        let shell = try fixture()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+        try await coordinator.refresh()
+        coordinator.startObserving()
+        defer { coordinator.stopObserving() }
+        await coordinator.flush()
+        let file = shell.appendingPathComponent("lib/nested/new.luau")
+
+        for change in 0 ..< 3 {
+            let changed = expectation(description: "Nested source change \(change)")
+            withObservationTracking { _ = coordinator.revision } onChange: { changed.fulfill() }
+            switch change {
+            case 0:
+                try FileManager.default.createDirectory(
+                    at: file.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try Data("before".utf8).write(to: file)
+            case 1:
+                try Data("after".utf8).write(to: file, options: .atomic)
+            default:
+                try FileManager.default.removeItem(at: file.deletingLastPathComponent())
+            }
+            await fulfillment(of: [changed], timeout: 5)
+            await coordinator.flush()
+            XCTAssertNil(coordinator.metadataError)
+        }
+    }
+
+    func testSymlinkedSourcesOutsideTheShellTreeRefreshWithoutLiveShellHost() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let directory = try SettingsFileAccess.canonicalURL(for: root)
+        let shell = directory.appendingPathComponent("config/shell")
+        let external = directory.appendingPathComponent("external")
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        _ = ShellDefaults.sync(into: shell)
+        _ = try ShellProfiles.select("lake", in: shell)
+        let target = external.appendingPathComponent("source.luau")
+        try Data("before".utf8).write(to: target)
+        let link = shell.appendingPathComponent("linked-source.luau")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        var watchedRoots: [String] = []
+        let observation = ShellDirectoryObservation(startStream: { stream in
+            watchedRoots = FSEventStreamCopyPathsBeingWatched(stream) as? [String] ?? []
+            return FSEventStreamStart(stream)
+        }) {}
+        observation.sync(paths: [link])
+        XCTAssertEqual(watchedRoots, [external.path])
+        observation.cancel()
+        let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+        try await coordinator.refresh()
+        let inputs = try ShellConfigurationInputs(directory: shell, config: coordinator.config)
+        XCTAssertTrue(inputs.paths.contains { $0.path == link.path })
+        coordinator.startObserving()
+        defer { coordinator.stopObserving() }
+        try await coordinator.refresh()
+
+        for atomic in [false, true] {
+            let changed = expectation(description: "External symlink target edit, atomic=\(atomic)")
+            withObservationTracking { _ = coordinator.revision } onChange: { changed.fulfill() }
+            try Data("after-\(atomic)".utf8).write(to: target, options: atomic ? .atomic : [])
+            await fulfillment(of: [changed], timeout: 5)
+            await coordinator.flush()
+            XCTAssertNil(coordinator.metadataError)
+            XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), target.path)
+        }
+    }
+
+    func testDirectoryObservationRefreshesAndRetriesWhenStreamCreationFails() async throws {
+        let shell = try fixture()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        var attempts = 0
+        var changes = 0
+        let refreshed = expectation(description: "Periodic refresh after stream creation failure")
+        let observation = ShellDirectoryObservation(createStream: { _, _ in
+            attempts += 1
+            return nil
+        }) {
+            changes += 1
+            if changes == 1 { refreshed.fulfill() }
+        }
+        let before = openDescriptorCount()
+        observation.sync(paths: [shell])
+        await fulfillment(of: [refreshed], timeout: 5)
+        XCTAssertGreaterThanOrEqual(attempts, 2)
+        XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
+        observation.cancel()
+        let stopped = changes
+        try await Task.sleep(for: .milliseconds(1200))
+        XCTAssertEqual(changes, stopped)
+    }
+
+    func testDirectoryObservationRecoversAfterStreamStartFailure() async throws {
+        let shell = try fixture()
+        defer { try? FileManager.default.removeItem(at: shell) }
+        let file = shell.appendingPathComponent("shell.toml")
+        var attempts = 0
+        var changed: XCTestExpectation? = expectation(description: "Refresh while restarting the event stream")
+        let observation = ShellDirectoryObservation(startStream: { stream in
+            attempts += 1
+            return attempts > 1 && FSEventStreamStart(stream)
+        }) {
+            changed?.fulfill()
+            changed = nil
+        }
+        defer { observation.cancel() }
+        observation.sync(paths: [file])
+        await fulfillment(of: [try XCTUnwrap(changed)], timeout: 5)
+        XCTAssertGreaterThanOrEqual(attempts, 2)
+
+        changed = expectation(description: "Native file event after stream recovery")
+        try Data("profile = 'default'\n".utf8).write(to: file, options: .atomic)
+        await fulfillment(of: [try XCTUnwrap(changed)], timeout: 5)
+    }
+
+    func testDirectoryObservationFallsBackBeforeExceedingRootBudget() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let directories = try (0 ..< 32).map { index in
+            let directory = root.appendingPathComponent(String(index))
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        }
+        var attempts = 0
+        var refreshed = false
+        let fallback = expectation(description: "Periodic refresh with too many independent roots")
+        let observation = ShellDirectoryObservation(createStream: { _, _ in
+            attempts += 1
+            return nil
+        }) {
+            if !refreshed { fallback.fulfill()
+                refreshed = true
+            }
+        }
+        defer { observation.cancel() }
+        let before = openDescriptorCount()
+        observation.sync(paths: directories)
+        await fulfillment(of: [fallback], timeout: 5)
+        XCTAssertEqual(attempts, 0)
+        XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
+    }
+
+    func testDirectoryObservationReplacesAndCancelsRootsWithoutLeakingDescriptors() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let first = root.appendingPathComponent("first")
+        let second = root.appendingPathComponent("second")
+        for directory in [first, second] {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        }
+        let changed = expectation(description: "Events after cancellation")
+        changed.isInverted = true
+        let observation = ShellDirectoryObservation { changed.fulfill() }
+        let before = openDescriptorCount()
+        for index in 0 ..< 32 {
+            observation.sync(paths: [index.isMultiple(of: 2) ? first : second])
+        }
+        XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
+        observation.cancel()
+        try Data("after cancel".utf8).write(to: second.appendingPathComponent("new.luau"))
+        await fulfillment(of: [changed], timeout: 0.5)
+        XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
+    }
+
     func testNativeIslandEditsPersistWithoutEnablingAnyShellSurface() async throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: directory) }
