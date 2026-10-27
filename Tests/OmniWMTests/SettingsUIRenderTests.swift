@@ -183,6 +183,137 @@ final class SettingsUIRenderTests: XCTestCase {
         await fixture.close()
     }
 
+    func testUnappliedGestureProposalStaysCurrentWhileItsTabIsHidden() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let gestures = fixture.settings.gestures
+            gestures.scrollEnabled = true
+            gestures.fingerCount = .three
+            gestures.workspaceSwipeEnabled = false
+            gestures.overviewGestureEnabled = true
+            gestures.overviewGestureFingerCount = .four
+            gestures.windowMoveEnabled = false
+            gestures.windowResizeEnabled = false
+            let editor = GestureAssignmentEditor()
+            editor.submit(
+                .init(action: .move, change: .enabled(true)),
+                settings: fixture.settings,
+                monitors: Monitor.current()
+            )
+            XCTAssertNotNil(editor.proposal)
+            let navigation = SettingsNavigationModel()
+            navigation.section = .mouseTrackpad
+            let root = MouseTrackpadSettingsTab(
+                settings: fixture.settings, controller: fixture.controller, gestureEditor: editor
+            ).environment(navigation)
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "gesture-proposal-tab-round-trip",
+                requiredText: [String(localized: "Cancel")],
+                beforeCapture: { _ in
+                    navigation.selectTab("mouse")
+                    try await Task.sleep(for: .milliseconds(300))
+                    gestures.adoptNativeResize.toggle()
+                    try await Task.sleep(for: .milliseconds(300))
+                    navigation.selectTab("trackpad")
+                    try await Task.sleep(for: .milliseconds(300))
+                }
+            )
+            XCTAssertEqual(editor.proposal?.refreshed, true)
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testTabKeepsItsScrollPositionAcrossTabSwitches() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let navigation = SettingsNavigationModel()
+            navigation.request(SettingsRoute(section: .layouts, tab: "niri"))
+            let root = SettingsView(
+                settings: fixture.settings, controller: fixture.controller,
+                windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+            )
+            try await render(
+                root, fixture: fixture, windowClass: windowClasses[1], name: "settings-tab-scroll-round-trip",
+                requiredText: [],
+                beforeCapture: { _ in
+                    @MainActor func scrollViews(in view: NSView) -> [NSScrollView] {
+                        ((view as? NSScrollView).map { [$0] } ?? []) + view.subviews.flatMap { scrollViews(in: $0) }
+                    }
+                    let content = try XCTUnwrap(NSApp.windows.first { $0.isVisible && $0.title == "OmniWM Settings" }?
+                        .contentView)
+                    let scroll = try XCTUnwrap(scrollViews(in: content).first { view in
+                        view.convert(view.bounds, to: content).minX >= 220
+                            && (view.documentView?.bounds.height ?? 0) > view.contentView.bounds.height + 300
+                    })
+                    let clip = scroll.contentView
+                    let offset = try XCTUnwrap(scroll.documentView).isFlipped
+                        ? 300 : try XCTUnwrap(scroll.documentView).bounds.height - clip.bounds.height - 300
+                    clip.scroll(to: CGPoint(x: clip.bounds.minX, y: offset))
+                    scroll.reflectScrolledClipView(clip)
+                    navigation.selectTab("dwindle")
+                    try await Task.sleep(for: .milliseconds(300))
+                    navigation.selectTab("niri")
+                    try await Task.sleep(for: .milliseconds(300))
+                    XCTAssertNotNil(scroll.window, "Niri's form was rebuilt")
+                    XCTAssertEqual(clip.bounds.minY, offset)
+                }
+            )
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
+    func testTabbedPagesOpenedInVisibleWindowKeepTabsLegible() async throws {
+        try requireNativeRendering()
+        let fixture = try Fixture()
+        try await fixture.prepare()
+        do {
+            let searchResult = try XCTUnwrap(SettingsSearchIndex.results(for: "gap").first {
+                $0.route.section == .layouts && $0.route.tab == "spacing"
+            })
+            let destinations: [(search: String, route: SettingsRoute, tabs: [String])] = [
+                ("gap", searchResult.route, ["Spacing", "Niri", "Dwindle"]),
+                ("", SettingsRoute(section: .appearance), ["App & Motion", "Window Borders"]),
+                ("", SettingsRoute(section: .styles), ["Bar", "Island", "Drawers"]),
+                ("", SettingsRoute(section: .menuBar), ["macOS Status Item", "Hidden Bar"]),
+                ("", SettingsRoute(section: .monitors), ["Arrangement", "Behavior"]),
+                ("", SettingsRoute(section: .mouseTrackpad), ["Trackpad", "Mouse & Focus"])
+            ]
+            for windowClass in windowClasses {
+                for destination in destinations {
+                    let navigation = SettingsNavigationModel()
+                    navigation.searchText = destination.search
+                    let root = SettingsView(
+                        settings: fixture.settings, controller: fixture.controller,
+                        windowCornerPreferences: fixture.corners, updateCoordinator: nil, navigation: navigation
+                    )
+                    let name = "settings-open-\(destination.route.section.rawValue)-\(windowClass.suffix)"
+                    try await render(
+                        root, fixture: fixture, windowClass: windowClass, name: name,
+                        requiredText: [],
+                        requiredObservations: destination.tabs.map { String(localized: String.LocalizationValue($0)) },
+                        beforeCapture: { _ in navigation.request(destination.route) }
+                    )
+                    XCTAssertEqual(navigation.route, destination.route, name)
+                    XCTAssertEqual(navigation.searchText, "", name)
+                }
+            }
+        } catch {
+            await fixture.close()
+            throw error
+        }
+        await fixture.close()
+    }
+
     func render<Content: View>(
         _ content: Content, fixture: Fixture, windowClass: WindowClass, section: SettingsSection? = nil,
         name: String, requiredText: [String], requiredObservations: [String] = [],
