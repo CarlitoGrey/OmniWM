@@ -123,6 +123,24 @@ struct LauncherEntry: Codable, Equatable, Identifiable, Sendable {
     }
 }
 
+extension LauncherEntry {
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        name = try values.decodeIfPresent(String.self, forKey: .name) ?? ""
+        kind = try values.decodeIfPresent(Kind.self, forKey: .kind) ?? .command
+        path = try values.decodeIfPresent(String.self, forKey: .path) ?? ""
+        command = try values.decodeIfPresent(String.self, forKey: .command) ?? ""
+        arguments = try values.decodeIfPresent([String].self, forKey: .arguments) ?? []
+        keywords = try values.decodeIfPresent(String.self, forKey: .keywords) ?? ""
+        workingDirectory = try values.decodeIfPresent(String.self, forKey: .workingDirectory) ?? ""
+        shell = try values.decodeIfPresent(LauncherShell.self, forKey: .shell) ?? .defaultShell
+        shellExecutable = try values.decodeIfPresent(String.self, forKey: .shellExecutable) ?? ""
+        interpreter = try values.decodeIfPresent(String.self, forKey: .interpreter) ?? ""
+        terminal = try values.decodeIfPresent(LauncherTerminal.self, forKey: .terminal) ?? .defaultTerminal
+    }
+}
+
 struct LauncherConfiguration: Codable, Equatable, Sendable {
     var entries: [LauncherEntry] = []
     var appFolders: [String] = []
@@ -196,10 +214,7 @@ enum LauncherPaths {
                       result != nil, let shell = record.pw_shell else { return nil }
                 return String(cString: shell)
             }
-            guard let path, FileManager.default.isExecutableFile(atPath: path) else {
-                throw LauncherFailure(String(localized: "The system login shell could not be found."))
-            }
-            return (try LauncherShell.kind(for: path), path)
+            return try loginShell(path)
         }
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let folders = (environment["PATH"] ?? "").split(separator: ":").map(String.init)
@@ -211,5 +226,13 @@ enum LauncherPaths {
         throw LauncherFailure(
             String(localized: "\(selection.title) is not installed. Choose its executable in Launcher settings.")
         )
+    }
+
+    static func loginShell(_ path: String?) throws -> (kind: LauncherShell, path: String) {
+        guard let path, FileManager.default.isExecutableFile(atPath: path) else {
+            throw LauncherFailure(String(localized: "The system login shell could not be found."))
+        }
+        guard let kind = try? LauncherShell.kind(for: path) else { return (.zsh, "/bin/zsh") }
+        return (kind, path)
     }
 }

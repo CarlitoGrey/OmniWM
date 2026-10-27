@@ -6,25 +6,25 @@
       "localizations" : {
         "ar" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "يعرض OmniWM تأكيدات macOS لتسجيل الخروج وإعادة التشغيل وإيقاف التشغيل من أدوات الواجهة."
           }
         },
         "da" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM viser macOS’ bekræftelser for log ud, genstart og sluk fra shell-widgets."
           }
         },
         "de" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM zeigt die macOS-Bestätigungen zum Abmelden, Neustarten und Ausschalten aus Shell-Widgets an."
           }
         },
         "el" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "Το OmniWM εμφανίζει τις επιβεβαιώσεις του macOS για αποσύνδεση, επανεκκίνηση και τερματισμό από τα widget του shell."
           }
         },
@@ -36,97 +36,97 @@
         },
         "es" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM muestra las confirmaciones de macOS para cerrar sesión, reiniciar y apagar desde los widgets del shell."
           }
         },
         "fi" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM näyttää macOS:n uloskirjautumisen, uudelleenkäynnistyksen ja sammutuksen vahvistukset shell-widgeteistä."
           }
         },
         "fr" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM affiche les confirmations macOS de fermeture de session, de redémarrage et d’extinction depuis les widgets du shell."
           }
         },
         "he" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM מציג את אישורי macOS להתנתקות, להפעלה מחדש ולכיבוי מהווידג׳טים של ה-shell."
           }
         },
         "hi" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM शेल विजेट से macOS के लॉग आउट, रीस्टार्ट और शट डाउन की पुष्टि दिखाता है।"
           }
         },
         "it" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM mostra le conferme di macOS per logout, riavvio e spegnimento dai widget della shell."
           }
         },
         "ja" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM は、シェルウィジェットから macOS のログアウト、再起動、システム終了の確認を表示します。"
           }
         },
         "ko" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM은 셸 위젯에서 macOS의 로그아웃, 재시동, 시스템 종료 확인 창을 표시합니다."
           }
         },
         "nb" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM viser macOS-bekreftelsene for logg ut, start på nytt og slå av fra shell-widgeter."
           }
         },
         "nl" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM toont de macOS-bevestigingen voor afmelden, herstarten en uitzetten vanuit shell-widgets."
           }
         },
         "pl" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM wyświetla potwierdzenia macOS dotyczące wylogowania, ponownego uruchomienia i wyłączenia z widżetów powłoki."
           }
         },
         "ru" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM показывает подтверждения macOS для выхода, перезагрузки и выключения из виджетов оболочки."
           }
         },
         "sr-Latn" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM prikazuje macOS potvrde za odjavljivanje, ponovno pokretanje i isključivanje iz vidžeta okruženja."
           }
         },
         "sv" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM visar macOS bekräftelser för logga ut, starta om och stäng av från shell-widgetar."
           }
         },
         "uk" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM показує підтвердження macOS для виходу, перезавантаження та вимкнення з віджетів оболонки."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
-            "state" : "translated",
+            "state" : "needs_review",
             "value" : "OmniWM 会从 Shell 小组件显示 macOS 的注销、重新启动和关机确认。"
           }
         }

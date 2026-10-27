@@ -91,7 +91,14 @@ struct LauncherEntryEditor: View {
                 Text("Arguments").fontWeight(.medium)
                 ForEach(entry.arguments.indices, id: \.self) { index in
                     HStack {
-                        TextField("Argument", text: $entry.arguments[index], prompt: Text("Argument value"))
+                        TextField(
+                            "Argument",
+                            text: Binding(
+                                get: { entry.arguments.indices.contains(index) ? entry.arguments[index] : "" },
+                                set: { if entry.arguments.indices.contains(index) { entry.arguments[index] = $0 } }
+                            ),
+                            prompt: Text("Argument value")
+                        )
                         Button("Remove") { entry.arguments.remove(at: index) }
                     }
                 }

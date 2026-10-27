@@ -3,6 +3,7 @@
 
 import Darwin
 @testable import OmniWM
+import TOML
 import XCTest
 
 @MainActor
@@ -10,6 +11,28 @@ final class LauncherExecutionTests: XCTestCase {
     func testExplicitShellCannotSilentlyUseAnotherExecutable() {
         XCTAssertThrowsError(try LauncherPaths.shell(.fish, executable: "/bin/zsh"))
         XCTAssertNoThrow(try LauncherPaths.shell(.zsh, executable: "/bin/zsh"))
+    }
+
+    func testSystemLoginShellFallsBackToZshForAnUnrecognizedShell() throws {
+        let (kind, path) = try LauncherPaths.loginShell("/bin/dash")
+        XCTAssertEqual(kind, .zsh)
+        XCTAssertEqual(path, "/bin/zsh")
+    }
+
+    func testSystemLoginShellThrowsWhenNothingIsExecutable() {
+        XCTAssertThrowsError(try LauncherPaths.loginShell(nil))
+        XCTAssertThrowsError(try LauncherPaths.loginShell("/no/such/shell"))
+    }
+
+    func testLauncherEntryDecodesFromAHandwrittenTableMissingFields() throws {
+        let toml = Data("""
+        name = "Build"
+        command = "swift build"
+        """.utf8)
+        let decoded = try TOMLDecoder().decode(LauncherEntry.self, from: toml)
+        XCTAssertEqual(decoded.name, "Build")
+        XCTAssertEqual(decoded.command, "swift build")
+        XCTAssertEqual(decoded.kind, .command)
     }
 
     func testConfigurationRoundtripIncludesSavedEntriesAndShells() throws {

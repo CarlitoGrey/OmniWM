@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import Darwin
 import Foundation
 import Observation
 
@@ -55,6 +56,7 @@ final class LauncherExecutableCatalog {
                 self.onChanged?()
             } catch {
                 guard let self, self.generation == generation else { return }
+                self.configuration = nil
                 self.failure = error.localizedDescription
                 self.isLoading = false
                 self.onChanged?()
@@ -77,11 +79,9 @@ final class LauncherExecutableCatalog {
                 let manager = FileManager.default
                 for folder in (environment["PATH"] ?? "").split(separator: ":") where folder.hasPrefix("/") {
                     guard let files = try? manager.contentsOfDirectory(atPath: String(folder)) else { continue }
-                    for name in files.sorted() where !name.hasPrefix(".") && !names.contains(name) {
+                    for name in files where !name.hasPrefix(".") && !names.contains(name) {
                         let path = String(folder) + "/" + name
-                        var directory: ObjCBool = false
-                        guard manager.fileExists(atPath: path, isDirectory: &directory), !directory.boolValue,
-                              manager.isExecutableFile(atPath: path) else { continue }
+                        guard Self.isExecutableRegularFile(path) else { continue }
                         names.insert(name)
                         entries.append(LauncherExecutable(name: name, path: path))
                     }
@@ -91,5 +91,11 @@ final class LauncherExecutableCatalog {
                 })
             }
         }
+    }
+
+    private nonisolated static func isExecutableRegularFile(_ path: String) -> Bool {
+        var info = stat()
+        guard stat(path, &info) == 0, info.st_mode & S_IFMT == S_IFREG else { return false }
+        return Darwin.access(path, X_OK) == 0
     }
 }
