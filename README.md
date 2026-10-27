@@ -151,6 +151,23 @@ OmniWM is a free, open-source, Developer ID-signed and Apple-notarized tiling wi
       <sub>@MuhammadKh</sub>
     </td>
     <td align="center" valign="top">
+      <a href="https://github.com/indrive">
+        <img src="https://avatars.githubusercontent.com/u/47465744?v=4" width="72" alt="inDrive">
+      </a>
+      <br>
+      <a href="https://github.com/indrive"><strong>inDrive</strong></a>
+      <br>
+      <sub>━━━━━━━━</sub>
+      <br>
+      <a href="https://github.com/dappermint" title="millia ampora">
+        <img src="https://github.com/dappermint.png?size=96" width="72" alt="millia ampora">
+      </a>
+      <br>
+      <a href="https://github.com/dappermint"><strong>millia ampora</strong></a>
+      <br>
+      <sub>@dappermint</sub>
+    </td>
+    <td align="center" valign="top">
       <a href="https://github.com/liip">
         <img src="https://avatars.githubusercontent.com/u/166102?v=4" width="72" alt="Liip">
       </a>
