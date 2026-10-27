@@ -56,6 +56,7 @@ final class SpatialCameraViewport: @unchecked Sendable {
     private var initialTouchSpan: CGFloat?
     private var initialScale: CGFloat = 1.0
     private static let minimumGestureScale: CGFloat = 0.01
+    private static let maximumGestureScale: CGFloat = 100
     private var gestureScale: CGFloat = 1.0
 
     init(config: SpatialCameraConfig = .init(), initial: SpatialCameraTransform = .identity) {
@@ -74,8 +75,7 @@ final class SpatialCameraViewport: @unchecked Sendable {
         guard isTracking else { return }
         if let anchor { rebaseAnchor(to: anchor) }
         guard delta.isFinite else { return }
-        gestureScale = max(gestureScale * (1.0 + delta), Self.minimumGestureScale)
-        current.scale = applyRubberBanding(gestureScale)
+        setGestureScale(gestureScale * (1.0 + delta))
     }
 
     func updatePan(delta: CGPoint) {
@@ -93,8 +93,7 @@ final class SpatialCameraViewport: @unchecked Sendable {
             return
         }
         guard distance.isFinite else { return }
-        gestureScale = max(initialScale * distance / baseline, Self.minimumGestureScale)
-        current.scale = applyRubberBanding(gestureScale)
+        setGestureScale(initialScale * distance / baseline)
     }
 
     func endGesture(velocity: CGFloat = 0) -> SpatialCameraSettlement {
@@ -124,6 +123,11 @@ final class SpatialCameraViewport: @unchecked Sendable {
             current.scale = config.overviewScale
             current.translation = .zero
         }
+    }
+
+    private func setGestureScale(_ raw: CGFloat) {
+        gestureScale = min(max(raw, Self.minimumGestureScale), Self.maximumGestureScale)
+        current.scale = applyRubberBanding(gestureScale)
     }
 
     private func rebaseAnchor(to anchor: CGPoint) {

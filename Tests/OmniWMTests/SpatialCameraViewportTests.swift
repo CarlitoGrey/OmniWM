@@ -157,4 +157,19 @@ final class SpatialCameraViewportTests: XCTestCase {
         viewport.updateTouchSpan(distance: -1000, center: .zero)
         XCTAssertGreaterThan(viewport.current.scale, 0)
     }
+
+    func testOverflowingInputKeepsScaleFinite() {
+        let viewport = SpatialCameraViewport()
+        viewport.beginGesture(anchor: CGPoint(x: 100, y: 100))
+        viewport.updateMagnify(delta: .greatestFiniteMagnitude)
+        viewport.updateMagnify(delta: 1)
+        XCTAssertTrue(viewport.current.scale.isFinite)
+        XCTAssertTrue(viewport.current.project(point: CGPoint(x: 10, y: 10)).x.isFinite)
+
+        let span = SpatialCameraViewport()
+        span.beginGesture(anchor: .zero)
+        span.updateTouchSpan(distance: .leastNonzeroMagnitude, center: .zero)
+        span.updateTouchSpan(distance: .greatestFiniteMagnitude, center: .zero)
+        XCTAssertTrue(span.current.scale.isFinite)
+    }
 }
