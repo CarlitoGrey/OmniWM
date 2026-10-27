@@ -370,6 +370,9 @@ struct StatusMenuHelpLinksView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            MenuActionRow(icon: "sparkles", label: String(localized: "Welcome to OmniWM")) {
+                model.openWelcome()
+            }
             MenuActionRow(icon: "link", label: String(localized: "GitHub"), isExternal: true) {
                 open("https://github.com/OmniNull/OmniWM")
             }

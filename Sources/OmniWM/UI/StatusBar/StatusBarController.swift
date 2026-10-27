@@ -13,6 +13,7 @@ final class StatusBarController: NSObject {
     private let settings: SettingsStore
     private let cliManager: AppCLIManager?
     private let updateCoordinator: (any AppUpdateCoordinating)?
+    private let openWelcome: ((SettingsStore, WMController) -> Void)?
     private let statusItemDefaults: UserDefaults
     private let recordingPulseKey = "omniwm.recordingPulse"
     private weak var controller: WMController?
@@ -27,12 +28,14 @@ final class StatusBarController: NSObject {
         hiddenBarController: HiddenBarController,
         cliManager: AppCLIManager? = nil,
         updateCoordinator: (any AppUpdateCoordinating)? = nil,
+        openWelcome: ((SettingsStore, WMController) -> Void)? = nil,
         statusItemDefaults: UserDefaults = .standard
     ) {
         self.hiddenBarController = hiddenBarController
         self.settings = settings
         self.cliManager = cliManager
         self.updateCoordinator = updateCoordinator
+        self.openWelcome = openWelcome
         self.statusItemDefaults = statusItemDefaults
         self.controller = controller
         super.init()
@@ -71,6 +74,7 @@ final class StatusBarController: NSObject {
         model.checkForUpdatesAction = { [weak self] in
             self?.updateCoordinator?.checkForUpdatesManually()
         }
+        model.openWelcomeAction = openWelcome
         let host = StatusMenuHost(model: model, controller: controller)
         host.isExemptWindow = { [weak hiddenBarController] in
             hiddenBarController?.statusItems.ownsStatusItemWindow($0) == true

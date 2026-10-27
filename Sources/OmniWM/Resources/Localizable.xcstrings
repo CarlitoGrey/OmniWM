@@ -173179,6 +173179,60 @@
     },
     "Darkens the rest of the screen while foot's Quake terminal has keyboard focus." : {
 
+    },
+    "Get Started" : {
+
+    },
+    "Done" : {
+
+    },
+    "Bar Menus" : {
+
+    },
+    "Widget Permissions" : {
+
+    },
+    "Learn More" : {
+
+    },
+    "Keyboard Shortcuts…" : {
+
+    },
+    "Quake Terminal Settings…" : {
+
+    },
+    "Press %@ to try it now." : {
+
+    },
+    "The Apple button on the bar opens the Apple menu, and the app name opens that app's menus. Menu Anywhere opens them at the pointer." : {
+
+    },
+    "The Apple button on the bar opens the Apple menu, and the app name opens that app's menus. Menu Anywhere opens them at the pointer; try it in another app." : {
+
+    },
+    "Search windows, apps, files, the clipboard, app menus and OmniWM commands." : {
+
+    },
+    "A terminal that drops down over any app, on any Space. Choose Ghostty, Kitty or foot." : {
+
+    },
+    "Turn it on in Quake Terminal Settings." : {
+
+    },
+    "Widgets ask the first time they contact a server, and programs ask before they run. Weather and Lyrics have their own switches." : {
+
+    },
+    "Welcome to OmniWM" : {
+
+    },
+    "OmniWM arranges your windows. OmniShell draws the bar, its menus and widgets, and you can restyle all of it." : {
+
+    },
+    "Open this window again from the OmniWM menu: Help & Links > Welcome to OmniWM." : {
+
+    },
+    "Choose a Style…" : {
+
     }
   },
   "version" : "1.0"

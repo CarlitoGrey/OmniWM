@@ -73,6 +73,7 @@ struct RuntimeState: Codable, Equatable, Sendable {
     var quakeTerminalCustomFrame: RuntimeQuakeTerminalFrame?
     var issueDraft: IssueDraft?
     var hasSeenIssueWalkthrough: Bool?
+    var welcomePresented: Bool?
     var monitorSetupStatus: MonitorSetupStatus?
     var launchOverlayPlayedVersion: String?
     var appVolumes: [String: AppVolumeSetting]?
@@ -306,6 +307,15 @@ final class RuntimeStateStore {
         set {
             guard hasSeenIssueWalkthrough != newValue else { return }
             state.hasSeenIssueWalkthrough = newValue
+            scheduleSave()
+        }
+    }
+
+    var welcomePresented: Bool {
+        get { state.welcomePresented ?? false }
+        set {
+            guard welcomePresented != newValue else { return }
+            state.welcomePresented = newValue
             scheduleSave()
         }
     }

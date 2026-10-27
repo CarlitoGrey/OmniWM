@@ -61,6 +61,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
     }
 
+    var welcomeWindowController = WelcomeWindowController.shared
     private var statusBarController: StatusBarController?
     private var ipcServer: IPCServerLifecycle?
     private var cliManager: AppCLIManager?
@@ -68,8 +69,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var runtimeStateStore: RuntimeStateStore?
     private var launchOverlayController: LaunchOverlayController?
     private var settingsConfigNoticeController: SettingsConfigNoticeController?
-    private var monitorSetupScreenObserver: NSObjectProtocol?
-    private var monitorSetupEvaluationTask: Task<Void, Never>?
+    private(set) var monitorSetupScreenObserver: NSObjectProtocol?
+    private(set) var monitorSetupEvaluationTask: Task<Void, Never>?
     private var launchOverlayFinished = false
     private var launchPermissionsWindowController: LaunchPermissionsWindowController?
     private var didFinishBootstrap = false
@@ -177,7 +178,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             controller: controller,
             hiddenBarController: hiddenBarController,
             cliManager: cliManager,
-            updateCoordinator: updateCoordinator
+            updateCoordinator: updateCoordinator,
+            openWelcome: { [weak self] in self?.presentWelcome(settings: $0, controller: $1, reason: .reopened) }
         )
         controller.statusBarController = statusBarController
         settingsConfigNoticeController = SettingsConfigNoticeController(
@@ -189,8 +191,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startIPC(settings: settings, controller: controller)
         updateCoordinator.startAutomaticChecks()
 
-        startMonitorSetupPresentationObservation()
-        playLaunchOverlay(runtimeState: runtimeState, animationsEnabled: controller.motionPolicy.animationsEnabled)
+        beginLaunchPresentation(runtimeState: runtimeState, controller: controller)
     }
 
     private func startIPC(settings: SettingsStore, controller: WMController) {
@@ -253,7 +254,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         ipcServer = nil
     }
 
-    private func startMonitorSetupPresentationObservation() {
+    func startMonitorSetupPresentationObservation() {
         guard monitorSetupScreenObserver == nil else { return }
         monitorSetupScreenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -266,8 +267,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func scheduleMonitorSetupEvaluation() {
-        guard launchOverlayFinished else { return }
+    func scheduleMonitorSetupEvaluation() {
+        guard launchOverlayFinished, monitorSetupScreenObserver != nil,
+              !welcomeWindowController.isVisible else { return }
         monitorSetupEvaluationTask?.cancel()
         monitorSetupEvaluationTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
@@ -276,17 +278,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func evaluateMonitorSetupPresentation() {
+    func evaluateMonitorSetupPresentation(monitors: [Monitor] = Monitor.current()) {
         guard let bootstrap = AppDelegate.sharedBootstrap,
               let settings = bootstrap.settings,
               let controller = bootstrap.controller
         else { return }
         let shouldPresent = MonitorSetupPresentationPolicy.shouldAutomaticallyPresent(
             status: settings.monitorSetupStatus,
-            monitors: Monitor.current(),
+            monitors: monitors,
             launchOverlayFinished: launchOverlayFinished
         )
-        guard shouldPresent else {
+        guard shouldPresent, !welcomeWindowController.isVisible else {
             if settings.monitorSetupStatus != .notPresented {
                 stopMonitorSetupPresentationObservation()
             }
@@ -303,7 +305,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func stopMonitorSetupPresentationObservation() {
+    func stopMonitorSetupPresentationObservation() {
         monitorSetupEvaluationTask?.cancel()
         monitorSetupEvaluationTask = nil
         if let monitorSetupScreenObserver {
@@ -384,15 +386,51 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 extension AppDelegate {
-    private func playLaunchOverlay(runtimeState: RuntimeStateStore, animationsEnabled: Bool) {
+    private func beginLaunchPresentation(runtimeState: RuntimeStateStore, controller: WMController) {
+        startMonitorSetupPresentationObservation()
         let overlay = LaunchOverlayController()
         launchOverlayController = overlay
-        overlay.play(runtimeState: runtimeState, animationsEnabled: animationsEnabled) { [weak self] in
+        overlay.play(
+            runtimeState: runtimeState,
+            animationsEnabled: controller.motionPolicy.animationsEnabled
+        ) { [weak self] in
             guard let self else { return }
             launchOverlayController = nil
-            launchOverlayFinished = true
-            settingsConfigNoticeController?.refresh()
+            launchOverlayDidFinish(runtimeState: runtimeState, controller: controller)
+        }
+    }
+
+    func launchOverlayDidFinish(runtimeState: RuntimeStateStore, controller: WMController) {
+        launchOverlayFinished = true
+        settingsConfigNoticeController?.refresh()
+        presentWelcomeIfNeeded(runtimeState: runtimeState, controller: controller)
+    }
+
+    private func presentWelcomeIfNeeded(runtimeState: RuntimeStateStore, controller: WMController) {
+        guard !runtimeState.welcomePresented else {
             scheduleMonitorSetupEvaluation()
+            return
+        }
+        presentWelcome(settings: controller.settings, controller: controller, reason: .firstRun)
+        runtimeState.welcomePresented = true
+    }
+
+    func presentWelcome(settings: SettingsStore, controller: WMController, reason: WelcomeReason) {
+        monitorSetupEvaluationTask?.cancel()
+        monitorSetupEvaluationTask = nil
+        welcomeWindowController.show(settings: settings, controller: controller, reason: reason) { [weak self] in
+            self?.welcomeDidDismiss($0, reason: reason)
+        }
+    }
+
+    private func welcomeDidDismiss(_ dismissal: WelcomeDismissal, reason: WelcomeReason) {
+        switch dismissal {
+        case .closed:
+            if reason == .firstRun {
+                scheduleMonitorSetupEvaluation()
+            }
+        case .openedSettings:
+            stopMonitorSetupPresentationObservation()
         }
     }
 

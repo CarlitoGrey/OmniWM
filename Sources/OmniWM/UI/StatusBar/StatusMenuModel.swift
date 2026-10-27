@@ -13,6 +13,7 @@ final class StatusMenuModel {
     var cliManager: AppCLIManager?
     var updateCoordinator: (any AppUpdateCoordinating)?
     var checkForUpdatesAction: (() -> Void)?
+    var openWelcomeAction: ((SettingsStore, WMController) -> Void)?
     var ipcMenuEnabled = false
     var infoAlertPresenter: (String, String) -> Void
     var confirmationAlertPresenter: (String, String, String, String) -> Bool
@@ -234,6 +235,11 @@ final class StatusMenuModel {
 
     func checkForUpdates() {
         checkForUpdatesAction?()
+    }
+
+    func openWelcome() {
+        guard let controller else { return }
+        openWelcomeAction?(settings, controller)
     }
 
     func openSponsors() {
