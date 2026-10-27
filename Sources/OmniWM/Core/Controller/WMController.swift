@@ -166,7 +166,26 @@ final class WMController {
             context: { [weak self] in self?.kittyQuakeControlContext() }
         )
         terminal.onToggleFailure = { [weak self] problem in
-            self?.presentKittyQuickAccessFailure(problem)
+            self?.presentQuakeTerminalFailure(
+                title: String(localized: "Kitty Quake Terminal Unavailable"),
+                message: problem.message
+            )
+        }
+        return terminal
+    }()
+
+    @ObservationIgnored
+    lazy var footQuickAccessTerminal: FootQuickAccessTerminal = {
+        let terminal = FootQuickAccessTerminal(
+            environment: .live,
+            socketPath: FootQuickAccessTerminal.defaultSocketPath(),
+            context: { [weak self] in self?.footQuakeControlContext() }
+        )
+        terminal.onToggleFailure = { [weak self] problem in
+            self?.presentQuakeTerminalFailure(
+                title: String(localized: "foot Quake Terminal Unavailable"),
+                message: problem.message
+            )
         }
         return terminal
     }()

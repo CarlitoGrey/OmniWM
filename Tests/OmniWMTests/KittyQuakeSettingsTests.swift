@@ -60,7 +60,7 @@ final class KittyQuakeSettingsTests: XCTestCase {
 
         settings.quakeTerminal.kitty.placement = .defaultOverride
         settings.quakeTerminal.kitty.placement?.heightPercent = 40
-        settings.quakeTerminal.kitty.opacity = KittyQuakeSettings.defaultOpacityOverride
+        settings.quakeTerminal.kitty.opacity = QuakeOpacityOverride.defaultOverride
         settings.quakeTerminal.kitty.autoHide = true
 
         var withoutKitty = settings.quakeTerminal.export()
@@ -110,17 +110,17 @@ final class KittyQuakeSettingsTests: XCTestCase {
         settings.quakeTerminal.kitty.opacity = -0.25
         XCTAssertEqual(settings.quakeTerminal.kitty.opacity, 0)
         settings.quakeTerminal.kitty.opacity = .infinity
-        XCTAssertEqual(settings.quakeTerminal.kitty.opacity, KittyQuakeSettings.defaultOpacityOverride)
+        XCTAssertEqual(settings.quakeTerminal.kitty.opacity, QuakeOpacityOverride.defaultOverride)
         settings.quakeTerminal.kitty.placement?.widthPercent = 5
         XCTAssertEqual(settings.quakeTerminal.kitty.placement?.widthPercent, 10)
     }
 
     func testPlacementOverrideDefaultsToKittysTopEdgeNotGhosttysCenter() {
         XCTAssertEqual(
-            KittyQuakeSettings.Placement.defaultOverride,
+            QuakePlacementOverride.defaultOverride,
             .init(position: .top, widthPercent: 100, heightPercent: 50)
         )
-        XCTAssertEqual(KittyQuakeSettings.defaultOpacityOverride, 0.85)
+        XCTAssertEqual(QuakeOpacityOverride.defaultOverride, 0.85)
     }
 
     private func quakeTable(_ data: Data) throws -> [String: TOMLNode] {

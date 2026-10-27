@@ -86,6 +86,17 @@ final class QuakeTerminalSettings {
         }
     }
 
+    var foot = QuakeTerminalSettings.defaults.foot ?? FootQuakeSettings() {
+        didSet {
+            let normalized = foot.normalized()
+            if normalized != foot {
+                foot = normalized
+                return
+            }
+            onChange?()
+        }
+    }
+
     func export() -> SettingsExport.QuakeTerminal {
         SettingsExport.QuakeTerminal(
             enabled: enabled,
@@ -99,7 +110,8 @@ final class QuakeTerminalSettings {
             backgroundBlurRadius: backgroundBlurRadius,
             monitorMode: monitorMode,
             provider: provider,
-            kitty: kitty.isNative ? nil : kitty
+            kitty: kitty.isNative ? nil : kitty,
+            foot: foot.isDefault ? nil : foot
         )
     }
 
@@ -120,5 +132,6 @@ final class QuakeTerminalSettings {
         monitorMode = values.monitorMode ?? baseline.monitorMode ?? .focusedWindow
         provider = values.provider ?? baseline.provider ?? .ghostty
         kitty = values.kitty ?? baseline.kitty ?? KittyQuakeSettings()
+        foot = values.foot ?? baseline.foot ?? FootQuakeSettings()
     }
 }

@@ -1276,6 +1276,43 @@ final class WindowRuleEngineTests: XCTestCase {
         }
     }
 
+    func testFootQuakePanelStaysUnmanagedUnderABroadBundleTileRule() {
+        let token = WindowToken(pid: 84_101, windowId: 84_102)
+        let panelFacts = WindowRuleFacts(
+            appName: "foot",
+            ax: AXWindowFacts(
+                role: kAXWindowRole as String,
+                subrole: kAXFloatingWindowSubrole as String,
+                title: "foot",
+                hasCloseButton: false,
+                hasFullscreenButton: false,
+                fullscreenButtonEnabled: false,
+                hasZoomButton: false,
+                hasMinimizeButton: false,
+                appPolicy: .accessory,
+                bundleId: "io.github.gobijan.foot",
+                attributeFetchSucceeded: true,
+                isMain: true,
+                isModal: false
+            ),
+            sizeConstraints: nil,
+            windowServer: transientWindowServerInfo(
+                token: token,
+                level: CGWindowLevelForKey(.floatingWindow),
+                parentId: 0
+            )
+        )
+        let engine = WindowRuleEngine()
+        engine.rebuild(rules: [AppRule(bundleId: "io.github.gobijan.foot", layout: .tile)])
+
+        let decision = evaluate(engine, panelFacts, token: token)
+
+        XCTAssertEqual(decision.disposition, .unmanaged)
+        XCTAssertEqual(decision.admissionOutcome, .ignored)
+        XCTAssertEqual(decision.source, .builtInRule(WindowRuleEngine.externalSurfaceRuleName))
+        XCTAssertNil(decision.trackedMode)
+    }
+
     func testHelpTagIsHardUnmanagedWithoutWindowServerOrCompleteAXFacts() {
         let engine = WindowRuleEngine()
         let token = WindowToken(pid: 86_312, windowId: 7_918)

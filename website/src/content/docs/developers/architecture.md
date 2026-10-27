@@ -109,7 +109,7 @@ Sources/
 │   │   ├── LockScreen/              Lock screen detection
 │   │   └── Support/                 Utility types & extensions
 │   ├── IPC/                         IPC server, connections, routing, broker
-│   ├── QuakeTerminal/               Drop-down terminal, Ghostty and Kitty integration
+│   ├── QuakeTerminal/               Drop-down terminal, Ghostty, Kitty and foot integration
 │   └── UI/                          SwiftUI/AppKit settings, bars, palette, status, stats
 ├── OmniWMApp/                       @main entry + settings redirect
 ├── OmniWMCtl/                       CLI parser, IPC client, renderer, completion
@@ -939,7 +939,7 @@ The per-frame **display link** is owned by `LayoutRefreshController` (not by `An
 | Feature | Key Files | Description |
 |---------|-----------|-------------|
 | **Overview** | `Core/Overview/OverviewController.swift`, `OverviewLayerRenderer.swift`, `OverviewThumbnailCapture.swift` | Expose-style workspace overview with retained Core Animation layers and per-window ScreenCaptureKit streams. Search, structural hotkeys, interactive gestures, and drag placement. |
-| **Quake Terminal** | `QuakeTerminal/QuakeTerminalController.swift`, `QuakeTerminal/KittyQuickAccessTerminal.swift` | Selects embedded Ghostty or Kitty's quick-access terminal. Ghostty tabs are trees of split panes (`QuakeTerminalTab` → `QuakeSplitContainer`/`SplitNode`), each a `GhosttySurfaceView` (CAMetalLayer-backed); edge placements slide and fade, while Center and custom frames fade in place. Ghostty registers as a `.quake` surface. Kitty uses a dedicated quick-access instance. `KittyQuickAccessTerminal` manages panel overrides through the Kitty remote-control helper using `KittyQuakeControlRequest`. |
+| **Quake Terminal** | `QuakeTerminal/QuakeTerminalController.swift`, `QuakeTerminal/KittyQuickAccessTerminal.swift`, `QuakeTerminal/FootQuickAccessTerminal.swift` | Selects embedded Ghostty, Kitty's quick-access terminal or foot's Quake terminal. Ghostty tabs are trees of split panes (`QuakeTerminalTab` → `QuakeSplitContainer`/`SplitNode`), each a `GhosttySurfaceView` (CAMetalLayer-backed); edge placements slide and fade, while Center and custom frames fade in place. Ghostty registers as a `.quake` surface. Kitty uses a dedicated quick-access instance. `KittyQuickAccessTerminal` manages panel overrides through the Kitty remote-control helper using `KittyQuakeControlRequest`. `FootQuickAccessTerminal` starts a dedicated `foot --server` on a private socket, waits for its PID line, and sends `footclient --quake` toggle, hide and status with per-call overrides. |
 | **Command Palette** | `UI/CommandPalette/CommandPaletteController.swift` | Substring search with tiered ranking over windows, application menus, and clipboard history. |
 | **Menu Anywhere** | `UI/MenuAnywhere/MenuAnywhereController.swift` | Pops the frontmost app's menu bar as a native `NSMenu` at the cursor, via `MenuExtractor` (ObjC runtime AX-tree walk). |
 | **Workspace Bar** | `UI/WorkspaceBar/WorkspaceBarManager.swift` | Per-monitor workspace bars — now **driven by `SurfaceReconciler`** via `apply([DesiredBarSurface])`, not self-polling. |

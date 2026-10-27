@@ -155,6 +155,7 @@ struct SettingsExport: Equatable {
         var monitorMode: QuakeTerminalMonitorMode?
         var provider: QuakeTerminalProvider?
         var kitty: KittyQuakeSettings?
+        var foot: FootQuakeSettings?
     }
 
     struct Borders: Codable, Equatable {
@@ -426,7 +427,8 @@ extension SettingsExport.QuakeTerminal {
             backgroundBlurRadius: QuakeTerminalAppearancePolicy.disabledBackgroundBlurRadius,
             monitorMode: .focusedWindow,
             provider: .ghostty,
-            kitty: nil
+            kitty: nil,
+            foot: nil
         )
     }
 }

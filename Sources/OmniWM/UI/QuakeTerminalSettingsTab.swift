@@ -45,11 +45,35 @@ struct QuakeTerminalSettingsTab: View {
                         SettingsCaption(problem.message)
                     }
                 }
+                if settings.quakeTerminal.provider == .foot {
+                    SettingsCaption(
+                        localized: "foot's own configuration controls fonts, colors and anything not overridden below. OmniWM runs a dedicated foot server for this panel. Tabs and splits are not available with foot."
+                    )
+                    SettingsCaption(
+                        localized: "When the regular foot app is running, its own Option + ` (backtick) hotkey can clash with this shortcut. Change one of them, or set macos-quake-hotkey=none in foot.ini and restart foot."
+                    )
+                    if let problem = controller.footQuickAccessTerminal.problem {
+                        SettingsCaption(problem.message)
+                        if problem.needsSupportedApp,
+                           let project = URL(string: "https://github.com/gobijan/foot-macos")
+                        {
+                            Link("Get foot for macOS", destination: project)
+                                .font(.footnote)
+                        }
+                    }
+                }
             }
             .id("Quake Terminal")
 
             if settings.quakeTerminal.enabled, settings.quakeTerminal.provider == .kitty {
                 KittyQuakeSettingsSections(quake: settings.quakeTerminal, controller: controller)
+            }
+
+            if settings.quakeTerminal.enabled, settings.quakeTerminal.provider == .foot {
+                FootQuakeSettingsSections(
+                    quake: settings.quakeTerminal,
+                    animationsEnabled: controller.motionPolicy.animationsEnabled
+                )
             }
 
             if settings.quakeTerminal.enabled, settings.quakeTerminal.provider == .ghostty {
@@ -151,21 +175,10 @@ struct QuakeTerminalSettingsTab: View {
                 .id("Appearance")
 
                 Section("Behavior") {
-                    SettingsSliderRow(
-                        label: String(localized: "Animation Duration"),
-                        value: Bindable(settings.quakeTerminal).animationDuration,
-                        range: 0 ... 1,
-                        step: 0.1,
-                        valueText: String(
-                            localized: "\(settings.quakeTerminal.animationDuration.formatted(.number.precision(.fractionLength(1))))s"
-                        )
+                    QuakeAnimationDurationRow(
+                        quake: settings.quakeTerminal,
+                        animationsEnabled: controller.motionPolicy.animationsEnabled
                     )
-                    .id("Animation Duration")
-                    .disabled(!controller.motionPolicy.animationsEnabled)
-
-                    if !controller.motionPolicy.animationsEnabled {
-                        SettingsCaption(localized: "Ignored while global animations are disabled.")
-                    }
 
                     Toggle("Auto-hide on Focus Loss", isOn: Bindable(settings.quakeTerminal).autoHide)
                         .id("Auto-hide on Focus Loss")
@@ -197,5 +210,28 @@ struct QuakeTerminalSettingsTab: View {
             .id("About")
         }
         .formStyle(.grouped)
+    }
+}
+
+struct QuakeAnimationDurationRow: View {
+    let quake: QuakeTerminalSettings
+    let animationsEnabled: Bool
+
+    var body: some View {
+        SettingsSliderRow(
+            label: String(localized: "Animation Duration"),
+            value: Bindable(quake).animationDuration,
+            range: 0 ... 1,
+            step: 0.1,
+            valueText: String(
+                localized: "\(quake.animationDuration.formatted(.number.precision(.fractionLength(1))))s"
+            )
+        )
+        .id("Animation Duration")
+        .disabled(!animationsEnabled)
+
+        if !animationsEnabled {
+            SettingsCaption(localized: "Ignored while global animations are disabled.")
+        }
     }
 }

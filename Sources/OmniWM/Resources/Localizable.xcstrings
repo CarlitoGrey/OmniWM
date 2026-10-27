@@ -173107,6 +173107,78 @@
     },
     "Network & Permissions…" : {
 
+    },
+    "foot Quake Terminal Unavailable" : {
+
+    },
+    "foot for macOS is not installed or is incomplete. Install foot 1.28.0-macos.8 or newer, or choose another terminal." : {
+
+    },
+    "The socket path for foot's server is longer than 103 bytes. Set OMNIWM_SOCKET to a shorter path and restart OmniWM." : {
+
+    },
+    "OmniWM could not prepare a private socket for foot's server." : {
+
+    },
+    "OmniWM could not start foot's server." : {
+
+    },
+    "foot's server is starting. Press the Quake Terminal shortcut again in a moment." : {
+
+    },
+    "foot's server stopped. Press the Quake Terminal shortcut again to start it." : {
+
+    },
+    "foot did not accept the Quake Terminal command. Update foot for macOS to 1.28.0-macos.8 or newer." : {
+
+    },
+    "foot's server did not reply. OmniWM left it running." : {
+
+    },
+    "OmniWM could not find a display area for foot's Quake terminal." : {
+
+    },
+    "foot's server exited with status %lld." : {
+
+    },
+    "foot's own configuration controls fonts, colors and anything not overridden below. OmniWM runs a dedicated foot server for this panel. Tabs and splits are not available with foot." : {
+
+    },
+    "When the regular foot app is running, its own Option + ` (backtick) hotkey can clash with this shortcut. Change one of them, or set macos-quake-hotkey=none in foot.ini and restart foot." : {
+
+    },
+    "Get foot for macOS" : {
+
+    },
+    "foot Placement" : {
+
+    },
+    "Override foot Placement" : {
+
+    },
+    "Changes apply the next time foot is shown." : {
+
+    },
+    "Turning an override off returns that setting to foot.ini as loaded when OmniWM started foot's server." : {
+
+    },
+    "foot Behavior" : {
+
+    },
+    "foot Config" : {
+
+    },
+    "foot Appearance" : {
+
+    },
+    "Override foot Opacity" : {
+
+    },
+    "Dim Screen" : {
+
+    },
+    "Darkens the rest of the screen while foot's Quake terminal has keyboard focus." : {
+
     }
   },
   "version" : "1.0"

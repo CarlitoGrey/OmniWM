@@ -58,3 +58,13 @@ struct KittyQuakeControlRequest: Encodable {
 struct KittyQuakeControlReply: Decodable {
     let opacityNeedsRestart: Bool
 }
+
+extension KittyQuakeControlContext {
+    init(settings: KittyQuakeSettings, display: ExternalQuakeDisplay) {
+        self.init(
+            settings: settings,
+            screen: Screen(frame: display.frame, visibleFrame: display.visibleFrame, scale: display.scale),
+            barBottom: display.topBarBottom.map(Double.init)
+        )
+    }
+}

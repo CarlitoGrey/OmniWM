@@ -14,7 +14,7 @@ private final class FakeKittyProcesses {
     var contextAvailable = true
     var settings = KittyQuakeSettings()
     var commandStatus: Int32? = 0
-    var controlOutput: KittyQuickAccessTerminal.CommandOutput? = FakeKittyProcesses.reply()
+    var controlOutput: ExternalTerminalProcess.Output? = FakeKittyProcesses.reply()
     var startSucceeds = true
     var existingInstance: Bool? = false
     var suspendNextControl = false
@@ -23,7 +23,7 @@ private final class FakeKittyProcesses {
     private(set) var starts: [[String]] = []
     private(set) var queriedGroups: [String] = []
     private(set) var exitHandlers: [@MainActor @Sendable (Int32) -> Void] = []
-    private var suspendedControl: CheckedContinuation<KittyQuickAccessTerminal.CommandOutput?, Never>?
+    private var suspendedControl: CheckedContinuation<ExternalTerminalProcess.Output?, Never>?
     private var waiters: [CheckedContinuation<Void, Never>] = []
 
     var context: KittyQuakeControlContext? {
@@ -66,7 +66,7 @@ private final class FakeKittyProcesses {
         commands.count + controls.count + starts.count
     }
 
-    static func reply(opacityNeedsRestart: Bool = false) -> KittyQuickAccessTerminal.CommandOutput {
+    static func reply(opacityNeedsRestart: Bool = false) -> ExternalTerminalProcess.Output {
         .init(status: 0, data: Data("{\"opacityNeedsRestart\":\(opacityNeedsRestart)}".utf8))
     }
 
@@ -76,12 +76,12 @@ private final class FakeKittyProcesses {
         }
     }
 
-    func resumeControl(_ output: KittyQuickAccessTerminal.CommandOutput?) {
+    func resumeControl(_ output: ExternalTerminalProcess.Output?) {
         suspendedControl?.resume(returning: output)
         suspendedControl = nil
     }
 
-    private func runControl(_ arguments: [String]) async -> KittyQuickAccessTerminal.CommandOutput? {
+    private func runControl(_ arguments: [String]) async -> ExternalTerminalProcess.Output? {
         controls.append(arguments)
         notifyWaiters()
         guard suspendNextControl else { return controlOutput }
@@ -193,7 +193,7 @@ final class KittyQuickAccessTerminalTests: XCTestCase {
     }
 
     func testMalformedAndFailedControlRepliesKeepAResponsiveSession() async {
-        let outputs: [KittyQuickAccessTerminal.CommandOutput?] = [
+        let outputs: [ExternalTerminalProcess.Output?] = [
             .init(status: 0, data: Data("not-json".utf8)),
             .init(status: 0, data: Data("{}".utf8)),
             .init(status: 1, data: FakeKittyProcesses.reply().data), nil

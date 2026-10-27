@@ -1068,6 +1068,8 @@ Quake Terminal loads Ghostty's normal configuration files and their included fil
 
 Select **Kitty** under **Settings → Quake Terminal → Terminal** to use Kitty's quick-access terminal. Install Kitty separately. It uses `quick-access-terminal.conf`, with optional placement, auto-hide, and opacity overrides in OmniWM. The Ghostty settings and shortcuts above apply to the embedded provider. See the [Kitty provider guide](https://omniwm.app/features/quake-terminal/#kitty-provider).
 
+Select **foot** to use the Quake terminal of [foot for macOS](https://github.com/gobijan/foot-macos) 1.28.0-macos.8 or newer, installed separately. OmniWM runs a dedicated foot server that it keeps for reuse. It uses `foot.ini`, with optional placement, auto-hide, opacity and dim overrides that apply the next time the panel is shown; dimming is off by default. foot has no tabs or splits, and the regular foot app's own `` Option + ` `` hotkey can clash with OmniWM's shortcut. See the [foot provider guide](https://omniwm.app/features/quake-terminal/#foot-provider).
+
 #### Command Palette
 
 Quickly search windows, app menus, clipboard history, OmniWM commands, applications, or files from one shared palette:

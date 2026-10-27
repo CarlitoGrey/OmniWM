@@ -380,7 +380,7 @@ Clipboard history limits. History content itself is stored in the state director
 
 ## quakeTerminal
 
-The drop-down (Quake) terminal. `enabled` and `provider` apply to either provider; the position, size, animation, auto-hide and appearance keys below configure Ghostty. Kitty uses its own configuration and the optional [Kitty overrides](#quaketerminalkitty).
+The drop-down (Quake) terminal. `enabled` and `provider` apply to every provider; the position, size, animation, auto-hide and appearance keys below configure Ghostty. Kitty and foot use their own configuration and the optional [Kitty](#quaketerminalkitty) or [foot](#quaketerminalfoot) overrides.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -388,13 +388,13 @@ The drop-down (Quake) terminal. `enabled` and `provider` apply to either provide
 | `position` | string | `"center"` | Terminal position: `top`, `bottom`, `left`, `right`, `center`. Edge positions slide in; `center` fades in place. |
 | `widthPercent` | float | `50.0` | Width as a percentage of the monitor's available screen area. |
 | `heightPercent` | float | `50.0` | Height as a percentage of the monitor's available screen area. |
-| `animationDuration` | float | `0.2` | Show/hide animation duration in seconds. |
+| `animationDuration` | float | `0.2` | Show/hide animation duration in seconds, for Ghostty and foot. |
 | `autoHide` | boolean | `false` | Hides the terminal when it loses focus. |
 | `opacity` *(optional)* | float | `1.0` | Terminal background opacity (`0.0`–`1.0`). |
 | `backgroundEffect` | string | `"standardBlur"` | Background material: `standardBlur`, `glassRegular`, `glassClear`. |
 | `backgroundBlurRadius` *(optional)* | integer | `0` | Background blur radius; `0` disables the extra blur. |
 | `monitorMode` *(optional)* | string | `"focusedWindow"` | Which monitor it appears on: `mouseCursor`, `focusedWindow`, `mainMonitor`. |
-| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded) or `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`). |
+| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded), `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`) or `foot` (foot for macOS 1.28.0-macos.8 or newer, configured in `foot.ini`). |
 
 ### quakeTerminal.kitty
 
@@ -416,6 +416,26 @@ Optional. When present, OmniWM positions and sizes the Kitty panel below the Omn
 | `position` | string | `"top"` | Panel position: `top`, `bottom`, `left`, `right`, `center`. |
 | `widthPercent` | float | `100.0` | Width as a percentage of the monitor's available screen area (`10`–`100`). |
 | `heightPercent` | float | `50.0` | Height as a percentage of the monitor's available screen area (`10`–`100`). |
+
+### quakeTerminal.foot
+
+Optional overrides for OmniWM's foot Quake panel, sent each time OmniWM shows or hides it; changes apply the next time it is shown. Omitted optional keys use `foot.ini` as loaded when OmniWM started its dedicated foot server. OmniWM always sends `dim`, the `animationDuration` above (`0` while global animations are disabled), and the panel's area: the visible screen area of the monitor under the pointer, below the OmniShell top bar. Ghostty's and Kitty's values above are not used for foot.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `autoHide` *(optional)* | boolean | foot config | Hides the foot panel when it loses focus. |
+| `opacity` *(optional)* | float | foot config | foot background opacity (`0.0`–`1.0`). Turning on **Override foot Opacity** in Settings initializes the override to `0.85`. |
+| `dim` *(optional)* | float | `0.0` | How much the rest of the screen darkens while the panel has focus (`0.0`–`1.0`). Always sent, so foot's own `0.6` default does not apply. |
+
+### quakeTerminal.foot.placement
+
+Optional. When present, OmniWM sends the position and an explicit width and height; all three keys are required. The defaults below are the initial values when **Override foot Placement** is enabled in Settings.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `position` | string | `"top"` | Panel position: `top`, `bottom`, `left`, `right`, `center`. |
+| `widthPercent` | float | `100.0` | Width as a percentage of the panel's area (`10`–`100`). |
+| `heightPercent` | float | `50.0` | Height as a percentage of the panel's area (`10`–`100`). |
 
 ## scratchpads
 

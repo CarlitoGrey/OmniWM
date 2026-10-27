@@ -3,7 +3,6 @@
 
 import AppKit
 import Foundation
-import OmniWMIPC
 
 @MainActor @Observable
 final class KittyQuickAccessTerminal {
@@ -54,15 +53,10 @@ final class KittyQuickAccessTerminal {
         }
     }
 
-    struct CommandOutput: Sendable {
-        let status: Int32
-        let data: Data
-    }
-
     struct Environment {
         var kittenURL: @MainActor () -> URL?
         var runCommand: @MainActor (URL, [String]) async -> Int32?
-        var runControl: @MainActor (URL, [String]) async -> CommandOutput?
+        var runControl: @MainActor (URL, [String]) async -> ExternalTerminalProcess.Output?
         var helperURL: @MainActor () -> URL?
         var startInstance: @MainActor (URL, [String], @escaping @MainActor @Sendable (Int32) -> Void) -> AnyObject?
         var isInstanceRunning: @MainActor (String) -> Bool?
@@ -70,15 +64,13 @@ final class KittyQuickAccessTerminal {
 
     static let bundleIdentifier = "net.kovidgoyal.kitty"
     static let instanceGroup = "omniwm-quake"
-    static let maximumSocketPathLength = 103
 
     private(set) var problem: Problem?
     @ObservationIgnored var onToggleFailure: (@MainActor (Problem) -> Void)?
     private let environment: Environment
     let socketPath: String
     @ObservationIgnored private var instance: AnyObject?
-    @ObservationIgnored private var commandTail: Task<Void, Never>?
-    @ObservationIgnored private var presentationGeneration: UInt64 = 0
+    @ObservationIgnored private let commands = QuakeCommandQueue()
     @ObservationIgnored private var settingsRevision: UInt64 = 0
     @ObservationIgnored private let context: @MainActor () -> KittyQuakeControlContext?
 
@@ -93,11 +85,7 @@ final class KittyQuickAccessTerminal {
     }
 
     static func defaultSocketPath() -> String {
-        URL(fileURLWithPath: IPCSocketPath.resolvedPath())
-            .deletingLastPathComponent()
-            .appendingPathComponent("kitty-quake", isDirectory: true)
-            .appendingPathComponent("control.sock", isDirectory: false)
-            .path
+        ExternalTerminalProcess.socketPath(directory: "kitty-quake")
     }
 
     var instanceArguments: [String] {
@@ -121,54 +109,38 @@ final class KittyQuickAccessTerminal {
 
     @discardableResult
     func activate() -> Task<Void, Never> {
-        enqueue { await $0.ensureInstance() }
+        commands.enqueue { [weak self] in await self?.ensureInstance() }
     }
 
     @discardableResult
     func toggle() -> Task<Void, Never> {
-        enqueue { await $0.toggleInstance() }
+        commands.enqueue { [weak self] in await self?.toggleInstance() }
     }
 
     @discardableResult
     func applySettings() -> Task<Void, Never> {
         settingsRevision &+= 1
         let revision = settingsRevision
-        return enqueue {
-            guard $0.settingsRevision == revision else { return }
-            await $0.applyInstanceSettings(revision: revision)
+        return commands.enqueue { [weak self] in
+            guard let self, self.settingsRevision == revision else { return }
+            await self.applyInstanceSettings(revision: revision)
         }
     }
 
     @discardableResult
     func hide() -> Task<Void, Never> {
-        presentationGeneration &+= 1
-        return enqueue(presentation: false) { await $0.hideInstance() }
-    }
-
-    private func enqueue(
-        presentation: Bool = true,
-        _ operation: @escaping @MainActor @Sendable (KittyQuickAccessTerminal) async -> Void
-    ) -> Task<Void, Never> {
-        let previous = commandTail
-        let generation = presentationGeneration
-        let task = Task { @MainActor [weak self] in
-            await previous?.value
-            guard let self else { return }
-            guard !presentation || self.presentationGeneration == generation else { return }
-            await operation(self)
-        }
-        commandTail = task
-        return task
+        commands.invalidatePresentations()
+        return commands.enqueue(presentation: false) { [weak self] in await self?.hideInstance() }
     }
 
     private func ensureInstance() async {
-        let generation = presentationGeneration
+        let generation = commands.presentationGeneration
         guard let kitten = environment.kittenURL() else {
             problem = .notInstalled
             return
         }
         let reached = await runRemote(kitten, probeArguments)
-        guard presentationGeneration == generation else { return }
+        guard commands.presentationGeneration == generation else { return }
         if reached {
             problem = nil
             return
@@ -178,14 +150,14 @@ final class KittyQuickAccessTerminal {
     }
 
     private func toggleInstance() async {
-        let generation = presentationGeneration
+        let generation = commands.presentationGeneration
         guard let kitten = environment.kittenURL() else {
             report(.notInstalled)
             return
         }
         if FileManager.default.fileExists(atPath: socketPath) {
             let result = await runControl(.toggle, kitten: kitten)
-            guard presentationGeneration == generation else { return }
+            guard commands.presentationGeneration == generation else { return }
             switch result {
             case let .success(reply):
                 problem = reply.opacityNeedsRestart ? .opacityNeedsRestart : nil
@@ -197,7 +169,7 @@ final class KittyQuickAccessTerminal {
                 break
             }
             let reached = await runRemote(kitten, probeArguments)
-            guard presentationGeneration == generation else { return }
+            guard commands.presentationGeneration == generation else { return }
             if reached {
                 report(.commandRejected)
                 return
@@ -211,10 +183,10 @@ final class KittyQuickAccessTerminal {
     }
 
     private func applyInstanceSettings(revision: UInt64) async {
-        let generation = presentationGeneration
+        let generation = commands.presentationGeneration
         guard FileManager.default.fileExists(atPath: socketPath), let kitten = environment.kittenURL() else { return }
         let result = await runControl(.apply, kitten: kitten)
-        guard presentationGeneration == generation, settingsRevision == revision else { return }
+        guard commands.presentationGeneration == generation, settingsRevision == revision else { return }
         switch result {
         case let .success(reply):
             problem = reply.opacityNeedsRestart ? .opacityNeedsRestart : nil
@@ -277,7 +249,7 @@ final class KittyQuickAccessTerminal {
     }
 
     private func prepareSocketPath() -> Bool {
-        guard socketPath.utf8.count <= Self.maximumSocketPathLength else { return false }
+        guard socketPath.utf8.count <= ExternalTerminalProcess.maximumSocketPathLength else { return false }
         let fileManager = FileManager.default
         do {
             try fileManager.createDirectory(
