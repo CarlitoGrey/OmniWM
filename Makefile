@@ -69,6 +69,7 @@ use-release:
 
 test-dev-tools:
 	python3 -m unittest discover -s Tests/DevToolingTests
+	python3 -m unittest discover -s Tests/KittyControlTests
 
 energy-profile:
 	./Scripts/energy-profile.sh
