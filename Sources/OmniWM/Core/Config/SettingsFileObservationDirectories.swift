@@ -6,8 +6,16 @@ import Foundation
 
 enum SettingsFileObservationDirectories {
     static func paths(for fileURL: URL) -> Set<URL> {
+        paths(for: fileURL, linksOnly: false)
+    }
+
+    static func linkParents(for fileURL: URL) -> Set<URL> {
+        paths(for: fileURL, linksOnly: true)
+    }
+
+    private static func paths(for fileURL: URL, linksOnly: Bool) -> Set<URL> {
         var directory = URL(fileURLWithPath: "/", isDirectory: true)
-        var directories: Set<URL> = [directory]
+        var directories: Set<URL> = linksOnly ? [] : [directory]
         var components = fileURL.pathComponents.reversed().map { $0 }
         var followedLinks = 0
 
@@ -24,12 +32,16 @@ enum SettingsFileObservationDirectories {
             }
 
             let entry = directory.appendingPathComponent(component)
-            guard let attributes = try? FileManager.default.attributesOfItem(atPath: entry.path) else { break }
+            guard let attributes = try? FileManager.default.attributesOfItem(atPath: entry.path) else {
+                if linksOnly { directories.insert(directory) }
+                break
+            }
             switch attributes[.type] as? FileAttributeType {
             case .typeSymbolicLink:
                 guard followedLinks < MAXSYMLINKS,
                       let target = try? FileManager.default.destinationOfSymbolicLink(atPath: entry.path)
                 else { return directories }
+                if linksOnly { directories.insert(directory) }
                 followedLinks += 1
                 if target.hasPrefix("/") {
                     directory = URL(fileURLWithPath: "/", isDirectory: true)
@@ -37,7 +49,7 @@ enum SettingsFileObservationDirectories {
                 components.append(contentsOf: (target as NSString).pathComponents.reversed())
             case .typeDirectory:
                 directory = entry
-                directories.insert(directory)
+                if !linksOnly { directories.insert(directory) }
             default:
                 return directories
             }

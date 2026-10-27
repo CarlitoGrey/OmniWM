@@ -81,8 +81,11 @@ final class ShellConfigurationCoordinator {
 
     func startObserving() {
         guard observation == nil else { return }
-        observation = ShellDirectoryObservation { [weak self] in self?.requestRefresh() }
-        observation?.sync(paths: inputs?.paths ?? [shellDirectory, shellDirectory.deletingLastPathComponent()])
+        observation = ShellDirectoryObservation(watchLinks: true) { [weak self] in self?.requestRefresh() }
+        observation?.sync(
+            paths: inputs?.paths ?? [shellDirectory, shellDirectory.deletingLastPathComponent()],
+            recursivePaths: inputs?.recursivePaths ?? [shellDirectory]
+        )
         requestRefresh()
     }
 
@@ -417,7 +420,7 @@ extension ShellConfigurationCoordinator {
         inputs = nextInputs
         previewConfigurations[snapshot.profile] = snapshot
         if scanInputs || filesChanged || nextInputs?.paths != previousInputs?.paths {
-            observation?.sync(paths: nextInputs?.paths ?? [])
+            observation?.sync(paths: nextInputs?.paths ?? [], recursivePaths: nextInputs?.recursivePaths ?? [])
         }
         if didSave || configChanged || problemsChanged {
             onSave?(snapshot)
@@ -462,7 +465,7 @@ extension ShellConfigurationCoordinator {
                 do { try await refresh() }
                 catch {
                     let paths = ShellConfigurationInputs.recoveryPaths(shellDirectory, config: config, previous: inputs)
-                    observation?.sync(paths: paths)
+                    observation?.sync(paths: paths.paths, recursivePaths: paths.recursivePaths)
                     metadataError = error.localizedDescription
                 }
             }

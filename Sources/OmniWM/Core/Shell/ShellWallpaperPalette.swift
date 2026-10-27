@@ -168,6 +168,8 @@ final class ShellWallpaperPaletteWriter {
     }
 
     private func watchStore() {
-        observation?.sync(paths: [Self.store, Self.store.appendingPathComponent("Index.plist")])
+        observation?.sync(
+            paths: [Self.store, Self.store.appendingPathComponent("Index.plist")], recursivePaths: [Self.store]
+        )
     }
 }

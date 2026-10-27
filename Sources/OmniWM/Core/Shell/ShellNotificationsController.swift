@@ -255,7 +255,7 @@ final class ShellNotificationsController {
             directory,
             url,
             URL(fileURLWithPath: url.path + "-wal")
-        ])
+        ], recursivePaths: [directory])
         guard task == nil else {
             pending = true
             if let filesystemEvent { pendingFilesystemEvent = filesystemEvent }

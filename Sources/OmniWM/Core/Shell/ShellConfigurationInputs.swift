@@ -12,6 +12,7 @@ struct ShellConfigurationInputs: Sendable {
     private let directory: URL
     let files: [String: SettingsFileAccess.Fingerprint]
     let paths: [URL]
+    let recursivePaths: [URL]
     let widgets: [String]
 
     let metadata: [String: SettingsFileAccess.Fingerprint]
@@ -21,6 +22,7 @@ struct ShellConfigurationInputs: Sendable {
     }
 
     init(directory: URL, config: ShellConfig) throws {
+        var recursivePaths = Set([directory] + config.directories)
         var paths = SettingsFileObservationDirectories.paths(for: directory)
         paths.insert(directory)
         let directory = try SettingsFileAccess.canonicalURL(for: directory)
@@ -37,11 +39,17 @@ struct ShellConfigurationInputs: Sendable {
         for root in roots {
             paths.insert(root)
             let entries = FileManager.default.enumerator(
-                at: root, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+                at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+                options: [.skipsHiddenFiles]
             )
             while let file = entries?.nextObject() as? URL {
-                guard let values = try? file.resourceValues(forKeys: [.isDirectoryKey]) else { continue }
+                guard let values = try? file.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                else { continue }
                 paths.insert(file)
+                if values.isSymbolicLink == true {
+                    recursivePaths.insert(file)
+                    paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
+                }
                 if values.isDirectory == true {
                     if file.deletingLastPathComponent().lastPathComponent == "widgets" {
                         widgets.insert(file.lastPathComponent)
@@ -59,6 +67,7 @@ struct ShellConfigurationInputs: Sendable {
                 || name == "component.luau"
         }
         self.paths = paths.sorted { $0.path < $1.path }
+        self.recursivePaths = recursivePaths.sorted { $0.path < $1.path }
         self.widgets = widgets.sorted()
     }
 
@@ -74,30 +83,37 @@ struct ShellConfigurationInputs: Sendable {
         let paths = files[rootFile.path] == nil || paths.contains(rootFile) ? paths : (paths + [rootFile]).sorted {
             $0.path < $1.path
         }
-        return Self(directory: directory, files: files, metadata: metadata, paths: paths, widgets: widgets)
+        return Self(
+            directory: directory, files: files, metadata: metadata,
+            paths: paths, recursivePaths: recursivePaths, widgets: widgets
+        )
     }
 
     private init(
         directory: URL, files: [String: SettingsFileAccess.Fingerprint],
         metadata: [String: SettingsFileAccess.Fingerprint],
-        paths: [URL], widgets: [String]
+        paths: [URL], recursivePaths: [URL], widgets: [String]
     ) {
         self.directory = directory
         self.files = files
         self.metadata = metadata
         self.paths = paths
+        self.recursivePaths = recursivePaths
         self.widgets = widgets
     }
 
-    static func recoveryPaths(_ directory: URL, config: ShellConfig, previous: Self?) -> [URL] {
+    static func recoveryPaths(
+        _ directory: URL, config: ShellConfig, previous: Self?
+    ) -> (paths: [URL], recursivePaths: [URL]) {
         let profiles = ShellProfiles.names(in: directory).map { directory.appendingPathComponent($0) }
+        let recursivePaths = Set((previous?.recursivePaths ?? []) + [directory] + config.directories + profiles)
         var paths = Set(previous?.paths ?? [])
-        for directory in Set([directory] + config.directories + profiles) {
+        for directory in recursivePaths {
             let file = directory.appendingPathComponent("shell.toml")
             paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
             paths.formUnion([directory, file])
         }
-        return paths.sorted { $0.path < $1.path }
+        return (paths.sorted { $0.path < $1.path }, recursivePaths.sorted { $0.path < $1.path })
     }
 
     static func load(in directory: URL, profile: String? = nil) throws -> Prepared {

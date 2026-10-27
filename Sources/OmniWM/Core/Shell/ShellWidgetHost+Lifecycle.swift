@@ -40,7 +40,7 @@ extension ShellWidgetHost {
         outbox = ShellWidgetOutbox { [weak self] batch in
             self?.receive(batch)
         }
-        observation = ShellDirectoryObservation { [weak self] in
+        observation = ShellDirectoryObservation(watchLinks: true) { [weak self] in
             self?.rescan()
         }
         observeSystem()
@@ -260,8 +260,8 @@ extension ShellWidgetHost {
     }
 
     func watchFiles() {
-        observation?
-            .sync(paths: watchedPaths + resources.shaders.files + resources.images.files + configurationMetadataPaths)
+        let paths = watchedPaths + resources.shaders.files + resources.images.files + configurationMetadataPaths
+        observation?.sync(paths: paths, recursivePaths: paths)
     }
 
     private func shadersChanged(includingAssets: Bool = true) {

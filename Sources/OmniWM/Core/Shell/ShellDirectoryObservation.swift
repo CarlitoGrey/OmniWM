@@ -10,6 +10,16 @@ final class ShellDirectoryObservation {
     private static let maximumDescriptorCost = 32
     private static let reservedDescriptorCount = 64
 
+    private struct FileIdentity: Equatable {
+        let deviceID: UInt64
+        let inode: UInt64
+    }
+
+    private struct DirectoryWatch {
+        let source: DispatchSourceFileSystemObject
+        let identity: FileIdentity
+    }
+
     private final class Callback: Sendable {
         let onEvents: @Sendable ([String], [FSEventStreamEventFlags]) -> Void
 
@@ -19,24 +29,41 @@ final class ShellDirectoryObservation {
     }
 
     private let onChange: @MainActor () -> Void
+    private let watchLinks: Bool
     private let createStream: @MainActor (FSEventStreamContext, [String]) -> FSEventStreamRef?
     private let startStream: (FSEventStreamRef) -> Bool
+    private let openDirectory: @MainActor (String) -> Int32
+    private let hasDescriptorReserve: @MainActor (Int) -> Bool
     private let eventQueue = DispatchQueue(label: "com.omniwm.shell-directory-observation")
     private var stream: FSEventStreamRef?
     private var generation: UInt64 = 0
     private var retryTimer: DispatchSourceTimer?
     private var paths: [URL] = []
+    private var recursivePaths: [URL] = []
     private var watchedPaths: Set<String> = []
     private var roots: [String] = []
+    private var rootIdentities: [String: FileIdentity] = [:]
+    private var directoryWatches: [String: DirectoryWatch] = [:]
+    private var directoryIdentities: [String: FileIdentity] = [:]
+
+    var isUsingNativeObservation: Bool {
+        stream != nil && retryTimer == nil
+    }
 
     init(
+        watchLinks: Bool = false,
         createStream: @escaping @MainActor (FSEventStreamContext, [String])
             -> FSEventStreamRef? = ShellDirectoryObservation.makeStream,
         startStream: @escaping (FSEventStreamRef) -> Bool = FSEventStreamStart,
+        openDirectory: @escaping @MainActor (String) -> Int32 = { open($0, O_EVTONLY) },
+        hasDescriptorReserve: @escaping @MainActor (Int) -> Bool = ShellDirectoryObservation.hasDescriptorReserve,
         onChange: @escaping @MainActor () -> Void
     ) {
+        self.watchLinks = watchLinks
         self.createStream = createStream
         self.startStream = startStream
+        self.openDirectory = openDirectory
+        self.hasDescriptorReserve = hasDescriptorReserve
         self.onChange = onChange
     }
 
@@ -44,27 +71,72 @@ final class ShellDirectoryObservation {
         cancel()
     }
 
-    func sync(paths: [URL]) {
+    func sync(paths: [URL], recursivePaths: [URL]) {
         guard !paths.isEmpty else {
             cancel()
             return
         }
         self.paths = paths
+        self.recursivePaths = recursivePaths
         watchedPaths = Set(paths.map(Self.canonicalPath))
-        let next = Self.directoryRoots(for: paths)
-        guard next != roots || stream == nil else { return }
-        stopStream()
-        roots = next
-        start()
+        let next = Self.directoryRoots(for: recursivePaths)
+        let identities = Self.identities(for: next)
+        let directories = shallowDirectories(roots: next)
+        directoryIdentities = directories
+        if next != roots || identities != rootIdentities {
+            stopStream()
+            roots = next
+            rootIdentities = identities
+        }
+        for path in directoryWatches.keys where directories[path] != directoryWatches[path]?.identity {
+            directoryWatches.removeValue(forKey: path)?.source.cancel()
+        }
+        let opening = directories.keys.filter { directoryWatches[$0] == nil }.count
+        guard hasDescriptorBudget(
+            for: roots, shallowCount: directories.count, opening: opening, starting: stream == nil
+        ) else {
+            stopStream()
+            cancelDirectoryWatches()
+            retry()
+            return
+        }
+        for (path, _) in directories where directoryWatches[path] == nil {
+            guard let watch = makeDirectoryWatch(path) else {
+                Log.shell.error("Failed to watch shell link directory \(path)")
+                continue
+            }
+            directoryWatches[path] = watch
+        }
+        if roots.isEmpty {
+            if directoryWatches.isEmpty {
+                retry()
+            } else {
+                retryTimer?.cancel()
+                retryTimer = nil
+            }
+        } else if stream == nil {
+            start()
+        }
     }
 
     func cancel() {
         retryTimer?.cancel()
         retryTimer = nil
         stopStream()
+        cancelDirectoryWatches()
         paths = []
+        recursivePaths = []
         watchedPaths = []
         roots = []
+        rootIdentities = [:]
+        directoryIdentities = [:]
+    }
+
+    private func cancelDirectoryWatches() {
+        for watch in directoryWatches.values {
+            watch.source.cancel()
+        }
+        directoryWatches.removeAll()
     }
 
     private func stopStream() {
@@ -78,10 +150,6 @@ final class ShellDirectoryObservation {
     }
 
     private func start() {
-        guard Self.hasDescriptorBudget(for: roots) else {
-            retry()
-            return
-        }
         let generation = generation
         let callback = Callback { [weak self] paths, flags in
             Task { @MainActor [weak self] in
@@ -114,7 +182,7 @@ final class ShellDirectoryObservation {
         timer.schedule(deadline: .now() + 1, repeating: 1)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            sync(paths: paths)
+            sync(paths: paths, recursivePaths: recursivePaths)
             onChange()
         }
         retryTimer = timer
@@ -128,44 +196,98 @@ final class ShellDirectoryObservation {
             let path = $0.hasSuffix("/") && $0 != "/" ? String($0.dropLast()) : $0
             return watchedPaths.contains(path) || watchedPaths.contains((path as NSString).deletingLastPathComponent)
         }) else { return }
-        sync(paths: self.paths)
+        sync(paths: self.paths, recursivePaths: recursivePaths)
         onChange()
     }
 
-    private static func hasDescriptorBudget(for roots: [String]) -> Bool {
-        let estimate = roots.reduce(4) { $0 + URL(fileURLWithPath: $1).pathComponents.count }
-        guard estimate <= maximumDescriptorCost else { return false }
+    private func receiveDirectoryChange() {
+        let next = Self.directoryRoots(for: recursivePaths)
+        guard next != roots || Self.identities(for: next) != rootIdentities
+            || shallowDirectories(roots: next) != directoryIdentities
+        else { return }
+        sync(paths: paths, recursivePaths: recursivePaths)
+        onChange()
+    }
+
+    private func shallowDirectories(roots: [String]) -> [String: FileIdentity] {
+        guard watchLinks else { return [:] }
+        var candidates: Set<String> = []
+        for path in recursivePaths {
+            candidates.formUnion(SettingsFileObservationDirectories.linkParents(for: path).map(Self.canonicalPath))
+        }
+        return Self.identities(for: candidates.filter { !Self.contains($0, in: roots) })
+    }
+
+    private func makeDirectoryWatch(_ path: String) -> DirectoryWatch? {
+        let descriptor = openDirectory(path)
+        guard descriptor >= 0 else { return nil }
+        var status = stat()
+        guard fstat(descriptor, &status) == 0 else {
+            close(descriptor)
+            return nil
+        }
+        let source = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: descriptor, eventMask: [.write, .delete, .rename], queue: .main
+        )
+        source.setEventHandler { [weak self] in self?.receiveDirectoryChange() }
+        source.setCancelHandler { close(descriptor) }
+        source.resume()
+        return DirectoryWatch(
+            source: source, identity: FileIdentity(deviceID: UInt64(status.st_dev), inode: UInt64(status.st_ino))
+        )
+    }
+
+    private static func identities(for paths: some Sequence<String>) -> [String: FileIdentity] {
+        var identities: [String: FileIdentity] = [:]
+        for path in paths {
+            var status = stat()
+            guard fstatat(AT_FDCWD, path, &status, 0) == 0, status.st_mode & S_IFMT == S_IFDIR else { continue }
+            identities[path] = FileIdentity(deviceID: UInt64(status.st_dev), inode: UInt64(status.st_ino))
+        }
+        return identities
+    }
+
+    private func hasDescriptorBudget(
+        for roots: [String], shallowCount: Int, opening: Int, starting: Bool
+    ) -> Bool {
+        let streamCost = roots.isEmpty ? 0 : roots.reduce(4) { $0 + URL(fileURLWithPath: $1).pathComponents.count }
+        guard streamCost + shallowCount <= Self.maximumDescriptorCost else { return false }
+        let estimate = opening + (starting ? streamCost : 0)
+        guard estimate > 0 else { return true }
+        return hasDescriptorReserve(estimate + Self.reservedDescriptorCount)
+    }
+
+    private static func hasDescriptorReserve(_ count: Int) -> Bool {
         var limit = rlimit()
         guard getrlimit(RLIMIT_NOFILE, &limit) == 0 else { return false }
         var available = 0
         for descriptor in 0 ..< Int32(min(limit.rlim_cur, 1024)) where fcntl(descriptor, F_GETFD) < 0 {
             available += 1
-            if available >= estimate + reservedDescriptorCount { return true }
+            if available >= count { return true }
         }
         return false
     }
 
     private static func directoryRoots(for paths: [URL]) -> [String] {
-        let directories = Set(paths.map { url -> String in
-            var directory = URL(fileURLWithPath: canonicalPath(url))
-            while true {
-                var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(atPath: directory.path, isDirectory: &isDirectory)
-                if exists, isDirectory.boolValue { break }
-                let parent = directory.deletingLastPathComponent()
-                if parent == directory { break }
-                directory = parent
-            }
-            return canonicalPath(directory)
+        let directories = Set(paths.compactMap { url -> String? in
+            guard let resolved = try? SettingsFileAccess.canonicalURL(for: url) else { return nil }
+            var isDirectory: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: resolved.path, isDirectory: &isDirectory) else { return nil }
+            let directory = isDirectory.boolValue ? resolved : resolved.deletingLastPathComponent()
+            return directory.path == "/" ? nil : directory.path
         })
         var roots: [String] = []
         let sorted = directories.sorted { $0.count == $1.count ? $0 < $1 : $0.count < $1.count }
         for directory in sorted
-            where !roots.contains(where: { directory == $0 || directory.hasPrefix($0 == "/" ? "/" : $0 + "/") })
+            where !contains(directory, in: roots)
         {
             roots.append(directory)
         }
         return roots
+    }
+
+    private static func contains(_ path: String, in roots: [String]) -> Bool {
+        roots.contains { path == $0 || path.hasPrefix($0 + "/") }
     }
 
     private static func canonicalPath(_ url: URL) -> String {

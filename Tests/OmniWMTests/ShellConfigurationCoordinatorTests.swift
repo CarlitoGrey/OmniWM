@@ -85,7 +85,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
             watchedRoots = FSEventStreamCopyPathsBeingWatched(stream) as? [String] ?? []
             return FSEventStreamStart(stream)
         }) {}
-        observation.sync(paths: [link])
+        observation.sync(paths: [link], recursivePaths: [link])
         XCTAssertEqual(watchedRoots, [external.path])
         observation.cancel()
         let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
@@ -121,7 +121,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
             if changes == 1 { refreshed.fulfill() }
         }
         let before = openDescriptorCount()
-        observation.sync(paths: [shell])
+        observation.sync(paths: [shell], recursivePaths: [shell])
         await fulfillment(of: [refreshed], timeout: 5)
         XCTAssertGreaterThanOrEqual(attempts, 2)
         XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
@@ -145,7 +145,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
             changed = nil
         }
         defer { observation.cancel() }
-        observation.sync(paths: [file])
+        observation.sync(paths: [file], recursivePaths: [file])
         await fulfillment(of: [try XCTUnwrap(changed)], timeout: 5)
         XCTAssertGreaterThanOrEqual(attempts, 2)
 
@@ -175,7 +175,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         }
         defer { observation.cancel() }
         let before = openDescriptorCount()
-        observation.sync(paths: directories)
+        observation.sync(paths: directories, recursivePaths: directories)
         await fulfillment(of: [fallback], timeout: 5)
         XCTAssertEqual(attempts, 0)
         XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
@@ -194,7 +194,8 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         let observation = ShellDirectoryObservation { changed.fulfill() }
         let before = openDescriptorCount()
         for index in 0 ..< 32 {
-            observation.sync(paths: [index.isMultiple(of: 2) ? first : second])
+            let directory = index.isMultiple(of: 2) ? first : second
+            observation.sync(paths: [directory], recursivePaths: [directory])
         }
         XCTAssertLessThanOrEqual(openDescriptorCount() - before, 16)
         observation.cancel()
