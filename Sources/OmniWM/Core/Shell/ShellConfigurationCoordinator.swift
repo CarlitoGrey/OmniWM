@@ -416,7 +416,7 @@ extension ShellConfigurationCoordinator {
         metadataScope = problem == nil ? MetadataScope(snapshot) : nil
         inputs = nextInputs
         previewConfigurations[snapshot.profile] = snapshot
-        if filesChanged || nextInputs?.paths != previousInputs?.paths {
+        if scanInputs || filesChanged || nextInputs?.paths != previousInputs?.paths {
             observation?.sync(paths: nextInputs?.paths ?? [])
         }
         if didSave || configChanged || problemsChanged {
@@ -460,7 +460,16 @@ extension ShellConfigurationCoordinator {
             while generation == observationGeneration, needsRefresh, !Task.isCancelled {
                 needsRefresh = false
                 do { try await refresh() }
-                catch { metadataError = error.localizedDescription }
+                catch {
+                    var paths = Set(inputs?.paths ?? [])
+                    for directory in Set([shellDirectory] + config.directories) {
+                        let file = directory.appendingPathComponent("shell.toml")
+                        paths.formUnion(SettingsFileObservationDirectories.paths(for: file))
+                        paths.formUnion([directory, file])
+                    }
+                    observation?.sync(paths: Array(paths))
+                    metadataError = error.localizedDescription
+                }
             }
         }
     }

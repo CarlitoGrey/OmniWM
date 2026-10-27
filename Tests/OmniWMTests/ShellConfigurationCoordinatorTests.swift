@@ -400,6 +400,99 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         }
     }
 
+    func testObservedDirectoryLinksRecoverAfterRepairingTheNewTarget() async throws {
+        for profile in [false, true] {
+            let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+                .appendingPathComponent("OmniWMPR1005-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: root) }
+            let shell = root.appendingPathComponent("config/shell")
+            let firstRoot = root.appendingPathComponent("targets/A")
+            let secondRoot = root.appendingPathComponent("targets/B")
+            for directory in [firstRoot, secondRoot] + (profile ? [shell] : []) {
+                _ = ShellDefaults.sync(into: directory)
+                _ = try ShellProfiles.select("lake", in: directory)
+            }
+            let first = profile ? firstRoot.appendingPathComponent("lake") : firstRoot
+            let second = profile ? secondRoot.appendingPathComponent("lake") : secondRoot
+            let link = profile ? shell.appendingPathComponent("lake") : shell
+            if profile { try FileManager.default.removeItem(at: link) }
+            try FileManager.default.createDirectory(
+                at: link.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
+            try FileManager.default.createSymbolicLink(at: link, withDestinationURL: first)
+            let heightKey = profile ? ["workspaceBar", "height"] : ShellProfiles
+                .key("workspaceBar", of: "lake") + ["height"]
+            _ = try ShellProfiles.setValue(41, at: heightKey, in: first)
+            _ = try ShellProfiles.setValue(47, at: heightKey, in: second)
+            let file = second.appendingPathComponent("shell.toml")
+            let repaired = try Data(contentsOf: file)
+            try Data("broken = [".utf8).write(to: file)
+            let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+            try await coordinator.refresh()
+            coordinator.startObserving()
+            defer { coordinator.stopObserving() }
+            try await coordinator.refresh()
+            XCTAssertEqual(coordinator.config.barOverride?.settings.height, 41)
+
+            let failed = expectation(description: "Retargeted configuration error published")
+            failed.assertForOverFulfill = false
+            withObservationTracking { _ = coordinator.metadataError } onChange: { failed.fulfill() }
+            try replaceDirectoryLink(link, destination: second.path)
+            await fulfillment(of: [failed], timeout: 3)
+            await coordinator.flush()
+            try await Task.sleep(for: .milliseconds(600))
+            XCTAssertNotNil(coordinator.metadataError)
+            XCTAssertEqual(coordinator.config.barOverride?.settings.height, 41)
+
+            try await expectObservedBarHeight(47, from: coordinator) {
+                try repaired.write(to: file)
+            }
+            try await expectObservedBarHeight(49, from: coordinator) {
+                _ = try ShellProfiles.setValue(49, at: heightKey, in: second)
+            }
+        }
+    }
+
+    func testObservedShellLinkParentReplacementRebindsWithoutContentChanges() async throws {
+        let root = URL(fileURLWithPath: "/private/tmp", isDirectory: true)
+            .appendingPathComponent("OmniWMPR1005-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let parent = root.appendingPathComponent("config")
+        let shell = parent.appendingPathComponent("shell")
+        let first = root.appendingPathComponent("targets/A")
+        let second = root.appendingPathComponent("targets/B")
+        for directory in [first, second] {
+            _ = ShellDefaults.sync(into: directory)
+            _ = try ShellProfiles.select("lake", in: directory)
+        }
+        let heightKey = ShellProfiles.key("workspaceBar", of: "lake") + ["height"]
+        _ = try ShellProfiles.setValue(41, at: heightKey, in: first)
+        _ = try ShellProfiles.setValue(47, at: heightKey, in: second)
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: shell, withDestinationURL: first)
+        let coordinator = ShellConfigurationCoordinator(shellDirectory: shell)
+        try await coordinator.refresh()
+        coordinator.startObserving()
+        defer { coordinator.stopObserving() }
+        try await coordinator.refresh()
+        let revision = coordinator.revision
+
+        try FileManager.default.moveItem(at: parent, to: root.appendingPathComponent("retired"))
+        try FileManager.default.createDirectory(at: parent, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: shell, withDestinationURL: first)
+        try await coordinator.refresh()
+        try await Task.sleep(for: .milliseconds(600))
+        await coordinator.flush()
+        XCTAssertEqual(coordinator.revision, revision)
+        try await expectObservedBarHeight(47, from: coordinator) {
+            try replaceDirectoryLink(shell, destination: second.path)
+        }
+        try await expectObservedBarHeight(49, from: coordinator) {
+            _ = try ShellProfiles.setValue(49, at: heightKey, in: second)
+        }
+    }
+
     func testObservedSchemaAndConfigurationEditsUpdateTheirOwners() async throws {
         let shell = try fixture()
         defer { try? FileManager.default.removeItem(at: shell) }
