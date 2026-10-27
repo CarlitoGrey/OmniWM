@@ -342,7 +342,9 @@ private extension ShellWidgetPackage {
         let operation = ShellResourceOperation()
         try bindResources(id.owner, component: "child")
         XCTAssertTrue(services.register(id, cancel: { [providerInbox] in providerInbox.cancel(id) }))
-        XCTAssertTrue(providerInbox.activate(identity))
+        permissions.approveProvider(.mock)
+        providerConfigurations["child"] = .mock
+        XCTAssertTrue(providerInbox.activate(identity, configuration: .mock))
         for delivery in providerInbox.takeBatch(now: 0) { _ = deliverProvider(delivery, in: script) }
         _ = providerInbox.finishBatch(now: 0)
         XCTAssertTrue(providerInbox.register(id, identity: identity, operation: operation))

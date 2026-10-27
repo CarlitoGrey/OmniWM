@@ -14,9 +14,14 @@ extension ShellWidgetPackage {
         let status: omni_provider_status
         var exitCode: Int32 = 0
         var failure = ""
-        switch snapshot.status {
+        let trusted = providerIsApproved(identity.owner)
+        let effectiveStatus: ShellProviderInbox.Status?
+        if case .failed = snapshot.status { effectiveStatus = snapshot.status }
+        else { effectiveStatus = trusted ? snapshot.status : .notApproved }
+        switch effectiveStatus {
         case .starting: status = OMNI_PROVIDER_STARTING
         case .running: status = OMNI_PROVIDER_RUNNING
+        case .notApproved: status = OMNI_PROVIDER_NOT_APPROVED
         case let .exited(code): status = OMNI_PROVIDER_EXITED
             exitCode = code
         case let .failed(error): status = OMNI_PROVIDER_FAILED
@@ -24,7 +29,7 @@ extension ShellWidgetPackage {
         case nil: status = OMNI_PROVIDER_UNCHANGED
         }
         var applied = false
-        let outcome = Self.withProviderTopics(snapshot.topics) { topics in
+        let outcome = Self.withProviderTopics(trusted ? snapshot.topics : []) { topics in
             failure.withCString { error in
                 var snapshot = omni_provider_snapshot(
                     incarnation: identity.incarnation,
@@ -115,7 +120,9 @@ extension ShellWidgetPackage {
             let status: omni_status
             switch control {
             case let .event(name, value):
-                guard providerInbox.binding(for: delivery.identity.owner)?.identity == delivery.identity else {
+                guard providerIsApproved(delivery.identity.owner),
+                      providerInbox.binding(for: delivery.identity.owner)?.identity == delivery.identity
+                else {
                     return changed
                 }
                 status = value.withUnsafeBytes { bytes in
@@ -171,6 +178,13 @@ extension ShellWidgetPackage {
             }
             return nil
         }
+        if !providerIsApproved(id.owner) {
+            if case let .resources(_, ids) = outcome {
+                disposeProviderOutputs(ids, owner: id.owner)
+                providerActions[id]?.outputs = []
+            }
+            return completeProviderFailure(id, error: "provider_not_approved", in: script, handled: &handled)
+        }
         switch outcome {
         case .provider:
             return completeProvider(id, outcome: outcome, in: script, handled: &handled)
@@ -181,6 +195,18 @@ extension ShellWidgetPackage {
         case let .failure(error):
             return completeProviderFailure(id, error: error, in: script, handled: &handled)
         }
+    }
+
+    private func providerIsApproved(_ owner: ShellServiceOwner) -> Bool {
+        guard let binding = providerInbox.binding(for: owner), binding.status != .notApproved,
+              let configuration = binding.configuration, let digest = configuration.sha256,
+              let current = providerConfigurations[configuration.instance],
+              current.principal == configuration.principal, current.command == configuration.command,
+              current.sha256 == digest,
+              providerOwner(configuration.instance) == owner else { return false }
+        return permissions.decide(ShellProviderApproval(
+            principal: configuration.principal, command: configuration.command, sha256: digest
+        )) == .allowed
     }
 
     func deliverProviders(in script: ShellScript) async {

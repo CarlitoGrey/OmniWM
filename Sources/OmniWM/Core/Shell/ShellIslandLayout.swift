@@ -117,14 +117,12 @@ struct ShellIslandLayout: Equatable, Sendable {
         table["id"] = .string(instance.id)
         table["widget"] = .string(instance.widget)
         table["enabled"] = .boolean(instance.enabled)
-        if instance.provider { table["provider"] = .boolean(true) }
         if let capabilities = instance.capabilities {
             table["capabilities"] = .table([
                 "commands": .array(capabilities.commands.map(TOMLNode.string)),
                 "network": .array(capabilities.network.map(TOMLNode.string)),
                 "files": .boolean(capabilities.files),
-                "clipboard": .boolean(capabilities.clipboard),
-                "provider": .boolean(capabilities.provider)
+                "clipboard": .boolean(capabilities.clipboard)
             ])
         }
         return .table(table)

@@ -488,7 +488,8 @@ typedef enum omni_provider_status {
     OMNI_PROVIDER_RUNNING = 2,
     OMNI_PROVIDER_STOPPED = 3,
     OMNI_PROVIDER_EXITED = 4,
-    OMNI_PROVIDER_FAILED = 5
+    OMNI_PROVIDER_FAILED = 5,
+    OMNI_PROVIDER_NOT_APPROVED = 6
 } omni_provider_status;
 
 typedef struct omni_provider_topic {

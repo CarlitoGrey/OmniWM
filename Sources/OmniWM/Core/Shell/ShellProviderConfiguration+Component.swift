@@ -5,8 +5,7 @@ import Foundation
 
 extension ShellComponentDescriptor {
     func authorizesProvider(_ instance: ShellComponentInstance) -> Bool {
-        instance.enabled && instance.provider && providerCommand != nil
-            && (capabilities.provider || instance.capabilities?.provider == true)
+        instance.enabled && providerCommand != nil && capabilities.provider
     }
 }
 
@@ -33,7 +32,10 @@ extension ShellProviderConfiguration {
         }
     }
 
-    init(instance: ShellComponentInstance, descriptor: ShellComponentDescriptor) throws {
+    init(
+        instance: ShellComponentInstance, descriptor: ShellComponentDescriptor,
+        permissions: ShellNetworkPermissions
+    ) throws {
         guard descriptor.authorizesProvider(instance), let command = descriptor.providerCommand else {
             throw ShellProviderProtocol.Failure(message: "provider_denied")
         }
@@ -45,7 +47,8 @@ extension ShellProviderConfiguration {
             folder: descriptor.folder,
             command: command,
             options: try encoder.encode(Options(values: instance.options)),
-            authorized: true
+            sha256: permissions.approvedDigest(for: descriptor.principal, command: command),
+            principal: descriptor.principal
         )
     }
 }

@@ -216,7 +216,6 @@ extension ShellConfig {
             for index in island.components.indices {
                 let configured = island.components[index]
                 let trusted = userInstances.first { $0.id == configured.id && $0.widget == configured.widget }
-                island.components[index].provider = trusted?.provider ?? false
                 island.components[index].capabilities = trusted?.capabilities
             }
             config.island = island

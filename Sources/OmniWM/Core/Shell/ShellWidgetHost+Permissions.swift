@@ -4,6 +4,8 @@
 extension ShellWidgetHost {
     func permissionsChanged() {
         networkApprovals = networkApprovals.filter { isPending($0.key) }
+        providerApprovals = providerApprovals.filter { permissions.decide($0.value) == .notApproved }
+        feed?.permissionsChanged()
         for state in widgets.values {
             state.mailbox?.yield(.permissions)
             state.loadingPackage?.permissionsChanged()
@@ -14,6 +16,12 @@ extension ShellWidgetHost {
     func recordNetworkApprovals(_ approvals: [ShellNetworkApproval]) {
         for approval in approvals where isPending(approval.key) {
             networkApprovals[approval.key] = approval
+        }
+    }
+
+    func recordProviderApprovals(_ approvals: [ShellProviderApproval]) {
+        for approval in approvals where permissions.decide(approval) == .notApproved {
+            providerApprovals[approval.key] = approval
         }
     }
 

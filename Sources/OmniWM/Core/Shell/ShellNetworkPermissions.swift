@@ -48,6 +48,39 @@ struct ShellNetworkApproval: Equatable, Sendable {
     let purpose: String?
 }
 
+struct ShellProviderApproval: Hashable, Sendable {
+    struct Key: Hashable, Sendable {
+        let principal: ShellWidgetPrincipal
+        let command: [String]
+    }
+
+    let principal: ShellWidgetPrincipal
+    let command: [String]
+    let sha256: String
+
+    var key: Key {
+        Key(principal: principal, command: command)
+    }
+}
+
+enum ShellServiceAccess: String, Sendable {
+    case ok
+    case off
+    case blocked
+}
+
+extension ShellBuiltInService {
+    private static let weatherHosts: Set<String> = ["api.open-meteo.com", "geocoding-api.open-meteo.com"]
+    private static let lyricsHosts: Set<String> = ["lrclib.net"]
+
+    var hosts: Set<String> {
+        switch self {
+        case .weather: Self.weatherHosts
+        case .lyrics: Self.lyricsHosts
+        }
+    }
+}
+
 final class ShellHTTPDeclarations: Sendable {
     private let policies = Mutex<[String?: ShellHTTPPolicy]>([:])
 
@@ -82,6 +115,8 @@ final class ShellNetworkPermissions: Sendable {
     struct Snapshot: Equatable, Sendable {
         var revision: UInt64 = 0
         var widgets: [ShellWidgetPrincipal: Hosts] = [:]
+        var programs: [ShellProviderApproval.Key: ShellPermissionDecisions.Program] = [:]
+        var services = ShellPermissionDecisions.Services()
         var managed = ShellManagedPolicy()
 
         func decide(_ host: String, for principal: ShellWidgetPrincipal) -> ShellNetworkDecision {
@@ -89,6 +124,20 @@ final class ShellNetworkPermissions: Sendable {
             let user = widgets[principal]
             if user?.denied.contains(host) == true { return .denied }
             return managed.allowedHosts.contains(host) || user?.allowed.contains(host) == true ? .allowed : .notApproved
+        }
+
+        func decide(_ approval: ShellProviderApproval) -> ShellNetworkDecision {
+            guard managed.providersAllowed else { return .blocked }
+            guard let program = programs[approval.key] else { return .notApproved }
+            if program.denied { return .denied }
+            return program.sha256 == approval.sha256 ? .allowed : .notApproved
+        }
+
+        func access(_ service: ShellBuiltInService) -> ShellServiceAccess {
+            guard !managed.blockedServices.contains(service), !service.hosts.contains(where: managed.blocks)
+            else { return .blocked }
+            let enabled = service == .weather ? services.weather : services.lyrics
+            return enabled ? .ok : .off
         }
     }
 
@@ -98,7 +147,10 @@ final class ShellNetworkPermissions: Sendable {
         decisions: ShellPermissionDecisions = ShellPermissionDecisions(),
         managed: ShellManagedPolicy = ShellManagedPolicy()
     ) {
-        state = Mutex(Snapshot(widgets: Self.widgets(decisions), managed: managed))
+        state = Mutex(Snapshot(
+            widgets: Self.widgets(decisions), programs: Self.programs(decisions),
+            services: decisions.services, managed: managed
+        ))
     }
 
     var snapshot: Snapshot {
@@ -107,6 +159,29 @@ final class ShellNetworkPermissions: Sendable {
 
     func decide(_ host: String, for principal: ShellWidgetPrincipal) -> ShellNetworkDecision {
         state.withLock { $0.decide(host, for: principal) }
+    }
+
+    func decide(_ approval: ShellProviderApproval) -> ShellNetworkDecision {
+        state.withLock { $0.decide(approval) }
+    }
+
+    func approvedDigest(for principal: ShellWidgetPrincipal, command: [String]) -> String? {
+        state.withLock { state in
+            guard state.managed.providersAllowed,
+                  let program = state.programs[ShellProviderApproval.Key(principal: principal, command: command)],
+                  !program.denied else { return nil }
+            return program.sha256
+        }
+    }
+
+    func access(_ service: ShellBuiltInService) -> ShellServiceAccess {
+        state.withLock { $0.access(service) }
+    }
+
+    func permits(_ url: URL, service: ShellBuiltInService) -> Bool {
+        guard url.scheme?.lowercased() == "https", url.user == nil, url.password == nil,
+              let host = url.host, service.hosts.contains(ShellHTTPPolicy.canonicalHost(host)) else { return false }
+        return access(service) == .ok
     }
 
     func undecided(
@@ -119,9 +194,12 @@ final class ShellNetworkPermissions: Sendable {
     @discardableResult
     func update(decisions: ShellPermissionDecisions? = nil, managed: ShellManagedPolicy? = nil) -> Bool {
         let widgets = decisions.map(Self.widgets)
+        let programs = decisions.map(Self.programs)
         return state.withLock { state in
             var next = state
             if let widgets { next.widgets = widgets }
+            if let programs { next.programs = programs }
+            if let decisions { next.services = decisions.services }
             if let managed { next.managed = managed }
             guard next != state else { return false }
             next.revision &+= 1
@@ -136,6 +214,16 @@ final class ShellNetworkPermissions: Sendable {
                 .formUnion(widget.allowed.map(ShellHTTPPolicy.canonicalHost))
             result[widget.principal, default: Hosts()].denied
                 .formUnion(widget.denied.map(ShellHTTPPolicy.canonicalHost))
+        }
+    }
+
+    private static func programs(
+        _ decisions: ShellPermissionDecisions
+    ) -> [ShellProviderApproval.Key: ShellPermissionDecisions.Program] {
+        decisions.programs.reduce(into: [:]) { result, program in
+            let principal = ShellWidgetPrincipal(role: .component, name: program.name, source: program.source)
+            let key = ShellProviderApproval.Key(principal: principal, command: program.command)
+            if result[key]?.denied != true { result[key] = program }
         }
     }
 }

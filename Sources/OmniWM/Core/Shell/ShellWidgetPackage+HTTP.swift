@@ -101,7 +101,12 @@ extension ShellWidgetPackage {
     }
 
     nonisolated func permissionsChanged() {
-        Task { await revalidateNetwork() }
+        Task { await revalidatePermissions() }
+    }
+
+    func revalidatePermissions() {
+        revalidateNetwork()
+        revalidateProviders()
     }
 
     func revalidateNetwork() {

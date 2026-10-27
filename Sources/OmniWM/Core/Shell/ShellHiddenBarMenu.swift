@@ -11,6 +11,7 @@ final class ShellHiddenBarMenu {
     private weak var parent: ShellPopout?
     private let onSelect: (String) -> Void
     private let onNetworkApprovals: ([ShellNetworkApproval]) -> Void
+    private let onProviderApprovals: ([ShellProviderApproval]) -> Void
     private let onFailure: () -> Void
     private let available: CGSize
     private var page: HiddenBarMenuPage
@@ -38,6 +39,7 @@ final class ShellHiddenBarMenu {
         directories: [URL],
         permissions: ShellNetworkPermissions = ShellNetworkPermissions(),
         onNetworkApprovals: @escaping ([ShellNetworkApproval]) -> Void = { _ in },
+        onProviderApprovals: @escaping ([ShellProviderApproval]) -> Void = { _ in },
         onSelect: @escaping (String) -> Void,
         onFailure: @escaping () -> Void,
         onDismiss: (@MainActor @Sendable () -> Void)? = nil
@@ -46,6 +48,7 @@ final class ShellHiddenBarMenu {
         self.parent = parent
         self.onSelect = onSelect
         self.onNetworkApprovals = onNetworkApprovals
+        self.onProviderApprovals = onProviderApprovals
         self.onFailure = onFailure
         let anchor = ShellAnchor(frame: anchor.frame, level: anchor.level)
         let visible = screen.visibleFrame
@@ -96,6 +99,7 @@ final class ShellHiddenBarMenu {
         package.capture.attach(mailbox)
         ShellWidgetHost.joinTraceCapture(package)
         package.services.attachWake { mailbox.yield(.services) }
+        package.providerInbox.attachWake { mailbox.yield(.providers) }
         package.resourceInbox.attachWake { mailbox.yield(.resources) }
         self.mailbox = mailbox
         worker = Task.detached(priority: .userInitiated) { [weak self] in
@@ -195,6 +199,7 @@ final class ShellHiddenBarMenu {
     private func receive(_ batch: [String: ShellWidgetDelivery]) {
         guard !closed, let delivery = batch[popout.widget] else { return }
         if !delivery.networkApprovals.isEmpty { onNetworkApprovals(delivery.networkApprovals) }
+        if !delivery.providerApprovals.isEmpty { onProviderApprovals(delivery.providerApprovals) }
         guard delivery.failure == nil else {
             fail()
             return

@@ -256,6 +256,7 @@ final class ShellWidgetHost {
     let sessionToken: String
     let permissions: ShellNetworkPermissions
     var networkApprovals: [ShellNetworkApproval.Key: ShellNetworkApproval] = [:]
+    var providerApprovals: [ShellProviderApproval.Key: ShellProviderApproval] = [:]
     var config = ShellConfig()
     let configurationCatalogLoader = ShellConfigurationCatalogLoader()
     var configurationCatalog: ShellConfigurationCatalog?

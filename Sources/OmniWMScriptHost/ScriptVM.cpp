@@ -138,7 +138,7 @@ componentHost.configure(function(items)
                     entry.definition = definition
                     entry.instance = table.freeze({ id = item.id, widget = item.widget, options = item.options or table.freeze({}),
                         state = {}, provider = table.freeze({ status = "stopped", state = table.freeze({}) }) })
-                    componentHost.alive(entry.instance, true, item.provider == true)
+                    componentHost.alive(entry.instance, true, item.provider == true, item.providerDeclared == true)
                     lifecycle(entry, "init")
                 else
                     fail(entry, ok and "component must return a table with views" or definition)
@@ -147,7 +147,7 @@ componentHost.configure(function(items)
         else
             componentHost.set(entry.metadata, "title", item.title or item.widget)
             componentHost.set(entry.metadata, "options", item.options or table.freeze({}))
-            if entry.instance then componentHost.alive(entry.instance, true, item.provider == true) end
+            if entry.instance then componentHost.alive(entry.instance, true, item.provider == true, item.providerDeclared == true) end
             if entry.instance and not equal(entry.instance.options, item.options or {}) then
                 local previous = entry.instance.options
                 componentHost.set(entry.instance, "options", item.options or table.freeze({}))

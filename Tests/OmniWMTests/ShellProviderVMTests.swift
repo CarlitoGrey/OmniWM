@@ -44,10 +44,10 @@ final class ShellProviderVMTests: XCTestCase {
             error.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
         }
 
-        func configure(provider: Bool = true, enabled: Bool = true) {
+        func configure(provider: Bool = true, enabled: Bool = true, declared: Bool = false) {
             var writer = ShellValueWriter()
             writer.array(1)
-            writer.map(5)
+            writer.map(6)
             writer.key("id")
             writer.string("child")
             writer.key("widget")
@@ -56,6 +56,8 @@ final class ShellProviderVMTests: XCTestCase {
             writer.bool(enabled)
             writer.key("provider")
             writer.bool(provider)
+            writer.key("providerDeclared")
+            writer.bool(declared)
             writer.key("options")
             writer.map(0)
             XCTAssertEqual(writer.bytes.withUnsafeBufferPointer {
@@ -214,6 +216,30 @@ final class ShellProviderVMTests: XCTestCase {
         let display = try denied.display()
         _ = denied.update(display)
         XCTAssertEqual(try denied.captions(display), ["stopped"])
+    }
+
+    func testRemovedDeclarationCannotReceiveALateNotApprovedStatus() throws {
+        let fixture = try Fixture("""
+        return { views = { compact = function(ctx)
+            return ui.text{ text = ctx.instance.provider.status }
+        end } }
+        """)
+        let owner = try fixture.owner()
+        fixture.configure(provider: false, declared: true)
+        let display = try fixture.display()
+        _ = fixture.update(display)
+        XCTAssertEqual(try fixture.captions(display), ["not_approved"])
+        XCTAssertTrue(try fixture.state(status: OMNI_PROVIDER_NOT_APPROVED, owner: owner))
+        XCTAssertTrue(try fixture.state(status: OMNI_PROVIDER_FAILED, owner: owner))
+        _ = fixture.update(display)
+        XCTAssertEqual(try fixture.captions(display), ["failed"])
+        fixture.configure(provider: false, declared: false)
+        XCTAssertEqual(try fixture.owner().owner, owner.owner)
+        XCTAssertEqual(try fixture.owner().epoch, owner.epoch)
+        XCTAssertFalse(try fixture.state(status: OMNI_PROVIDER_NOT_APPROVED, owner: owner))
+        XCTAssertFalse(try fixture.state(status: OMNI_PROVIDER_FAILED, owner: owner))
+        _ = fixture.update(display)
+        XCTAssertEqual(try fixture.captions(display), ["stopped"])
     }
 
     func testJSONStateIsSharedImmutableAndDoesNotRerunRoot() throws {

@@ -29,6 +29,17 @@ final class ShellPermissionSettings {
         decisions
     }
 
+    func setProgram(_ decision: ShellPermissionDecisions.HostDecision?, for approval: ShellProviderApproval) {
+        decisions.setProgram(decision, for: approval)
+    }
+
+    func setServiceEnabled(_ enabled: Bool, service: ShellBuiltInService) {
+        switch service {
+        case .weather: decisions.services.weather = enabled
+        case .lyrics: decisions.services.lyrics = enabled
+        }
+    }
+
     func apply(_ values: ShellPermissionDecisions) {
         decisions = values
     }
@@ -68,6 +79,22 @@ struct ShellPermissionDecisions: Codable, Equatable, Sendable {
     var widgets: [Widget] = []
     var programs: [Program] = []
     var services = Services()
+
+    mutating func setProgram(_ decision: HostDecision?, for approval: ShellProviderApproval) {
+        let index = programs.firstIndex {
+            $0.name == approval.principal.name && $0.source == approval.principal.source && $0.command == approval
+                .command
+        }
+        programs.removeAll {
+            $0.name == approval.principal.name && $0.source == approval.principal.source && $0.command == approval
+                .command
+        }
+        guard let decision else { return }
+        programs.insert(Program(
+            name: approval.principal.name, source: approval.principal.source,
+            command: approval.command, sha256: approval.sha256, denied: decision == .denied
+        ), at: index ?? programs.endIndex)
+    }
 
     mutating func setNetwork(
         _ decision: HostDecision?,

@@ -113,7 +113,10 @@ final class ShellProviderLifecycleTests: XCTestCase {
     private func config(_ option: Int) -> ShellProviderConfiguration {
         ShellProviderConfiguration(
             widget: "converter", instance: "one", folder: URL(fileURLWithPath: "/tmp/provider-fixture"),
-            command: ["bin/convert"], options: Data("{\"value\":\(option)}".utf8), authorized: true
+            command: ["bin/convert"], options: Data("{\"value\":\(option)}".utf8), sha256: String(
+                repeating: "0",
+                count: 64
+            )
         )
     }
 }

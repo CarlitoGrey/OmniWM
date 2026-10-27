@@ -38,11 +38,14 @@ local function duration(seconds: number): string
 end
 
 local function weather(ctx: Context)
-    local data = require("./weather").state(ctx, true)
+    local model = require("./weather")
+    local data = model.state(ctx, true)
+    local message = model.accessMessage(ctx)
     local content = { gap = tokens.spacing.largeIncreased }
     content[1] = surface.icon(data and icons.weather(data.code, data.isDay) or "air",
         { size = tokens.icon.extraLarge * 1.6, color = "secondaryAccent" })
-    content[2] = ui.column{ gap = tokens.spacing.extraSmall,
+    content[2] = message and ui.text{ text = message, font = "sans", size = tokens.body.medium,
+        maxWidth = WEATHER - tokens.icon.extraLarge * 1.6 - 60, lines = 3 } or ui.column{ gap = tokens.spacing.extraSmall,
         ui.text{ text = data and data.temperature or "--", font = "sans",
             size = tokens.headline.medium, weight = "semibold", color = "accent" },
         ui.text{ text = data and data.condition or omniwm.l10n("Unavailable"), font = "sans", size = tokens.body.small,

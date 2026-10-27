@@ -42,9 +42,43 @@ extension ShellWidgetPackage {
             guard let descriptor = source.componentDescriptors.first(where: { $0.widget == instance.widget }),
                   descriptor.authorizesProvider(instance)
             else { continue }
-            result[instance.id] = try ShellProviderConfiguration(instance: instance, descriptor: descriptor)
+            result[instance.id] = try ShellProviderConfiguration(
+                instance: instance, descriptor: descriptor, permissions: permissions
+            )
         }
         return result
+    }
+
+    func revalidateProviders() {
+        guard !closing, componentConfigurationValid, let script else { return }
+        var source = ShellWidgetSource(chunk: loadedChunk, main: loadedMain, modules: [])
+        source.components = configuredComponentInstances
+        source.componentDescriptors = componentDescriptors
+        let bytes = ShellComponentCatalog.configurationBytes(
+            instances: source.components, descriptors: componentDescriptors, permissions: permissions
+        )
+        let status = bytes.withUnsafeBufferPointer {
+            omni_vm_configure_components(
+                script.vm, $0.baseAddress, $0.count, Self.loadBudget, &errorBuffer, errorBuffer.count
+            )
+        }
+        guard status == OMNI_OK else {
+            fail(status)
+            return
+        }
+        do {
+            let configurations = try prepareProviderConfigurations(source)
+            for (name, slot) in providerSlots
+                where configurations[name] != nil && slot.configuration == configurations[name]
+            {
+                slot.supervisor.permissionsChanged()
+            }
+            updateProviderConfigurations(configurations)
+        } catch {
+            outbox.fail(name: name, generation: generation, failure: ShellScriptFailure(
+                kind: .internalError, message: error.localizedDescription
+            ))
+        }
     }
 
     func providerOwner(_ name: String) -> ShellServiceOwner? {
@@ -88,12 +122,18 @@ extension ShellWidgetPackage {
                 let next = providerConfigurations[name]
                 if providerSlots[name] == nil, next != nil {
                     let package = self.name
-                    let supervisor = ShellProvider(owner: owner, inbox: providerInbox) { _, line in
-                        Log.shell
-                            .error(
-                                "\(package)/\(name): \(line.text) (truncated=\(line.truncated), suppressed=\(line.suppressed))"
-                            )
-                    }
+                    let supervisor = ShellProvider(
+                        owner: owner, inbox: providerInbox, permissions: permissions,
+                        trustNeeded: { [outbox, generation] approval in
+                            outbox.providerApproval(name: package, generation: generation, approval: approval)
+                        },
+                        diagnostics: { _, line in
+                            Log.shell
+                                .error(
+                                    "\(package)/\(name): \(line.text) (truncated=\(line.truncated), suppressed=\(line.suppressed))"
+                                )
+                        }
+                    )
                     let captureID = utilityCaptureID
                     let captureStart: Task<Void, Never>? = captureID == 0 ? nil : Task {
                         await supervisor.captureBegin(captureID)
@@ -153,7 +193,8 @@ extension ShellWidgetPackage {
         }
         do {
             guard componentConfigurationValid, id.owner.owner != 0, let component,
-                  let configuration = providerConfigurations[component], providerOwner(component) == id.owner
+                  let configuration = providerConfigurations[component], configuration.sha256 != nil,
+                  providerOwner(component) == id.owner
             else { throw ShellProviderProtocol.Failure(message: "provider_denied") }
             let payload = try providerPayload(id, component: component, value: value)
             pendingProviderRequests.append(PendingProviderRequest(

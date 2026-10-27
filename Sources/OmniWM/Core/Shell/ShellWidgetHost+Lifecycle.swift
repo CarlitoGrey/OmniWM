@@ -359,6 +359,7 @@ extension ShellWidgetHost {
             latestData.publish(ShellWidgetData())
         } else if feed == nil {
             let feed = ShellDataFeed(
+                permissions: permissions,
                 appVolumes: resources.appVolumes,
                 media: resources.media,
                 calendar: resources.calendar,

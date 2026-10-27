@@ -1965,7 +1965,7 @@ int componentSet(lua_State *L) {
 
 int componentAlive(lua_State *L) {
     luaL_checktype(L, 1, LUA_TTABLE);
-    componentServiceOwner(L, 1, lua_toboolean(L, 2), lua_toboolean(L, 3));
+    componentServiceOwner(L, 1, lua_toboolean(L, 2), lua_toboolean(L, 3), lua_toboolean(L, 4));
     return 0;
 }
 

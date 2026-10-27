@@ -37,11 +37,13 @@ struct ShellLyrics: Equatable, Sendable, ShellValueWritable {
     static let missing = ShellLyrics(status: .missing)
 
     var status: Status
+    var access = ShellServiceAccess.ok
     var lines: [Line] = []
 
-    init(status: Status, lines: [Line] = []) {
+    init(status: Status, lines: [Line] = [], access: ShellServiceAccess = .ok) {
         self.status = status
         self.lines = lines
+        self.access = access
     }
 
     init(lrc: String) {
@@ -50,7 +52,9 @@ struct ShellLyrics: Equatable, Sendable, ShellValueWritable {
     }
 
     func write(into writer: inout ShellValueWriter) {
-        writer.map(2)
+        writer.map(3)
+        writer.key("access")
+        writer.string(access.rawValue)
         writer.key("status")
         writer.string(status.rawValue)
         writer.key("lines")
@@ -93,13 +97,6 @@ struct ShellLyrics: Equatable, Sendable, ShellValueWritable {
 }
 
 enum ShellLyricsClient {
-    private static let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 15
-        configuration.timeoutIntervalForResource = 20
-        return URLSession(configuration: configuration)
-    }()
-
     static func request(for track: ShellLyricsTrack) -> URLRequest? {
         var components = URLComponents()
         components.scheme = "https"
@@ -123,9 +120,15 @@ enum ShellLyricsClient {
         return request
     }
 
-    static func lyrics(_ track: ShellLyricsTrack) async throws -> ShellLyrics {
+    static func lyrics(
+        _ track: ShellLyricsTrack,
+        permissions: ShellNetworkPermissions,
+        protocolClasses: [AnyClass]? = nil
+    ) async throws -> ShellLyrics {
         guard let request = request(for: track) else { throw URLError(.badURL) }
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await ShellBuiltInHTTPClient.load(
+            request, service: .lyrics, permissions: permissions, protocolClasses: protocolClasses
+        )
         switch (response as? HTTPURLResponse)?.statusCode {
         case 200: return try lyrics(from: data)
         case 404: return .missing
@@ -146,18 +149,41 @@ private struct LyricsRecord: Decodable {
 final class LyricsController {
     private static let cacheLimit = 64
 
-    private let load: @Sendable (ShellLyricsTrack) async throws -> ShellLyrics
+    private let load: (@Sendable (ShellLyricsTrack) async throws -> ShellLyrics)?
+    private var permissions: ShellNetworkPermissions
     private var cache: [ShellLyricsTrack: ShellLyrics] = [:]
     private var track: ShellLyricsTrack?
     private(set) var task: Task<Void, Never>?
     private(set) var lyrics: ShellLyrics?
     var onLoad: ((ShellLyrics) -> Void)?
 
-    init(load: @escaping @Sendable (ShellLyricsTrack) async throws -> ShellLyrics = ShellLyricsClient.lyrics) {
+    init(
+        load: (@Sendable (ShellLyricsTrack) async throws -> ShellLyrics)? = nil,
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions()
+    ) {
         self.load = load
+        self.permissions = permissions
+    }
+
+    func setPermissions(_ permissions: ShellNetworkPermissions) {
+        self.permissions = permissions
+    }
+
+    func invalidate() {
+        task?.cancel()
+        task = nil
+        track = nil
+        lyrics = nil
+        cache.removeAll(keepingCapacity: true)
     }
 
     func show(_ next: ShellLyricsTrack?) {
+        let access = permissions.access(.lyrics)
+        guard access == .ok else {
+            invalidate()
+            lyrics = ShellLyrics(status: .missing, access: access)
+            return
+        }
         guard next != track else { return }
         task?.cancel()
         task = nil
@@ -171,17 +197,18 @@ final class LyricsController {
             return
         }
         lyrics = .loading
-        task = Task { [weak self, load] in
+        task = Task { [weak self, load, permissions] in
             let result: ShellLyrics?
             do {
-                result = try await load(next)
+                if let load { result = try await load(next) }
+                else { result = try await ShellLyricsClient.lyrics(next, permissions: permissions) }
             } catch {
                 if !Task.isCancelled {
                     Log.shell.error("Lyrics did not load: \(error.localizedDescription)")
                 }
                 result = nil
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, permissions.access(.lyrics) == .ok else { return }
             self?.finish(next, result)
         }
     }

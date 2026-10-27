@@ -107,6 +107,7 @@ struct OwnerState {
     uint64_t committedRevision = 0;
     uint64_t storeRequest = 0;
     bool providerAuthorized = false;
+    bool providerDeclared = false;
     uint64_t providerIncarnation = 0;
     omni_provider_status providerStatus = OMNI_PROVIDER_STOPPED;
     int providerRef = LUA_NOREF;
@@ -436,7 +437,7 @@ bool providerToken(const char *name, size_t length) {
 
 void publishProvider(lua_State *L, OwnerState &owner, omni_provider_status status,
                      int stateIndex, const char *error, size_t errorLength, int32_t exitCode) {
-    constexpr const char *names[] = {"", "starting", "running", "stopped", "exited", "failed"};
+    constexpr const char *names[] = {"", "starting", "running", "stopped", "exited", "failed", "not_approved"};
     stateIndex = lua_absindex(L, stateIndex);
     lua_createtable(L, 0, 4);
     int provider = lua_gettop(L);
@@ -467,19 +468,21 @@ void publishProvider(lua_State *L, OwnerState &owner, omni_provider_status statu
     lua_pop(L, 2);
 }
 
-void configureProvider(lua_State *L, OwnerState &owner, bool authorized) {
+void configureProvider(lua_State *L, OwnerState &owner, bool authorized, bool declared) {
     if (owner.providerRef == LUA_NOREF) {
         lua_getref(L, owner.instanceRef);
         lua_rawgetfield(L, -1, "provider");
         owner.providerRef = lua_ref(L, -1);
         lua_pop(L, 2);
     }
-    if (owner.providerAuthorized == authorized) { return; }
+    if (owner.providerAuthorized == authorized && owner.providerDeclared == declared) { return; }
     lua_newtable(L);
     lua_setreadonly(L, -1, true);
-    publishProvider(L, owner, authorized ? OMNI_PROVIDER_STARTING : OMNI_PROVIDER_STOPPED, -1, nullptr, 0, 0);
+    publishProvider(L, owner, authorized ? OMNI_PROVIDER_STARTING
+        : declared ? OMNI_PROVIDER_NOT_APPROVED : OMNI_PROVIDER_STOPPED, -1, nullptr, 0, 0);
     lua_pop(L, 1);
     owner.providerAuthorized = authorized;
+    owner.providerDeclared = declared;
 }
 
 struct ProviderUpdate {
@@ -1636,7 +1639,7 @@ void queueServiceMessage(lua_State *L, omni_message_kind kind, const char *text,
     messages.push_back({std::string(text, length), scriptOwner(L), scriptDisplay(L)});
 }
 
-void componentServiceOwner(lua_State *L, int object, bool alive, bool provider) {
+void componentServiceOwner(lua_State *L, int object, bool alive, bool provider, bool declared) {
     auto *vm = static_cast<omni_vm *>(lua_callbacks(L)->userdata);
     ServiceState &state = services(L);
     lua_getref(L, vm->package.componentOwnersRef);
@@ -1674,8 +1677,8 @@ void componentServiceOwner(lua_State *L, int object, bool alive, bool provider) 
     }
     if (existing > 0) {
         OwnerState &owner = state.owners[existing];
-        bool changed = owner.providerAuthorized != provider;
-        configureProvider(L, owner, provider);
+        bool changed = owner.providerAuthorized != provider || owner.providerDeclared != declared;
+        configureProvider(L, owner, provider, declared);
         if (changed) { invalidateOwner(vm, token(state, static_cast<size_t>(existing))); }
         lua_pop(L, 1);
         return;
@@ -1701,7 +1704,7 @@ void componentServiceOwner(lua_State *L, int object, bool alive, bool provider) 
     owner.name.assign(name, length);
     lua_pop(L, 1);
     owner.instanceRef = lua_ref(L, object);
-    configureProvider(L, owner, provider);
+    configureProvider(L, owner, provider, declared);
     auto seed = state.seeds.find(owner.name);
     initializeStore(L, owner, seed == state.seeds.end() ? nullptr : &seed->second);
     if (seed != state.seeds.end()) {
@@ -2179,9 +2182,12 @@ omni_status omni_vm_provider_update(omni_vm *vm, omni_owner_token owner, const o
     if (applied != nullptr) { *applied = false; }
     if (vm->inCall) { return OMNI_ERR_REENTRANT; }
     ServiceState &state = *vm->package.services;
-    if (!ownerIsLive(state, owner) || owner.owner == 0 || !state.owners[owner.owner].providerAuthorized) { return OMNI_OK; }
+    if (!ownerIsLive(state, owner) || owner.owner == 0) { return OMNI_OK; }
+    if (!state.owners[owner.owner].providerAuthorized
+        && (!state.owners[owner.owner].providerDeclared || snapshot == nullptr
+            || (snapshot->status != OMNI_PROVIDER_NOT_APPROVED && snapshot->status != OMNI_PROVIDER_FAILED))) { return OMNI_OK; }
     OwnerState &target = state.owners[owner.owner];
-    if (snapshot == nullptr || snapshot->incarnation == 0 || static_cast<unsigned>(snapshot->status) > OMNI_PROVIDER_FAILED
+    if (snapshot == nullptr || snapshot->incarnation == 0 || static_cast<unsigned>(snapshot->status) > OMNI_PROVIDER_NOT_APPROVED
         || snapshot->topic_count > 64 || (snapshot->topic_count != 0 && snapshot->topics == nullptr)
         || snapshot->error_length > 1024 || (snapshot->error_length != 0 && snapshot->error == nullptr)) {
         copyMessage("invalid provider snapshot", error, error_capacity);

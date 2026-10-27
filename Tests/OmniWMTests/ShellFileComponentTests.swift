@@ -619,7 +619,7 @@ final class ShellFileComponentTests: XCTestCase {
         XCTAssertEqual(descriptor.providerCommand, ["provider.pl"])
         XCTAssertTrue(descriptor.capabilities.files)
         XCTAssertTrue(descriptor.capabilities.provider)
-        XCTAssertFalse(ShellComponentInstance(id: "convert", widget: "converter").provider)
+        XCTAssertNil(ShellNetworkPermissions().approvedDigest(for: descriptor.principal, command: ["provider.pl"]))
         let format = try XCTUnwrap(descriptor.options["format"])
         XCTAssertTrue(format.accepts(.string("png")))
         XCTAssertFalse(format.accepts(.string("shell-command")))

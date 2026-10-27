@@ -37,7 +37,12 @@ local function lyrics(ctx, position: number)
     if not data then
         return nil
     end
-    local result = { status = data.status, seek = seek }
+    local result = { status = data.status, access = data.access, seek = seek }
+    if data.access == "off" or data.access == "blocked" then
+        result.message = if data.access == "off" then omniwm.l10n("Turned off in Settings")
+            else omniwm.l10n("Blocked by your organization")
+        return result
+    end
     if data.status ~= "synced" or #data.lines == 0 then
         result.message = if data.status == "loading" then omniwm.l10n("Loading lyrics…") else omniwm.l10n("No lyrics found")
         return result

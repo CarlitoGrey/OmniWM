@@ -78,7 +78,7 @@ extension ShellWidgetPackage {
         case let .nativeInput(input):
             await deliverNativeInput(input, in: script)
         case .permissions:
-            revalidateNetwork()
+            revalidatePermissions()
         case .capture: break
         }
     }

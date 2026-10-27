@@ -166,6 +166,8 @@ local function lyrics(media)
             ui.path{ d = string.format("M 0 0 H %d V %d H 0 Z", SECTION, height), w = SECTION - tokens.padding.medium,
                 h = height, mask = true },
             ui.column(column) }
+    elseif data and (data.access == "off" or data.access == "blocked") then
+        body = ui.stack{ w = SECTION, h = height, state("lyrics", data.message, "secondaryForeground") }
     elseif data and data.status == "loading" then
         body = ui.stack{ w = SECTION, h = height, state("lyrics", omniwm.l10n("Loading lyrics…"), "secondaryForeground") }
     else

@@ -19,6 +19,15 @@ extension ShellDataFeed {
     }
 
     func updateWeather() {
+        let access = permissions.access(.weather)
+        guard access == .ok else {
+            clearWeather(access)
+            return
+        }
+        if data.weather?.access != nil, data.weather?.access != .ok {
+            data.weather = nil
+            nextWeather = nil
+        }
         guard !paused, demands(.weather), let query = weatherQuery else {
             weatherTask?.cancel()
             weatherTask = nil
@@ -32,7 +41,7 @@ extension ShellDataFeed {
             } catch {
                 result = .failure(error)
             }
-            guard !Task.isCancelled, let self else { return }
+            guard !Task.isCancelled, let self, permissions.access(.weather) == .ok else { return }
             weatherTask = nil
             switch result {
             case let .failure(error):
@@ -54,6 +63,18 @@ extension ShellDataFeed {
                 data.weather = reading.weather
                 publish()
             }
+        }
+    }
+
+    private func clearWeather(_ access: ShellServiceAccess) {
+        weatherTask?.cancel()
+        weatherTask = nil
+        nextWeather = nil
+        weatherQuery = weatherLocation
+        let unavailable: ShellWeather? = demands(.weather) ? .unavailable(access) : nil
+        if data.weather != unavailable {
+            data.weather = unavailable
+            publish()
         }
     }
 
@@ -142,8 +163,20 @@ extension ShellDataFeed {
     }
 
     func showLyrics(_ shown: Bool) {
+        let access = permissions.access(.lyrics)
+        guard access == .ok else {
+            lyrics.invalidate()
+            data.lyrics = shown ? ShellLyrics(status: .missing, access: access) : nil
+            return
+        }
         lyrics.show(shown ? data.media.flatMap(ShellLyricsTrack.init) : nil)
         data.lyrics = shown ? lyrics.lyrics : nil
+    }
+
+    func permissionsChanged() {
+        updateWeather()
+        showLyrics(!paused && demands(.lyrics))
+        publish()
     }
 
     func listAudioApps(_ listed: Bool) {

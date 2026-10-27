@@ -54,6 +54,7 @@ struct ShellWeather: Equatable, Sendable {
     var unit: String
     var place: String?
     var stale = false
+    var access = ShellServiceAccess.ok
     var hours: [ShellWeatherHour] = []
     var days: [ShellWeatherDay] = []
 
@@ -97,13 +98,25 @@ struct ShellWeather: Equatable, Sendable {
 }
 
 extension ShellWeather {
+    static func unavailable(_ access: ShellServiceAccess) -> ShellWeather {
+        ShellWeather(temp: 0, code: 0, day: true, unit: "", access: access)
+    }
+
     func write(into writer: inout ShellValueWriter) {
+        guard access == .ok else {
+            writer.map(1)
+            writer.key("access")
+            writer.string(access.rawValue)
+            return
+        }
         let optional = [
             ("feels", feels), ("high", high), ("low", low), ("rain", rain), ("wind", wind),
             ("humidity", humidity), ("sunrise", sunrise), ("sunset", sunset)
         ]
         .compactMap { key, value in value.map { (key, $0) } }
-        writer.map(9 + optional.count + (place == nil ? 0 : 1))
+        writer.map(10 + optional.count + (place == nil ? 0 : 1))
+        writer.key("access")
+        writer.string(access.rawValue)
         writer.key("temp")
         writer.number(temp)
         for (key, value) in optional {
@@ -186,15 +199,16 @@ extension ShellWeather {
 }
 
 enum ShellWeatherClient {
-    private static let session: URLSession = {
-        let configuration = URLSessionConfiguration.ephemeral
-        configuration.timeoutIntervalForRequest = 20
-        configuration.timeoutIntervalForResource = 30
-        return URLSession(configuration: configuration)
-    }()
-
-    static func forecast(_ location: ShellWeatherLocation) async throws -> ShellWeatherReading {
-        let coordinates = try await coordinates(of: location.place)
+    static func forecast(
+        _ location: ShellWeatherLocation,
+        permissions: ShellNetworkPermissions,
+        protocolClasses: [AnyClass]? = nil
+    ) async throws -> ShellWeatherReading {
+        let coordinates = try await coordinates(
+            of: location.place,
+            permissions: permissions,
+            protocolClasses: protocolClasses
+        )
         let url = try url(host: "api.open-meteo.com", path: "/v1/forecast", query: [
             "latitude": String(coordinates.latitude),
             "longitude": String(coordinates.longitude),
@@ -208,7 +222,10 @@ enum ShellWeatherClient {
             "forecast_hours": "24",
             "forecast_days": "7"
         ])
-        var weather = try await weather(from: load(url), fahrenheit: location.fahrenheit)
+        var weather = try await weather(
+            from: load(url, permissions: permissions, protocolClasses: protocolClasses),
+            fahrenheit: location.fahrenheit
+        )
         weather.place = location.name ?? coordinates.name
         return ShellWeatherReading(weather: weather, latitude: coordinates.latitude, longitude: coordinates.longitude)
     }
@@ -296,7 +313,11 @@ enum ShellWeatherClient {
         return formatter
     }
 
-    private static func coordinates(of place: ShellWeatherLocation.Place) async throws -> WeatherPlace {
+    private static func coordinates(
+        of place: ShellWeatherLocation.Place,
+        permissions: ShellNetworkPermissions,
+        protocolClasses: [AnyClass]?
+    ) async throws -> WeatherPlace {
         switch place {
         case let .coordinates(latitude, longitude):
             return WeatherPlace(latitude: latitude, longitude: longitude, name: nil)
@@ -306,7 +327,10 @@ enum ShellWeatherClient {
                 "count": "1",
                 "format": "json"
             ])
-            guard let first = try await JSONDecoder().decode(WeatherSearch.self, from: load(url)).results?.first else {
+            guard let first = try await JSONDecoder().decode(
+                WeatherSearch.self,
+                from: load(url, permissions: permissions, protocolClasses: protocolClasses)
+            ).results?.first else {
                 throw URLError(.cannotFindHost)
             }
             return WeatherPlace(latitude: first.latitude, longitude: first.longitude, name: first.name ?? name)
@@ -323,8 +347,14 @@ enum ShellWeatherClient {
         return url
     }
 
-    private static func load(_ url: URL) async throws -> Data {
-        let (data, response) = try await session.data(from: url)
+    private static func load(
+        _ url: URL,
+        permissions: ShellNetworkPermissions,
+        protocolClasses: [AnyClass]?
+    ) async throws -> Data {
+        let (data, response) = try await ShellBuiltInHTTPClient.load(
+            URLRequest(url: url), service: .weather, permissions: permissions, protocolClasses: protocolClasses
+        )
         guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw URLError(.badServerResponse) }
         return data
     }

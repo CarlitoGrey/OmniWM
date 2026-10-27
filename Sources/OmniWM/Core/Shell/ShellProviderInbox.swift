@@ -36,6 +36,7 @@ final class ShellProviderInbox: Sendable {
     enum Status: Equatable, Sendable {
         case starting
         case running
+        case notApproved
         case exited(Int32)
         case failed(String)
     }
@@ -92,6 +93,7 @@ final class ShellProviderInbox: Sendable {
         let configuration: ShellProviderConfiguration?
         let accepting: Bool
         let terminal: Bool
+        let status: Status
     }
 
     struct Counters: Equatable, Sendable {
@@ -151,7 +153,8 @@ final class ShellProviderInbox: Sendable {
                     identity: $0.identity,
                     configuration: $0.configuration,
                     accepting: $0.accepting && !$0.terminal,
-                    terminal: $0.terminal
+                    terminal: $0.terminal,
+                    status: $0.status
                 )
             }
         }

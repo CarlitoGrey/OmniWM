@@ -51,6 +51,7 @@ final class ShellDataFeed {
     private let deliver: @MainActor (ShellWidgetData) -> Void
     let onBadgesDemandChange: @MainActor (Bool) -> Void
     let loadWeather: @Sendable (ShellWeatherLocation) async throws -> ShellWeatherReading
+    let permissions: ShellNetworkPermissions
     private let clockFormatter: DateFormatter
     private let dateFormatter: DateFormatter
     private var timer: DispatchSourceTimer?
@@ -90,8 +91,8 @@ final class ShellDataFeed {
     let notifications: ShellNotificationsController?
 
     init(
-        loadWeather: @escaping @Sendable (ShellWeatherLocation) async throws -> ShellWeatherReading =
-            ShellWeatherClient.forecast,
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions(),
+        loadWeather: (@Sendable (ShellWeatherLocation) async throws -> ShellWeatherReading)? = nil,
         appVolumes: AppVolumeMixer? = nil,
         media: MediaController? = nil,
         lyrics: LyricsController = LyricsController(),
@@ -103,10 +104,12 @@ final class ShellDataFeed {
     ) {
         self.deliver = deliver
         self.onBadgesDemandChange = onBadgesDemandChange
-        self.loadWeather = loadWeather
+        self.permissions = permissions
+        self.loadWeather = loadWeather ?? { try await ShellWeatherClient.forecast($0, permissions: permissions) }
         self.appVolumes = appVolumes
         self.media = media
         self.lyrics = lyrics
+        lyrics.setPermissions(permissions)
         self.calendar = calendar
         self.devices = devices
         self.notifications = notifications
@@ -116,7 +119,7 @@ final class ShellDataFeed {
         dateFormatter = DateFormatter()
         dateFormatter.setLocalizedDateFormatFromTemplate("EEEdMMM")
         lyrics.onLoad = { [weak self] value in
-            guard let self, data.lyrics != value else { return }
+            guard let self, permissions.access(.lyrics) == .ok, data.lyrics != value else { return }
             data.lyrics = value
             publish()
         }

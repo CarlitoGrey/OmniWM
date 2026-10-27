@@ -14,7 +14,6 @@ final class ShellIslandConfigWriteTests: XCTestCase {
             ShellComponentInstance(
                 id: "london",
                 widget: "clock",
-                provider: true,
                 options: ["zone": .string("Europe/London")],
                 capabilities: ShellComponentCapabilities(commands: ["open"], files: true)
             ),
@@ -31,7 +30,7 @@ final class ShellIslandConfigWriteTests: XCTestCase {
             makeID: { "toronto" }
         )
         XCTAssertEqual(added.instanceID, "toronto")
-        XCTAssertFalse(added.layout.components[2].provider)
+        XCTAssertNil(added.layout.components[2].options["provider"])
         XCTAssertNil(added.layout.components[2].capabilities)
         let moved = try added.layout.applying(.move(id: "toronto", index: 1), catalog: [:])
         XCTAssertEqual(moved.layout.components.map(\.id), ["toronto", "london", "tokyo"])
@@ -73,6 +72,21 @@ final class ShellIslandConfigWriteTests: XCTestCase {
         XCTAssertThrowsError(try source.applying(.move(id: "one", index: 2), catalog: catalog))
         XCTAssertThrowsError(try source.applying(.move(id: "missing", index: 1), catalog: catalog))
         XCTAssertEqual(source.components.map(\.id), ["one"])
+    }
+
+    func testInstanceCapabilitySerializationDoesNotWriteAProviderTrustKey() throws {
+        let layout = ShellIslandLayout(profile: "lake", root: "lake", components: [
+            ShellComponentInstance(
+                id: "clock", widget: "clock", capabilities: .init(network: ["api.example"], provider: true)
+            )
+        ])
+        let change = try layout.applying(.move(id: "clock", index: 1), catalog: [:])
+        let text = try ShellIslandLayout.persisted(change.change, profile: "lake", root: "lake", in: "")
+        let tree = try parsed(text)
+        let instances = try instances(tree)
+        XCTAssertEqual(instances.first?.capabilities?.network, ["api.example"])
+        XCTAssertEqual(instances.first?.capabilities?.provider, false)
+        XCTAssertFalse(text.contains("provider"))
     }
 
     func testWriterOrdersCommitsDefersWatchReloadAndMergesUnrelatedExternalEdit() async throws {

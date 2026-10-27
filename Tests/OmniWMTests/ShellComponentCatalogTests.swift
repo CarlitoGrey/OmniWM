@@ -112,6 +112,22 @@ final class ShellComponentCatalogTests: XCTestCase {
         }
     }
 
+    func testProviderInstanceKeyUsesOrdinaryOptionValidationAndDoesNotGrantTrust() throws {
+        let table = try TOMLDecoder().decode(
+            [String: TOMLNode].self,
+            from: Data("components = [{id = 'one', widget = 'clock', provider = true}]".utf8)
+        )
+        let instance = try XCTUnwrap(ShellComponentCatalog.instances(from: table["components"]).first)
+        XCTAssertEqual(instance.options["provider"], .bool(true))
+        try component("clock", manifest: "views = ['compact']")
+        let undeclared = try ShellComponentCatalog.load("clock", directories: [root])
+        XCTAssertThrowsError(try undeclared.validate(instance))
+        try component("clock", manifest: "views = ['compact']\n[options.provider]\ntype = 'boolean'")
+        let declared = try ShellComponentCatalog.load("clock", directories: [root])
+        XCTAssertEqual(try declared.validate(instance).options["provider"], .bool(true))
+        XCTAssertFalse(declared.authorizesProvider(instance))
+    }
+
     func testInstancesRejectDuplicateIdsTraversalAndUnsupportedValues() throws {
         for text in [
             "components = [{id = 'same', widget = 'clock'}, {id = 'same', widget = 'clock'}]",
@@ -123,6 +139,18 @@ final class ShellComponentCatalogTests: XCTestCase {
             let table = try TOMLDecoder().decode([String: TOMLNode].self, from: Data(text.utf8))
             XCTAssertThrowsError(try ShellComponentCatalog.instances(from: table["components"]))
         }
+    }
+
+    func testInstanceProviderCapabilityIsRejectedWhileTheManifestCanDeclareIt() throws {
+        let table = try TOMLDecoder().decode([String: TOMLNode].self, from: Data("""
+        components = [{id = 'a', widget = 'clock', capabilities = { provider = true }}]
+        """.utf8))
+        XCTAssertThrowsError(try ShellComponentCatalog.instances(from: table["components"])) { error in
+            XCTAssertTrue(error.localizedDescription.contains("provider"))
+        }
+        try component("clock", manifest: "views = ['compact']\ncapabilities = { provider = true }")
+        let descriptor = try ShellComponentCatalog.load("clock", directories: [root])
+        XCTAssertTrue(descriptor.capabilities.provider)
     }
 
     private func component(_ name: String, manifest: String, layer: URL? = nil) throws {

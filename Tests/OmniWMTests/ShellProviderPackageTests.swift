@@ -71,7 +71,6 @@ final class ShellProviderPackageTests: XCTestCase {
 
     private func source(folder: URL, component: String, tag: String = "A") -> ShellWidgetSource {
         var instance = ShellComponentInstance(id: "child", widget: "child")
-        instance.provider = true
         instance.options = ["tag": .string(tag)]
         let descriptor = ShellComponentDescriptor(
             widget: "child",
@@ -145,7 +144,8 @@ final class ShellProviderPackageTests: XCTestCase {
             name: "test",
             generation: 1,
             outbox: ShellWidgetOutbox { sink.consume($0) },
-            store: ShellStore(directoryURL: directory.appendingPathComponent("store"))
+            store: ShellStore(directoryURL: directory.appendingPathComponent("store")),
+            permissions: try .approvingProvider(folder: folder)
         )
         let input = source(folder: folder, component: """
         return {
@@ -207,7 +207,8 @@ final class ShellProviderPackageTests: XCTestCase {
             name: "test",
             generation: 1,
             outbox: ShellWidgetOutbox { sink.consume($0) },
-            store: ShellStore(directoryURL: directory.appendingPathComponent("store"))
+            store: ShellStore(directoryURL: directory.appendingPathComponent("store")),
+            permissions: try .approvingProvider(folder: folder)
         )
         let component = """
         local function send(instance,label)
@@ -283,7 +284,8 @@ final class ShellProviderPackageTests: XCTestCase {
             name: "test",
             generation: 1,
             outbox: ShellWidgetOutbox { sink.consume($0) },
-            store: ShellStore(directoryURL: storeDirectory)
+            store: ShellStore(directoryURL: storeDirectory),
+            permissions: try .approvingProvider(folder: folder, names: ["a", "b"])
         )
         let component = """
         return {
@@ -329,7 +331,6 @@ final class ShellProviderPackageTests: XCTestCase {
             )
         }
         var child = ShellComponentInstance(id: "child", widget: "a")
-        child.provider = true
         child.options = ["tag": .string("a")]
         first.components = [
             ShellComponentInstance(id: "keep-a", widget: "a"),
@@ -344,7 +345,6 @@ final class ShellProviderPackageTests: XCTestCase {
         let loaded = await package.loadedModules
         var second = first
         child = ShellComponentInstance(id: "child", widget: "b")
-        child.provider = true
         child.options = ["tag": .string("b")]
         second.components[2] = child
         await package.receive(.components(second))

@@ -161,7 +161,7 @@ omni_owner_token switchScriptOwner(lua_State *L, int context);
 void restoreScriptOwner(lua_State *L, omni_owner_token owner);
 bool isServiceCall(omni_vm *vm);
 void queueServiceMessage(lua_State *L, omni_message_kind kind, const char *text, size_t length);
-void componentServiceOwner(lua_State *L, int object, bool alive, bool provider = false);
+void componentServiceOwner(lua_State *L, int object, bool alive, bool provider = false, bool declared = false);
 void clearStoreSeeds(omni_vm *vm);
 void invalidateOwner(omni_vm *vm, omni_owner_token owner);
 void recordResourceRead(lua_State *L, omni_owner_token owner, omni_resource_id id);

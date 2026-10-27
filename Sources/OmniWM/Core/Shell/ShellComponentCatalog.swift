@@ -61,7 +61,6 @@ struct ShellComponentInstance: Equatable, Sendable {
     let id: String
     let widget: String
     var enabled = true
-    var provider = false
     var options: [String: ShellComponentValue] = [:]
     var capabilities: ShellComponentCapabilities?
 }
@@ -151,7 +150,7 @@ enum ShellComponentCatalog {
     static let instanceLimit = 64
     static let purposeLimit = 300
     static let reservedOptions: Set<String> = [
-        "id", "widget", "enabled", "provider", "capabilities", "commands", "network", "files", "clipboard"
+        "id", "widget", "enabled", "capabilities", "commands", "network", "files", "clipboard"
     ]
 
     struct Failure: Error, LocalizedError {
@@ -188,16 +187,16 @@ enum ShellComponentCatalog {
                   case let .string(widget)? = table["widget"], validName(widget)
             else { throw Failure("[island] each component needs a unique id and a widget name") }
             var instance = ShellComponentInstance(id: id, widget: widget)
-            for key in ["enabled", "provider"] where table[key] != nil {
+            for key in ["enabled"] where table[key] != nil {
                 guard case let .boolean(flag)? = table[key] else {
                     throw Failure("[island] component \(id): \(key) must be boolean")
                 }
-                if key == "enabled" { instance.enabled = flag } else { instance.provider = flag }
+                instance.enabled = flag
             }
             if let capabilities = table["capabilities"] {
                 instance.capabilities = try parseCapabilities(capabilities, place: id)
             }
-            for (key, node) in table where !["id", "widget", "enabled", "provider", "capabilities"].contains(key) {
+            for (key, node) in table where !["id", "widget", "enabled", "capabilities"].contains(key) {
                 guard !reservedOptions.contains(key), let value = ShellComponentValue(node) else {
                     throw Failure("[island] component \(id): invalid option \(key)")
                 }
@@ -286,13 +285,14 @@ enum ShellComponentCatalog {
 
     static func configurationBytes(
         instances: [ShellComponentInstance],
-        descriptors: [ShellComponentDescriptor]
+        descriptors: [ShellComponentDescriptor],
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions()
     ) -> [UInt8] {
         let descriptors = Dictionary(uniqueKeysWithValues: descriptors.map { ($0.widget, $0) })
         var writer = ShellValueWriter()
         writer.array(instances.count)
         for instance in instances {
-            writer.map(6)
+            writer.map(7)
             writer.key("id")
             writer.string(instance.id)
             writer.key("widget")
@@ -301,8 +301,16 @@ enum ShellComponentCatalog {
             writer.string(descriptors[instance.widget]?.title ?? instance.widget)
             writer.key("enabled")
             writer.bool(instance.enabled)
+            let descriptor = descriptors[instance.widget]
+            let declared = descriptor?.authorizesProvider(instance) == true
+            writer.key("providerDeclared")
+            writer.bool(declared)
             writer.key("provider")
-            writer.bool(descriptors[instance.widget]?.authorizesProvider(instance) == true)
+            writer.bool(declared && descriptor.flatMap { descriptor in
+                descriptor.providerCommand.flatMap {
+                    permissions.approvedDigest(for: descriptor.principal, command: $0)
+                }
+            } != nil)
             writer.key("options")
             writer.map(instance.options.count)
             for key in instance.options.keys.sorted() {
@@ -377,8 +385,8 @@ enum ShellComponentCatalog {
     ) throws -> ShellComponentCapabilities {
         guard let node else { return ShellComponentCapabilities() }
         guard case let .table(table) = node else { throw Failure("\(place) capabilities must be a table") }
-        let keys: Set<String> = ["commands", "network", "provider", "files", "clipboard"]
-        try checkKeys(table, allowed: describesPurpose ? keys.union(["purpose"]) : keys, place: place)
+        let keys: Set<String> = ["commands", "network", "files", "clipboard"]
+        try checkKeys(table, allowed: describesPurpose ? keys.union(["provider", "purpose"]) : keys, place: place)
         var result = ShellComponentCapabilities()
         result.purpose = try purpose(table["purpose"], place: place)
         result.commands = try strings(table["commands"], fallback: [], place: "\(place) commands")

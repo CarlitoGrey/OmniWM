@@ -162,6 +162,7 @@ actor ShellWidgetPackage {
     var storeProfile = ShellDefaults.profile
     var storeOwners: [ShellStoreNamespace: ShellServiceOwner] = [:]
     var configuredComponents: [String: ShellComponentInstance] = [:]
+    var configuredComponentInstances: [ShellComponentInstance] = []
     var componentConfigurationValid = false
     var http: ShellHTTPService?
     var networkApprovalRevision: UInt64 = 0

@@ -55,6 +55,7 @@ extension ShellWidgetPackage {
         let retired = Set(configuredComponents.compactMap { affected.contains($0.value.widget) ? $0.key : nil })
         let owners = storeOwners.filter { $0.key.instance.map(retired.contains) == true }
         configuredComponents = configuredComponents.filter { !retired.contains($0.key) }
+        configuredComponentInstances.removeAll { retired.contains($0.id) }
         for namespace in owners.keys { storeOwners.removeValue(forKey: namespace) }
         loadedModules = Set(source.modules.map(\.path))
         await retireProviders()
@@ -73,7 +74,7 @@ extension ShellWidgetPackage {
         })
         guard !retired.isEmpty else { return true }
         var retained = ShellWidgetSource(chunk: source.chunk, main: source.main, modules: [])
-        retained.components = configuredComponents.values.filter { !retired.contains($0.id) }.sorted { $0.id < $1.id }
+        retained.components = configuredComponentInstances.filter { !retired.contains($0.id) }
         retained.componentDescriptors = componentDescriptors
         retained.network = source.network
         retained.principal = source.principal

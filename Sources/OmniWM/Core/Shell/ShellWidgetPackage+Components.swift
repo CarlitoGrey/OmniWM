@@ -23,7 +23,8 @@ extension ShellWidgetPackage {
         catch { return ShellScriptFailure(kind: .internalError, message: error.localizedDescription) }
         let configuration = ShellComponentCatalog.configurationBytes(
             instances: source.components,
-            descriptors: source.componentDescriptors
+            descriptors: source.componentDescriptors,
+            permissions: permissions
         )
         let status = configuration.withUnsafeBufferPointer {
             omni_vm_configure_components(vm, $0.baseAddress, $0.count, Self.loadBudget, &errorBuffer, errorBuffer.count)
@@ -32,6 +33,7 @@ extension ShellWidgetPackage {
         componentConfigurationValid = status == OMNI_OK
         if status == OMNI_OK {
             hasComponents = source.components.contains(where: \.enabled)
+            configuredComponentInstances = source.components
             configuredComponents = Dictionary(uniqueKeysWithValues: source.components.filter(\.enabled).map {
                 ($0.id, $0)
             })

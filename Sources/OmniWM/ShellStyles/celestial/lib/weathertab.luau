@@ -66,12 +66,13 @@ local function hourly(hours)
 end
 
 local function tab(ctx: Context, m)
-    m = m or require("./weather").model(ctx)
+    local model = require("./weather")
+    m = m or model.model(ctx)
     local weather = m and m.reading
     local column = { w = WIDTH, h = HEIGHT, scroll = true, gap = GAP, center = false }
     if not weather then
         column[1] = ui.stack{ w = WIDTH, h = HEIGHT,
-            ui.text{ text = omniwm.l10n("Unavailable"), font = "sans", size = tokens.title.large,
+            ui.text{ text = model.accessMessage(ctx) or omniwm.l10n("Unavailable"), font = "sans", size = tokens.title.large,
                 color = "secondaryForeground" } }
         return ui.column(column)
     end

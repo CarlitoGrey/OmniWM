@@ -45,6 +45,7 @@ struct ShellWidgetDelivery: Sendable {
     var configurationRequests: [ShellConfigurationRequest] = []
     var desktopRequests: [ShellDesktopSubmission] = []
     var networkApprovals: [ShellNetworkApproval] = []
+    var providerApprovals: [ShellProviderApproval] = []
 
     init(generation: Int) {
         self.generation = generation
@@ -161,6 +162,15 @@ final class ShellWidgetOutbox: Sendable {
         if needsDelivery { deliver() }
     }
 
+    func providerApproval(name: String, generation: Int, approval: ShellProviderApproval) {
+        let needsDelivery = state.withLock { state in
+            Self.update(name: name, generation: generation, in: &state) { delivery in
+                if !delivery.providerApprovals.contains(approval) { delivery.providerApprovals.append(approval) }
+            }
+        }
+        if needsDelivery { deliver() }
+    }
+
     func cancelDesktop(name: String, generation: Int, id: ShellServiceID) {
         state.withLock { state in
             if state.pending[name]?.generation == generation {
@@ -248,6 +258,7 @@ final class ShellWidgetOutbox: Sendable {
         delivery.configurationRequests += next.configurationRequests
         delivery.desktopRequests += next.desktopRequests
         delivery.networkApprovals += next.networkApprovals
+        delivery.providerApprovals += next.providerApprovals
     }
 
     private static func update(

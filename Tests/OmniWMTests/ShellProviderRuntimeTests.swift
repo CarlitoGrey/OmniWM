@@ -12,12 +12,14 @@ final class ShellProviderRuntimeTests: XCTestCase {
         enum Wake: Sendable {
             case inbox
             case deadline(UInt64)
+            case approval(ShellProviderApproval)
         }
 
         let directory: URL
         let owner = ShellServiceOwner(generation: 991, owner: 1, epoch: 1)
         let inbox = ShellProviderInbox()
         let services = ShellServiceLedger(generation: 991)
+        let permissions = ShellNetworkPermissions()
         let provider: ShellProvider
         let mailbox: AsyncStream<Wake>.Continuation
         private var consumer: Task<Void, Never>?
@@ -27,6 +29,8 @@ final class ShellProviderRuntimeTests: XCTestCase {
         var states: [ShellProviderIdentity: [String: Data]] = [:]
         var statuses: [ShellProviderIdentity: ShellProviderInbox.Status] = [:]
         var onDelivery: ((ShellProviderInbox.Delivery) -> Void)?
+        var approvals: [ShellProviderApproval] = []
+        var onApproval: ((ShellProviderApproval) -> Void)?
 
         init(consuming: Bool, diagnostic: @escaping @Sendable (String) -> Void) throws {
             directory = FileManager.default.temporaryDirectory.appendingPathComponent(
@@ -39,9 +43,13 @@ final class ShellProviderRuntimeTests: XCTestCase {
             let executable = directory.appendingPathComponent("provider.pl")
             try FileManager.default.copyItem(at: fixture, to: executable)
             try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: executable.path)
-            provider = ShellProvider(owner: owner, inbox: inbox, diagnostics: { _, line in diagnostic(line.text) })
             let (messages, continuation) = AsyncStream.makeStream(of: Wake.self)
             mailbox = continuation
+            provider = ShellProvider(
+                owner: owner, inbox: inbox, permissions: permissions,
+                trustNeeded: { continuation.yield(.approval($0)) },
+                diagnostics: { _, line in diagnostic(line.text) }
+            )
             inbox.attachWake { continuation.yield(.inbox) }
             if consuming {
                 consumer = Task { [weak self] in
@@ -49,6 +57,9 @@ final class ShellProviderRuntimeTests: XCTestCase {
                         guard let self else { return }
                         switch message {
                         case .inbox: drain()
+                        case let .approval(approval):
+                            approvals.append(approval)
+                            onApproval?(approval)
                         case let .deadline(expected): inbox.deadlineFired(
                                 expected,
                                 now: DispatchTime.now().uptimeNanoseconds
@@ -60,11 +71,12 @@ final class ShellProviderRuntimeTests: XCTestCase {
         }
 
         func configuration(tag: String = "A", mode: String = "echo") throws -> ShellProviderConfiguration {
-            ShellProviderConfiguration(
+            let configuration = try ShellProviderConfiguration.fixture(
                 widget: "fixture", instance: "instance", folder: directory, command: ["provider.pl"],
-                options: try JSONSerialization.data(withJSONObject: ["tag": tag, "mode": mode], options: .sortedKeys),
-                authorized: true
+                options: try JSONSerialization.data(withJSONObject: ["tag": tag, "mode": mode], options: .sortedKeys)
             )
+            permissions.approveProvider(configuration)
+            return configuration
         }
 
         func send(_ name: String, arguments: Data = Data("{}".utf8)) throws -> ShellServiceID {
@@ -157,6 +169,159 @@ final class ShellProviderRuntimeTests: XCTestCase {
         await fulfillment(of: [ready], timeout: 10)
         harness.onDelivery = nil
         return try XCTUnwrap(harness.inbox.identity(for: harness.owner))
+    }
+
+    func testProviderRequiresApprovalAndRelaunchesOnlyAfterTheEditedExecutableIsApproved() async throws {
+        try await withHarness { harness in
+            let known = try ShellProviderConfiguration.fixture(
+                widget: "fixture", instance: "instance", folder: harness.directory, command: ["provider.pl"],
+                options: JSONSerialization.data(withJSONObject: ["tag": "A", "mode": "echo"])
+            )
+            let unknown = known.unapproved
+            let requested = expectation(description: "actual program digest needs approval")
+            harness.onApproval = { _ in requested.fulfill() }
+            await harness.provider.reconcile(unknown)
+            await fulfillment(of: [requested], timeout: 10)
+            harness.onApproval = nil
+            let firstApproval = try XCTUnwrap(harness.approvals.last)
+            XCTAssertEqual(firstApproval.sha256, known.sha256)
+            XCTAssertFalse(FileManager.default
+                .fileExists(atPath: harness.directory.appendingPathComponent("launches").path))
+            harness.drain()
+            XCTAssertEqual(harness.statuses.values.first, .notApproved)
+            let first = try await launch(harness)
+            let changed = expectation(description: "edited program needs a new digest approval")
+            harness.onApproval = { approval in
+                if approval.sha256 != firstApproval.sha256 { changed.fulfill() }
+            }
+            let executable = harness.directory.appendingPathComponent("provider.pl")
+            let bytes = try Data(contentsOf: executable) + Data("\n\n".utf8)
+            try bytes.write(to: executable)
+            await fulfillment(of: [changed], timeout: 10)
+            harness.onApproval = nil
+            XCTAssertEqual(try harness.marker("launches"), "A\n")
+            XCTAssertNotEqual(harness.approvals.last?.sha256, firstApproval.sha256)
+            let second = try await launch(harness, tag: "B")
+            XCTAssertGreaterThan(second.incarnation, first.incarnation)
+            XCTAssertEqual(try harness.marker("launches"), "A\nB\n")
+        }
+    }
+
+    func testDenyThenResetRequestsTrustAgainForTheSameProgram() async throws {
+        try await withHarness { harness in
+            let configuration = try ShellProviderConfiguration.fixture(
+                widget: "fixture", folder: harness.directory, command: ["provider.pl"]
+            ).unapproved
+            let first = expectation(description: "first trust request")
+            harness.onApproval = { _ in first.fulfill() }
+            await harness.provider.reconcile(configuration)
+            await fulfillment(of: [first], timeout: 10)
+            harness.onApproval = nil
+            let approval = try XCTUnwrap(harness.approvals.last)
+            var denied = ShellPermissionDecisions()
+            denied.setProgram(.denied, for: approval)
+            XCTAssertTrue(harness.permissions.update(decisions: denied))
+            await harness.provider.reconcile(configuration)
+            XCTAssertEqual(harness.approvals.count, 1)
+            XCTAssertTrue(harness.permissions.update(decisions: ShellPermissionDecisions()))
+            let again = expectation(description: "reset requests trust for the unchanged program")
+            harness.onApproval = { _ in again.fulfill() }
+            harness.provider.permissionsChanged()
+            await fulfillment(of: [again], timeout: 10)
+            harness.onApproval = nil
+            XCTAssertEqual(harness.approvals, [approval, approval])
+            XCTAssertFalse(FileManager.default
+                .fileExists(atPath: harness.directory.appendingPathComponent("launches").path))
+        }
+    }
+
+    func testRevocationAndManagedDisableStopTheSupervisorAndApprovingRelaunches() async throws {
+        try await withHarness { harness in
+            let first = try await launch(harness)
+            let configuration = try harness.configuration()
+            let approval = ShellProviderApproval(
+                principal: configuration.principal, command: configuration.command,
+                sha256: try XCTUnwrap(configuration.sha256)
+            )
+            var decisions = ShellPermissionDecisions()
+            decisions.setProgram(.denied, for: approval)
+            XCTAssertTrue(harness.permissions.update(decisions: decisions))
+            let revoked = expectation(description: "revocation reaches the actual supervisor")
+            harness.onDelivery = { delivery in
+                if delivery.identity == first, delivery.snapshot?.status == .notApproved { revoked.fulfill() }
+            }
+            harness.provider.permissionsChanged()
+            await fulfillment(of: [revoked], timeout: 10)
+            harness.onDelivery = nil
+            let second = try await launch(harness, tag: "B")
+            XCTAssertGreaterThan(second.incarnation, first.incarnation)
+            var managed = ShellManagedPolicy()
+            managed.providersAllowed = false
+            XCTAssertTrue(harness.permissions.update(managed: managed))
+            let blocked = expectation(description: "managed disable reaches the actual supervisor")
+            harness.onDelivery = { delivery in
+                if delivery.identity == second, delivery.snapshot?.status == .notApproved { blocked.fulfill() }
+            }
+            harness.provider.permissionsChanged()
+            await fulfillment(of: [blocked], timeout: 10)
+            harness.onDelivery = nil
+            await harness.provider.close()
+            XCTAssertEqual(try harness.marker("launches"), "A\nB\n")
+            XCTAssertEqual(try harness.marker("closed"), "B")
+        }
+    }
+
+    func testInitiallyMissingApprovedProgramReportsFailureAndRecoversWhenRestored() async throws {
+        try await withHarness { harness in
+            let configuration = try harness.configuration()
+            let executable = harness.directory.appendingPathComponent("provider.pl")
+            let original = try Data(contentsOf: executable)
+            try FileManager.default.removeItem(at: executable)
+            let unavailable = expectation(description: "missing program is not stuck starting")
+            harness.onDelivery = { delivery in
+                if case let .failed(message)? = delivery.snapshot?.status {
+                    XCTAssertFalse(message.isEmpty)
+                    XCTAssertTrue(message.contains("executable"), message)
+                    unavailable.fulfill()
+                }
+            }
+            await harness.provider.reconcile(configuration)
+            await fulfillment(of: [unavailable], timeout: 10)
+            XCTAssertFalse(FileManager.default
+                .fileExists(atPath: harness.directory.appendingPathComponent("launches").path))
+            let ready = expectation(description: "restored already-approved bytes launch")
+            harness.onDelivery = { delivery in
+                if case let .event(name, _)? = delivery.control, name == "ready" { ready.fulfill() }
+            }
+            XCTAssertTrue(FileManager.default.createFile(
+                atPath: executable.path, contents: original, attributes: [.posixPermissions: 0o755]
+            ))
+            await fulfillment(of: [ready], timeout: 10)
+            harness.onDelivery = nil
+            XCTAssertEqual(try harness.marker("launches"), "A\n")
+        }
+    }
+
+    func testExecutableRecreatedAfterDeletionIsStillWatched() async throws {
+        try await withHarness { harness in
+            _ = try await launch(harness)
+            let configuration = try harness.configuration()
+            let executable = harness.directory.appendingPathComponent("provider.pl")
+            let original = try Data(contentsOf: executable)
+            try FileManager.default.removeItem(at: executable)
+            await harness.provider.reconcile(configuration)
+            let recreated = expectation(description: "directory watch observes the recreated program")
+            harness.onApproval = { _ in recreated.fulfill() }
+            XCTAssertTrue(FileManager.default.createFile(
+                atPath: executable.path,
+                contents: original + Data("\n\n\n".utf8),
+                attributes: [.posixPermissions: 0o755]
+            ))
+            await fulfillment(of: [recreated], timeout: 10)
+            harness.onApproval = nil
+            XCTAssertNotEqual(harness.approvals.last?.sha256, configuration.sha256)
+            XCTAssertEqual(try harness.marker("launches"), "A\n")
+        }
     }
 
     func testSubprocessInstallsLatestStateBeforeOrderedEventAndResult() async throws {

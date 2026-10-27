@@ -174,6 +174,7 @@ extension ShellWidgetHost {
         {
             deliverDesktop(delivery.desktopRequests, package: package)
             recordNetworkApprovals(delivery.networkApprovals)
+            recordProviderApprovals(delivery.providerApprovals)
         }
         guard delivery.generation == state.generation else { return }
         let previousDemand = demand(of: state)

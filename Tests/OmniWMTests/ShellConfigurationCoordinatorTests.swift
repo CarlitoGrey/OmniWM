@@ -32,7 +32,7 @@ final class ShellConfigurationCoordinatorTests: XCTestCase {
         XCTAssertEqual(components.first?.id, added)
         XCTAssertEqual(Array(components.dropFirst()), initial)
         XCTAssertFalse(components[0].enabled)
-        XCTAssertFalse(components[0].provider)
+        XCTAssertNil(components[0].options["provider"])
         XCTAssertNil(components[0].capabilities)
         XCTAssertEqual(components[0].options["seconds"], .bool(true))
         XCTAssertEqual(

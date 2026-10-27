@@ -9,7 +9,21 @@ struct ShellProviderConfiguration: Equatable, Sendable {
     let folder: URL
     let command: [String]
     let options: Data
-    let authorized: Bool
+    let principal: ShellWidgetPrincipal
+    let sha256: String?
+
+    init(
+        widget: String, instance: String, folder: URL, command: [String], options: Data, sha256: String?,
+        principal: ShellWidgetPrincipal? = nil
+    ) {
+        self.widget = widget
+        self.instance = instance
+        self.folder = folder
+        self.command = command
+        self.options = options
+        self.sha256 = sha256
+        self.principal = principal ?? ShellWidgetPrincipal(role: .component, name: widget, folder: folder)
+    }
 }
 
 struct ShellProviderLifecycle {
@@ -32,6 +46,7 @@ struct ShellProviderLifecycle {
         case cancelKill(ShellProviderIdentity)
         case kill(ShellProviderIdentity)
         case ended(ShellProviderIdentity, ShellProviderInbox.Status)
+        case refused(ShellProviderIdentity, ShellProviderConfiguration, ShellProviderInbox.Status)
     }
 
     let owner: ShellServiceOwner
@@ -76,6 +91,31 @@ struct ShellProviderLifecycle {
         }
     }
 
+    mutating func refuse(_ next: ShellProviderConfiguration, status: ShellProviderInbox.Status) -> [Effect] {
+        guard !closing else { return [] }
+        replacement = nil
+        configuration = nil
+        exitStatus = status
+        switch phase {
+        case .starting,
+             .running:
+            guard let identity else { return [] }
+            return [.ended(identity, status)] + stop()
+        case .closingInput,
+             .stopping,
+             .draining:
+            return []
+        case .idle,
+             .terminal:
+            guard nextIncarnation != .max else { return [] }
+            let refused = ShellProviderIdentity(owner: owner, incarnation: nextIncarnation)
+            nextIncarnation += 1
+            identity = refused
+            phase = .terminal
+            return [.refused(refused, next, status)]
+        }
+    }
+
     mutating func launched(_ expected: ShellProviderIdentity) -> [Effect] {
         guard identity == expected, phase == .starting else { return [] }
         phase = .running
@@ -85,7 +125,7 @@ struct ShellProviderLifecycle {
     mutating func launchFailed(_ expected: ShellProviderIdentity, message: String) -> [Effect] {
         guard identity == expected, phase == .starting else { return [] }
         phase = .terminal
-        exitStatus = .failed(String(message.prefix(1024)))
+        exitStatus = message == "provider_not_approved" ? .notApproved : .failed(String(message.prefix(1024)))
         return [.ended(expected, exitStatus!)]
     }
 

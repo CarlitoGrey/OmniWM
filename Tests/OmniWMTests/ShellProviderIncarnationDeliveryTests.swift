@@ -7,7 +7,7 @@ import OmniWMScriptHost
 import XCTest
 
 private extension ShellWidgetPackage {
-    func checkExtractedProviderReplacement() throws {
+    func checkExtractedProviderReplacement(retarget: Bool = false, optionsChanged: Bool = false) throws {
         let vm = try XCTUnwrap(ShellVM.make(memoryLimit: Self.memoryLimit))
         let script = ShellScript(vm: vm)
         self.script = script
@@ -16,16 +16,16 @@ private extension ShellWidgetPackage {
         return {
             init = function(instance)
                 assert(omniwm.provider.send("reply", {}, nil, function(result)
-                    assert(result.ok and result.value == 42)
+                    \(retarget ? "assert(not result.ok and result.error == 'provider_not_approved')" : "assert(result.ok and result.value == 42)")
                     instance.state.results = (instance.state.results or 0) + 1
                     instance.state.resultState = instance.provider.state.value
                 end))
             end,
             receive = function(instance, event)
                 if event.name == "verify" then
-                    assert((instance.state.events or 0) == 0, "stale event was delivered")
+                    assert((instance.state.events or 0) == \(optionsChanged ? 1 : 0), "unexpected event count")
                     assert(instance.state.results == 1, "old result was not delivered exactly once")
-                    assert(instance.state.resultState == 0, "stale snapshot was installed")
+                    assert(instance.state.resultState == \(optionsChanged ? 1 : 0), "unexpected result snapshot")
                     assert(instance.provider.state.value == event.value, "unexpected provider state")
                 else
                     instance.state.events = (instance.state.events or 0) + 1
@@ -66,7 +66,9 @@ private extension ShellWidgetPackage {
         let id = ShellServiceID(owner: ShellServiceOwner(request.owner), request: request.id)
         XCTAssertEqual(id.owner, owner)
         XCTAssertTrue(services.register(id))
-        XCTAssertTrue(providerInbox.activate(first))
+        permissions.approveProvider(.mock)
+        providerConfigurations["child"] = .mock
+        XCTAssertTrue(providerInbox.activate(first, configuration: .mock))
         XCTAssertTrue(providerInbox.register(id, identity: first))
         XCTAssertEqual(providerInbox.post(.state(topic: "value", value: Data("0".utf8)), from: first), .accepted)
         XCTAssertTrue(applyProviderSnapshot(
@@ -81,8 +83,67 @@ private extension ShellWidgetPackage {
         XCTAssertEqual(extracted.count, 2)
         XCTAssertNotNil(extracted.first?.snapshot)
 
+        if optionsChanged {
+            let previous = ShellProviderConfiguration.mock
+            let options = Data("{\"label\":\"B\"}".utf8)
+            providerConfigurations["child"] = ShellProviderConfiguration(
+                widget: previous.widget, instance: previous.instance, folder: previous.folder,
+                command: previous.command, options: options, sha256: previous.sha256, principal: previous.principal
+            )
+            var update = ShellValueWriter()
+            update.array(1)
+            update.map(6)
+            update.key("id")
+            update.string("child")
+            update.key("widget")
+            update.string("child")
+            update.key("enabled")
+            update.bool(true)
+            update.key("provider")
+            update.bool(true)
+            update.key("providerDeclared")
+            update.bool(true)
+            update.key("options")
+            update.map(1)
+            update.key("label")
+            update.string("B")
+            XCTAssertEqual(update.bytes.withUnsafeBufferPointer {
+                omni_vm_configure_components(
+                    vm,
+                    $0.baseAddress,
+                    $0.count,
+                    Self.loadBudget,
+                    &errorBuffer,
+                    errorBuffer.count
+                )
+            }, OMNI_OK, lastError())
+            XCTAssertEqual(providerOwner("child"), owner)
+            XCTAssertTrue(deliverProvider(extracted[0], in: script))
+            XCTAssertTrue(deliverProvider(extracted[1], in: script))
+            XCTAssertFalse(deliverProvider(extracted[1], in: script))
+            XCTAssertEqual(services.activeCount, 0)
+            XCTAssertEqual(omni_vm_service_stats(vm).reserved, 0)
+            try verifyProviderDeliveryState(owner, incarnation: 1, expected: "1", in: script)
+            XCTAssertEqual(providerConfigurations["child"]?.options, options)
+            return
+        }
+        if retarget {
+            let previous = ShellProviderConfiguration.mock
+            providerConfigurations["child"] = ShellProviderConfiguration(
+                widget: previous.widget, instance: previous.instance,
+                folder: URL(fileURLWithPath: "/fixture/replacement"),
+                command: previous.command, options: previous.options, sha256: nil
+            )
+            XCTAssertTrue(deliverProvider(extracted[0], in: script))
+            XCTAssertTrue(deliverProvider(extracted[1], in: script))
+            XCTAssertFalse(deliverProvider(extracted[1], in: script))
+            XCTAssertEqual(services.activeCount, 0)
+            XCTAssertEqual(omni_vm_service_stats(vm).reserved, 0)
+            try verifyProviderDeliveryState(owner, incarnation: 1, expected: "0", in: script)
+            return
+        }
         providerInbox.end(first, status: .exited(0))
-        XCTAssertTrue(providerInbox.activate(second))
+        XCTAssertTrue(providerInbox.activate(second, configuration: .mock))
         XCTAssertEqual(providerInbox.post(.state(topic: "value", value: Data("9".utf8)), from: second), .accepted)
         XCTAssertFalse(deliverProvider(extracted[0], in: script))
         XCTAssertTrue(deliverProvider(extracted[1], in: script))
@@ -111,6 +172,28 @@ private extension ShellWidgetPackage {
 
 @MainActor
 final class ShellProviderIncarnationDeliveryTests: XCTestCase {
+    func testLastingOptionChangeKeepsTrustForAnInFlightResult() async throws {
+        let package = ShellWidgetPackage(name: "test", generation: 1, outbox: ShellWidgetOutbox { _ in })
+        do {
+            try await package.checkExtractedProviderReplacement(optionsChanged: true)
+        } catch {
+            await package.close()
+            throw error
+        }
+        await package.close()
+    }
+
+    func testCurrentSourceRetargetDeniesAnExtractedResultBeforeSupervisorReconciliation() async throws {
+        let package = ShellWidgetPackage(name: "test", generation: 1, outbox: ShellWidgetOutbox { _ in })
+        do {
+            try await package.checkExtractedProviderReplacement(retarget: true)
+        } catch {
+            await package.close()
+            throw error
+        }
+        await package.close()
+    }
+
     func testExtractedOldStateAndEventAreDroppedButTheirAcceptedResultSettles() async throws {
         let package = ShellWidgetPackage(name: "test", generation: 1, outbox: ShellWidgetOutbox { _ in })
         do {

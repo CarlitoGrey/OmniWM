@@ -41,6 +41,19 @@ actor ShellProvider {
     let inbox: ShellProviderInbox
     let diagnostics: @Sendable (ShellProviderIdentity, ShellProviderDiagnostics.Line) -> Void
     let environment: [String: String]
+    let permissions: ShellNetworkPermissions
+    let trustNeeded: @Sendable (ShellProviderApproval) -> Void
+    var declaration: ShellProviderConfiguration?
+    enum Rejection: Equatable {
+        case trust(ShellProviderApproval, ShellNetworkDecision)
+        case failure(ShellProviderConfiguration, String)
+    }
+
+    var lastRejection: Rejection?
+    var lastReportedApproval: ShellProviderApproval?
+    var approvalRevision: UInt64 = 0
+    var executableWatches: [any DispatchSourceFileSystemObject] = []
+    var executableWatchPaths: Set<String> = []
     var lifecycle: ShellProviderLifecycle
     var process: Process?
     var inputFD: Int32?
@@ -68,17 +81,39 @@ actor ShellProvider {
         owner: ShellServiceOwner,
         inbox: ShellProviderInbox,
         environment: [String: String] = ProcessInfo.processInfo.environment,
+        permissions: ShellNetworkPermissions = ShellNetworkPermissions(),
+        trustNeeded: @escaping @Sendable (ShellProviderApproval) -> Void = { _ in },
         diagnostics: @escaping @Sendable (ShellProviderIdentity, ShellProviderDiagnostics.Line) -> Void = { _, _ in }
     ) {
         lifecycle = ShellProviderLifecycle(owner: owner)
         self.inbox = inbox
         self.environment = environment
+        self.permissions = permissions
+        self.trustNeeded = trustNeeded
         self.diagnostics = diagnostics
         signals.attach { [weak self] in Task { await self?.consumeSignals() } }
     }
 
     func reconcile(_ configuration: ShellProviderConfiguration?) {
-        perform(lifecycle.reconcile(configuration))
+        let changed = declaration != configuration
+        declaration = configuration
+        guard let configuration else {
+            stopExecutableWatches()
+            lastReportedApproval = nil
+            lastRejection = nil
+            perform(lifecycle.reconcile(nil))
+            return
+        }
+        refreshTrust(configuration, configurationChanged: changed)
+    }
+
+    nonisolated func permissionsChanged() {
+        Task { await recheckPermissions() }
+    }
+
+    private func recheckPermissions() {
+        guard let declaration else { return }
+        refreshTrust(declaration)
     }
 
     func captureBegin(_ id: UInt64) {
@@ -113,6 +148,8 @@ actor ShellProvider {
     }
 
     func close() async {
+        declaration = nil
+        stopExecutableWatches()
         perform(lifecycle.close())
         guard !lifecycle.isClosed else { return }
         await withCheckedContinuation { closeWaiters.append($0) }

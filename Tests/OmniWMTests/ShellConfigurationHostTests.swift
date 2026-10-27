@@ -342,7 +342,6 @@ final class ShellConfigurationHostTests: XCTestCase {
         let initial = ShellComponentInstance(
             id: "existing",
             widget: "box",
-            provider: true,
             options: ["width": .number(12)]
         )
         let fixture = try Fixture("""
@@ -393,11 +392,11 @@ final class ShellConfigurationHostTests: XCTestCase {
         let components = try XCTUnwrap(fixture.host.config.island?.components)
         XCTAssertEqual(components.map(\.widget), ["extra", "box"])
         XCTAssertEqual(components[0].options["width"], .number(31))
-        XCTAssertFalse(components[0].provider)
+        XCTAssertNil(components[0].options["provider"])
         XCTAssertNil(components[0].capabilities)
         XCTAssertEqual(components[1].id, "existing")
         XCTAssertFalse(components[1].enabled)
-        XCTAssertTrue(components[1].provider)
+        XCTAssertNil(components[1].options["provider"])
         XCTAssertEqual(fixture.sink.requests, 6)
         XCTAssertEqual(try fixture.persisted().island?.components, components)
         XCTAssertEqual(fixture.package.services.activeCount, 0)

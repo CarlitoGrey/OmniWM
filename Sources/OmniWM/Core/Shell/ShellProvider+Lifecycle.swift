@@ -51,6 +51,11 @@ extension ShellProvider {
                 killSource = nil
             case let .ended(identity, status):
                 inbox.end(identity, status: status)
+            case let .refused(identity, configuration, status):
+                if inbox.activate(identity, configuration: configuration) {
+                    inbox.end(identity, status: status)
+                    inbox.incarnationDrained(identity)
+                }
             }
         }
         if lifecycle.isClosed {

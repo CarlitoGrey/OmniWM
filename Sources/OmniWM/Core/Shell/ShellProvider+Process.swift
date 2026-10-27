@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 // Copyright (C) 2026 OmniNull — https://github.com/OmniNull/OmniWM
 
+import CryptoKit
 import Darwin
 import Foundation
 
@@ -66,15 +67,38 @@ extension ShellProvider {
         return copy
     }
 
-    private struct LaunchDeclaration {
+    struct LaunchDeclaration {
         let folder: URL
         let executable: URL
         let options: String
     }
 
-    private func launchDeclaration(_ configuration: ShellProviderConfiguration) throws -> LaunchDeclaration {
-        guard configuration.authorized
-        else { throw failure("Provider execution is not enabled in the user configuration") }
+    func launchDeclaration(_ configuration: ShellProviderConfiguration) throws -> LaunchDeclaration {
+        let declaration = try resolveDeclaration(configuration)
+        let approval = try executableApproval(configuration, executable: declaration.executable)
+        guard configuration.principal == approval.principal, configuration.sha256 == approval.sha256,
+              permissions.decide(approval) == .allowed
+        else {
+            reportApproval(approval)
+            throw failure("provider_not_approved")
+        }
+        return declaration
+    }
+
+    func executableApproval(
+        _ configuration: ShellProviderConfiguration,
+        executable: URL
+    ) throws -> ShellProviderApproval {
+        let bytes = try Data(contentsOf: executable)
+        let digest = SHA256.hash(data: bytes).map { String(format: "%02x", $0) }.joined()
+        let principal = ShellWidgetPrincipal(
+            role: configuration.principal.role, name: configuration.principal.name,
+            folder: configuration.folder
+        )
+        return ShellProviderApproval(principal: principal, command: configuration.command, sha256: digest)
+    }
+
+    func resolveDeclaration(_ configuration: ShellProviderConfiguration) throws -> LaunchDeclaration {
         guard let executable = configuration.command.first, !executable.isEmpty,
               !executable.hasPrefix("/"), !executable.hasPrefix("~"), !executable.contains("\0"),
               !executable.split(separator: "/", omittingEmptySubsequences: false)

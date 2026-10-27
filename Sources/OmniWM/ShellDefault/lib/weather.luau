@@ -33,6 +33,12 @@ local function label(condition: string?): string?
     return condition and (CONDITIONS[condition] or condition)
 end
 
+function weather.accessMessage(ctx)
+    local access = ctx.select("weather", "access")
+    return if access == "off" then omniwm.l10n("Turned off in Settings")
+        elseif access == "blocked" then omniwm.l10n("Blocked by your organization") else nil
+end
+
 function weather.state(ctx, withUnit: boolean?)
     local symbol = ctx.select("weather", "symbol")
     if not symbol then
@@ -50,7 +56,7 @@ end
 
 function weather.model(ctx, compact: boolean?)
     local data = ctx.data.weather
-    if not data then
+    if not data or weather.accessMessage(ctx) then
         return nil
     end
     local m = { temp = degrees(data.temp), temperature = temperature(ctx, data.temp, data.unit),
@@ -219,12 +225,17 @@ function weather.content(ctx, isCompact: boolean?, width: number?, m)
     width = width or look.width
     m = m or weather.model(ctx, isCompact)
     if not m then
-        return actions.notice(omniwm.l10n("Unavailable"), width)
+        return actions.notice(weather.accessMessage(ctx) or omniwm.l10n("Unavailable"), width)
     end
     return if isCompact then compact(m, width) else full(m, width)
 end
 
 function weather.popout(ctx)
+    local message = weather.accessMessage(ctx)
+    if message then
+        return look.panel(ctx, { w = look.width + 28,
+            look.heading(omniwm.l10n("Weather"), look.width), actions.notice(message, look.width) })
+    end
     local m = weather.model(ctx)
     return look.weatherPanel and look.weatherPanel(ctx, m)
         or look.panel(ctx, { w = look.width + 28,

@@ -5,6 +5,11 @@ local look = require("../lib/look")
 local weather = require("../lib/weather")
 
 function render(ctx)
+    local message = weather.accessMessage(ctx)
+    if message then
+        return look.bar(ctx, { onClick = ui.popout,
+            look.text{ text = message, size = 11 * look.scale(ctx), maxWidth = 240 * look.scale(ctx) } })
+    end
     local state = weather.state(ctx)
     if not state then
         return ui.box{ w = 0, h = 0 }
