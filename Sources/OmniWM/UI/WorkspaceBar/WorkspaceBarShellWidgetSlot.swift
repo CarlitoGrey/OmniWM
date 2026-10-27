@@ -18,6 +18,7 @@ struct ShellWidgetSlot: View {
                 Group {
                     if let view {
                         ShellWidgetSlotHost(view: view)
+                            .id(ObjectIdentifier(view))
                     } else {
                         Color.clear
                     }
