@@ -197,7 +197,7 @@ final class ShellDefaultsTests: XCTestCase {
         XCTAssertEqual(island.fullscreen, .hide)
         XCTAssertTrue(island.components.isEmpty)
         let bar = try XCTUnwrap(config.barOverride?.settings)
-        XCTAssertEqual(bar.position, .belowMenuBar)
+        XCTAssertEqual(bar.position, .overlappingMenuBar)
         XCTAssertEqual(bar.height, 32)
         XCTAssertEqual(bar.fullWidth, true)
         XCTAssertEqual(bar.reserveLayoutSpace, true)
@@ -259,7 +259,7 @@ final class ShellDefaultsTests: XCTestCase {
             XCTAssertNotNil(config.widget(widget), widget)
         }
         let bar = try XCTUnwrap(config.barOverride?.settings)
-        XCTAssertEqual(bar.position, .belowMenuBar)
+        XCTAssertEqual(bar.position, .overlappingMenuBar)
         XCTAssertEqual(bar.height, 32)
         XCTAssertEqual(bar.reserveLayoutSpace, true)
         XCTAssertEqual(bar.transparentBackground, false)

@@ -3,7 +3,7 @@ center = ["active-window"]
 trailing = ["media", "notifications", "volume", "wifi", "battery-details", "control-center", "system-stats", "clock"]
 
 [workspaceBar]
-position = "belowMenuBar"
+position = "overlappingMenuBar"
 height = 32
 fullWidth = true
 reserveLayoutSpace = true

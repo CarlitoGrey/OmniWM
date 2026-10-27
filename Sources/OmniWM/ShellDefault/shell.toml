@@ -16,7 +16,7 @@ height = 200
 fullscreen = "hide"
 
 [workspaceBar]
-position = "belowMenuBar"
+position = "overlappingMenuBar"
 height = 32
 fullWidth = true
 reserveLayoutSpace = true

@@ -21,7 +21,7 @@ display = "text_only"
 maxWidth = 160
 
 [workspaceBar]
-position = "belowMenuBar"
+position = "overlappingMenuBar"
 height = 40
 fullWidth = true
 reserveLayoutSpace = true
