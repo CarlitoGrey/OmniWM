@@ -185,7 +185,7 @@ All other window actions take no argument field.
 }
 ```
 
-Both fields are required. `from` is `workspace`, `monitor`, or `all`; `omniwmctl` sends `workspace` unless `--from` is given. Unreleased: available when building from `main`.
+Both fields are required. `from` is `workspace`, `monitor`, or `all`; `omniwmctl` sends `workspace` unless `--from` is given.
 
 **Shell widget values:**
 
@@ -197,7 +197,7 @@ Both fields are required. `from` is `workspace`, `monitor`, or `all`; `omniwmctl
 }
 ```
 
-`unset` sends only `name` and `key`; a `value` field on `unset` is rejected. `toggle` sends `name` and `widget`. All three return `status: "executed"` without a result payload. `eject` and `init` also send `name` and `widget`, `profile` and `theme` send the profile or theme name as `key`, and `trigger` sends `widget`, the event name as `key` and an optional `value`; their statuses are listed under [Shell Widgets](/reference/cli/actions/#shell-widgets). Unreleased: available when building from `main`.
+`unset` sends only `name` and `key`; a `value` field on `unset` is rejected. `toggle` sends `name` and `widget`. All three return `status: "executed"` without a result payload. `eject` and `init` also send `name` and `widget`, `profile` and `theme` send the profile or theme name as `key`, and `trigger` sends `widget`, the event name as `key` and an optional `value`; their statuses are listed under [Shell Widgets](/reference/cli/actions/#shell-widgets).
 
 ### Response Format
 

@@ -5,10 +5,6 @@ sidebar:
   order: 3
 ---
 
-:::note[Unreleased]
-These policies are available when building OmniWM from `main`.
-:::
-
 Organizations can manage OmniShell through forced preferences in **`com.barut.OmniWM`**. The separate Dev app reads **`com.barut.OmniWM.dev`**. Only forced values count; ordinary `defaults write` values are ignored. The policy covers the Luau HTTP API, native provider launches and the built-in Weather and Lyrics services, not update checks, embedded terminals or browser `openURL` actions.
 
 ## Keys and invalid values

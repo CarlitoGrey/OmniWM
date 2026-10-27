@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-Enable **Settings → Window Switcher → Enable Window Switcher** to cycle through windows with thumbnail previews. The feature is off by default. Disable matching shortcuts in AltTab before enabling it. Unreleased: available when building from `main`.
+Enable **Settings → Window Switcher → Enable Window Switcher** to cycle through windows with thumbnail previews. The feature is off by default. Disable matching shortcuts in AltTab before enabling it.
 
 ## Shortcuts and workspace scope
 

@@ -5,10 +5,6 @@ sidebar:
   order: 4
 ---
 
-:::note[Unreleased]
-OmniShell is available when building from `main`.
-:::
-
 OmniShell scripts are ordinary files under `~/.config/omniwm/shell/`. Edit them in your own editor. The host watches source and configuration changes and reloads affected packages; you do not need to restart the window manager for each edit.
 
 ## Create or eject a widget

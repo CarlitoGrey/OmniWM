@@ -5,15 +5,11 @@ sidebar:
   order: 1
 ---
 
-OmniWM's Quake terminal can be summoned over any workspace. By default, it runs an embedded terminal built on Ghostty's [libghostty](https://ghostty.org), with multiple tabs and splits within tabs. When building from `main`, you can also choose Kitty's quick-access terminal.
+OmniWM's Quake terminal can be summoned over any workspace. By default, it runs an embedded terminal built on Ghostty's [libghostty](https://ghostty.org), with multiple tabs and splits within tabs. You can also choose Kitty's quick-access terminal.
 
 Toggle it with `` Option + ` `` (backtick) by default; the binding is configurable in Settings under Keyboard Shortcuts, alongside the rest of the [keyboard shortcuts](/guides/keyboard-shortcuts/).
 
 ## Kitty provider
-
-:::note[Unreleased]
-The Kitty provider is available when building from `main`.
-:::
 
 Install the Kitty app, then open **Settings → Quake Terminal** and choose **Kitty** in the **Terminal** picker. The same global shortcut toggles a dedicated Kitty quick-access terminal instance.
 

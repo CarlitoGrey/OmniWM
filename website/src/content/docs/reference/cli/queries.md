@@ -65,11 +65,11 @@ Workspace and scratchpad hiding retain their reasons. For other layout hiding, a
 
 `column-index` returns the JSON field `columnIndex`: the one-based Niri column that holds the window, numbered like `focus-column` and `move-column-to-index`. Inactive tabs share their column's index; floating windows, Dwindle windows, and windows excluded from the layout, such as minimized windows, omit it.
 
-`focus-rank` returns the JSON field `focusRank`: the window's position in OmniWM's focus history, where `0` is the most recently focused managed window. The history covers tiled, floating, and scratchpad windows, records every focus change OmniWM observes (commands, clicks, ⌘⇥, apps raising their own windows), drops closed windows, and starts empty when OmniWM launches. Ranks are global, so a filtered result can skip numbers. Windows not focused since launch omit `focusRank`. Unreleased: available when building from `main`.
+`focus-rank` returns the JSON field `focusRank`: the window's position in OmniWM's focus history, where `0` is the most recently focused managed window. The history covers tiled, floating, and scratchpad windows, records every focus change OmniWM observes (commands, clicks, ⌘⇥, apps raising their own windows), drops closed windows, and starts empty when OmniWM launches. Ranks are global, so a filtered result can skip numbers. Windows not focused since launch omit `focusRank`.
 
 ## Sorting Windows
 
-`query windows --sort mru` returns windows most recently focused first. Windows without a `focus-rank` follow in the default order (workspace, then layout). Without `--sort`, windows keep the default order. `--sort` is accepted only by the `windows` query. Unreleased: available when building from `main`.
+`query windows --sort mru` returns windows most recently focused first. Windows without a `focus-rank` follow in the default order (workspace, then layout). Without `--sort`, windows keep the default order. `--sort` is accepted only by the `windows` query.
 
 Ranks are read when the query runs. A focus change alone does not emit `windows-changed`, so a `focusRank` in an event payload can be out of date; run `query windows --sort mru` when you need the current order.
 
@@ -81,7 +81,7 @@ The three workspace flags answer different questions. `is-focused` marks the wor
 
 **Display fields:** `id`, `name`, `is-main`, `is-current`, `frame`, `visible-frame`, `has-notch`, `orientation`, `inner-gap`, `outer-gap-left`, `outer-gap-right`, `outer-gap-top`, `outer-gap-bottom`, `fullscreen-uses-outer-gaps`, `active-workspace`, `uuid`, `notch`, `menu-bar-height`, `bar-frames`, `reserved-insets`
 
-`uuid` is the display's stable UUID, `notch` the notch's horizontal `start` and `end`, `menu-bar-height` the space above the visible frame, `bar-frames` the frames of the workspace bar panels shown on the display, and `reserved-insets` the space the workspace bar reserves for windows on each edge. Unreleased: available when building from `main`.
+`uuid` is the display's stable UUID, `notch` the notch's horizontal `start` and `end`, `menu-bar-height` the space above the visible frame, `bar-frames` the frames of the workspace bar panels shown on the display, and `reserved-insets` the space the workspace bar reserves for windows on each edge.
 
 `fullscreen-uses-outer-gaps` reports the resolved per-display policy used by OmniWM Full Screen, Niri maximized, and the Single Window “Full Screen” fit. It does not affect native macOS Full Screen.
 
@@ -106,9 +106,9 @@ The three workspace flags answer different questions. `is-focused` marks the wor
 | `commands` | — | — | Automation action registry for `command`, `workspace`, `window`, `window mark`, `window gather`, and `shell` surfaces |
 | `subscriptions` | — | — | Subscription registry |
 | `capabilities` | — | — | Full protocol capabilities, including `windowMarkActions`, `windowGatherActions`, and `shellActions` |
-| `shell-widgets` | — | — | Luau shell widgets with their `state` (`loading`, `loaded`, `failed` or `fallback`), `placements`, `source` file and any `error`, plus `problems` found in `shell.toml` and theme files. Unreleased: available when building from `main` |
+| `shell-widgets` | — | — | Luau shell widgets with their `state` (`loading`, `loaded`, `failed` or `fallback`), `placements`, `source` file and any `error`, plus `problems` found in `shell.toml` and theme files |
 
-`window mark` descriptors in `commands` and `capabilities` are available. List live marks with [`omniwmctl window mark list`](/reference/cli/actions/#window-marks).
+`commands` and `capabilities` include the `window mark` descriptors. List live marks with [`omniwmctl window mark list`](/reference/cli/actions/#window-marks).
 
 **Examples:**
 

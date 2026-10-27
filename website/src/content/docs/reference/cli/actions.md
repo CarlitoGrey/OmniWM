@@ -68,7 +68,7 @@ Marks give live managed windows unique names across workspaces. They last until 
 
 ## Window Gather
 
-Gather windows into one Niri column, in the order you list their opaque IDs. Unreleased: available when building from `main`.
+Gather windows into one Niri column, in the order you list their opaque IDs.
 
 ```
 omniwmctl window gather [--from workspace|monitor|all] <window-id>...
@@ -129,7 +129,7 @@ Configured monitor assignment remains enforced unless `--force` is present. A fo
 
 ## Shell Widgets
 
-Push values from any script to Luau bar widgets, open a widget's popout, switch the shell profile or theme, or copy a widget into your shell folder to edit it. Widgets read values as `ctx.data.vars[key]` and re-render when they change. Values last until OmniWM quits; they are not saved. Unreleased: available when building from `main`.
+Push values from any script to Luau bar widgets, open a widget's popout, switch the shell profile or theme, or copy a widget into your shell folder to edit it. Widgets read values as `ctx.data.vars[key]` and re-render when they change. Values last until OmniWM quits; they are not saved.
 
 ```
 omniwmctl shell set <key> <value...>

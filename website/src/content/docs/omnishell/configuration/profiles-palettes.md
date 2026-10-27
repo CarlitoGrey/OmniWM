@@ -5,10 +5,6 @@ sidebar:
   order: 1
 ---
 
-:::note[Unreleased]
-OmniShell is available when building from `main`.
-:::
-
 A **profile** supplies the widgets, libraries, layout and appearance for a desktop style. A **palette** changes its colors. Select a style in **Settings > Styles & Widgets**, then choose **Use Style**. Browsing previews leaves the desktop unchanged until you apply one. The bar and island enable switches remain independent. Saved choices stay with their profile when you switch away and return.
 
 ## The shell folder

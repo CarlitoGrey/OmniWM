@@ -685,7 +685,7 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 - **SIP stays enabled** — Official OmniWM releases do not require disabling System Integrity Protection.
 - **Signed and notarized releases** — Official release builds are Developer ID signed and Apple-notarized.
 - **Free and open source** — OmniWM has no subscriptions, feature paywalls, trial limits, or usage caps and is licensed GPL-2.0-only.
-- **OmniShell network consent** — **Unreleased:** Widgets need declared hosts and user consent or organization preapproval; native programs need trust tied to their executable and command. **Settings > Network & Permissions** manages those decisions and the built-in Weather and Lyrics switches, both on by default. Organization policies can block them. See [network permissions](https://omniwm.app/omnishell/reference/services/#consent-and-policy) and [managed preferences](https://omniwm.app/config/managed-preferences/).
+- **OmniShell network consent** — Widgets need declared hosts and user consent or organization preapproval; native programs need trust tied to their executable and command. **Settings > Network & Permissions** manages those decisions and the built-in Weather and Lyrics switches, both on by default. Organization policies can block them. See [network permissions](https://omniwm.app/omnishell/reference/services/#consent-and-policy) and [managed preferences](https://omniwm.app/config/managed-preferences/).
 
 ## Requirements
 
@@ -694,7 +694,7 @@ OmniWM is built for high responsiveness and smooth, crisp animations.
 - Accessibility and Input Monitoring permissions (required at launch)
 - Screen Recording permission for Overview thumbnails, drag previews, and captured Hidden Bar glyphs (optional)
 - Full Disk Access permission for Hidden Bar concealment (optional)
-- System Audio Recording permission for per-app volume, Calendars access for the calendar widget, Location for the Wi-Fi widget's network name and Bluetooth for the Bluetooth widget in the Luau shell (optional; when building from `main`)
+- System Audio Recording permission for per-app volume, Calendars access for the calendar widget, Location for the Wi-Fi widget's network name and Bluetooth for the Bluetooth widget in the Luau shell (optional)
 - Displays have separate spaces **ON** (the macOS default; OmniWM pauses window management until it is enabled)
 
 ## Installation
@@ -777,7 +777,7 @@ To try one with a Homebrew or GitHub Releases install:
 2. Quit OmniWM, then download the newest [canary build](https://github.com/OmniNull/OmniWM/releases?q=canary) and replace `OmniWM.app` in `/Applications` with the app from its ZIP
 3. Relaunch OmniWM. It uses your existing settings
 
-**Unreleased:** Canary builds check only for newer published Canary releases. Stable builds continue to check only stable releases. Updates stay manual: download from the release page, or use `brew upgrade --cask omniwm@canary` if you installed that Homebrew cask and its new version is available. Older Canary builds need one manual update to gain Canary update checks.
+Canary builds check only for newer published Canary releases. Stable builds continue to check only stable releases. Updates stay manual: download from the release page, or use `brew upgrade --cask omniwm@canary` if you installed that Homebrew cask and its new version is available. Older Canary builds need one manual update to gain Canary update checks.
 
 To return to stable, quit OmniWM. If you installed `omniwm@canary`, run `brew uninstall --cask omniwm@canary` followed by `brew install --cask omniwm`. For an existing `omniwm` Homebrew install, run `brew reinstall --cask omniwm`; for a direct download, replace the app with the [latest release](https://github.com/OmniNull/OmniWM/releases/latest). If stable cannot read settings saved by a canary, quit OmniWM and restore your copy. When reporting a canary bug, include its release link.
 
@@ -923,7 +923,7 @@ When you create workspace 10 or higher, Settings > Keyboard Shortcuts adds its S
 | Previous Track | `Unassigned` | `Shared` |
 | Toggle `<drawer or widget>` | `Unassigned` | `Shared` |
 
-The volume, media and Toggle actions are available when building from `main`. Settings > Keyboard Shortcuts lists a Toggle action for every shell drawer and every shell widget with a popout.
+Settings > Keyboard Shortcuts lists a Toggle action for every shell drawer and every shell widget with a popout.
 
 #### Move Window
 
@@ -1066,7 +1066,7 @@ OmniWM remembers one custom size and position. It reuses that frame when it fits
 
 Quake Terminal loads Ghostty's normal configuration files and their included files, so font, theme, and other terminal preferences can be shared. OmniWM applies its Quake background opacity and effect afterward; configure those in **Settings → Quake Terminal**.
 
-**Unreleased:** When building from `main`, select **Kitty** under **Settings → Quake Terminal → Terminal** to use Kitty's quick-access terminal. Install Kitty separately. It uses `quick-access-terminal.conf`, with optional placement, auto-hide, and opacity overrides in OmniWM. The Ghostty settings and shortcuts above apply to the embedded provider. See the [Kitty provider guide](https://omniwm.app/features/quake-terminal/#kitty-provider).
+Select **Kitty** under **Settings → Quake Terminal → Terminal** to use Kitty's quick-access terminal. Install Kitty separately. It uses `quick-access-terminal.conf`, with optional placement, auto-hide, and opacity overrides in OmniWM. The Ghostty settings and shortcuts above apply to the embedded provider. See the [Kitty provider guide](https://omniwm.app/features/quake-terminal/#kitty-provider).
 
 #### Command Palette
 
@@ -1128,7 +1128,7 @@ A visual indicator showing your workspaces:
 - Optionally show a System Stats button that opens a CPU, memory, GPU, disk, and uptime popup. `Toggle System Stats` and `omniwmctl command toggle-system-stats` drive the same popup, and both do nothing unless a monitor currently shows that workspace-bar button
 - Optionally hide the bar on a monitor while that monitor shows a macOS native fullscreen window, and bring it back on exit (`Hide in Native Fullscreen`); reserved tiled layout space is left untouched so windows do not shuffle around the fullscreen session
 - Exclude individual apps or choose alternate app icons across all monitors in Settings
-- When building from `main`, the bar is drawn by Luau widgets in `~/.config/omniwm/shell/` that you can restyle or replace, with the Wayline, Nocturne and Celestial styles and twelve colour themes bundled; see [OmniShell](https://omniwm.app/features/luau-shell/)
+- The bar is drawn by Luau widgets in `~/.config/omniwm/shell/` that you can restyle or replace, with bundled styles and colour themes; see [OmniShell](https://omniwm.app/features/luau-shell/)
 - Add **Notifications** from **Settings → Styles & Widgets → Bar → Add Widget…** to browse retained macOS notifications. Its Details view includes participants, attachments, action definitions and native metadata, also available to widgets through `ctx.data.notifications`. The feed reads Notification Center's database on changes; native persistence can delay updates by several seconds. The widget shows storage-access errors and links to Full Disk Access settings. Reply and dismiss definitions are metadata; the widget does not execute those native actions.
 - The editable effects library includes native motion presets, Metal lighting and reveal masks. Add `effects-lab` to a bar lane in `shell.toml` to explore them with blur and glass materials; see [Effects library](https://omniwm.app/omnishell/reference/effects-shaders/).
 
@@ -1182,7 +1182,7 @@ If you need more features for hiding status bar icons, I recommend [Thaw](https:
 
 - **Workspaces** - Create named workspaces in Settings to organize by project or context (You can use emojis 🥳)
 - **App Rules** - Exclude problematic apps from tiling or assign them to specific workspaces
-- **Mouse** - Hold the configured mouse-move modifier and drag tiled windows. **Unreleased:** drop at another tile's center to swap or near one of its edges to insert on that side; in Niri the edges facing neighboring columns open a new column, and Dwindle also inserts between existing splits or at the workspace's outer edges. Dwindle moves whole tiles, including their tab groups. Drops on another display work the same way, between Niri and Dwindle too. The modifier defaults to `Option` and can be changed or disabled in **Settings → Mouse & Trackpad**. In Overview, dragging a thumbnail needs no modifier and targets a workspace, window position, or Niri column gap
+- **Mouse** - Hold the configured mouse-move modifier and drag tiled windows. Drop at another tile's center to swap or near one of its edges to insert on that side; in Niri the edges facing neighboring columns open a new column, and Dwindle also inserts between existing splits or at the workspace's outer edges. Dwindle moves whole tiles, including their tab groups. Drops on another display work the same way, between Niri and Dwindle too. The modifier defaults to `Option` and can be changed or disabled in **Settings → Mouse & Trackpad**. In Overview, dragging a thumbnail needs no modifier and targets a workspace, window position, or Niri column gap
 - **Mouse Resize** - Hold the configured right-mouse resize modifier (`Option` by default) and right-drag a tiled window to resize it in either layout
 - **Scroll Gestures (Mouse)** - Hold `Option + Shift + Mouse Scroll Wheel` (default, configurable) to scroll along the active Niri primary axis: left/right in horizontal orientation or up/down in vertical orientation
 - **Trackpad Gestures** - Use 2/3/4-finger gestures (configurable) along the active Niri primary axis; direction can be inverted

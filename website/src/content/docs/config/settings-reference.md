@@ -50,7 +50,7 @@ Global switches: hotkeys, Hyper key, default layout, sleep, updates, IPC, animat
 | `animationsEnabled` | boolean | `true` | Animates window layout changes and other OmniWM-authored motion. macOS Reduce Motion turns them off regardless of this key. |
 | `animationSpeed` *(optional)* | float | `1.0` | Tiling animation speed multiplier: `2.0` is twice as fast, `0.5` is half as fast. Applies to Niri focus, window/column movement and resizing, Dwindle layout changes, and workspace swipe settling. Values are clamped to `0.25`–`4.0`; nonfinite values use `1.0`. Changes apply to newly started transitions. Direct gesture tracking, inertial scrolling, Overview, and Quake terminal animations keep their own behavior. |
 | `language` *(optional)* | string | unset | Interface language as a packaged localization code, such as `"ja"` or `"sr-Latn"`. Leave it unset to follow macOS. Takes effect the next time OmniWM starts. |
-| `workspaceAutoBackAndForth` *(optional)* | boolean | `false` | When a workspace shortcut or command palette entry targets the workspace you are already on, switch to the previously active workspace instead, like i3's `workspace_auto_back_and_forth`. `omniwmctl` workspace commands are unaffected. Settings > Workspaces > Workspace Switching. Unreleased: available when building from `main`. |
+| `workspaceAutoBackAndForth` *(optional)* | boolean | `false` | When a workspace shortcut or command palette entry targets the workspace you are already on, switch to the previously active workspace instead, like i3's `workspace_auto_back_and_forth`. `omniwmctl` workspace commands are unaffected. Settings > Workspaces > Workspace Switching. |
 
 ## focus
 
@@ -229,7 +229,7 @@ Overview visibility, zoom, input and colors.
 
 ## windowSwitcher
 
-The [window switcher](/features/window-switcher/). The table is optional; when absent, every key takes its default. Unreleased: available when building from `main`.
+The [window switcher](/features/window-switcher/). The table is optional; when absent, every key takes its default.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -241,7 +241,7 @@ The [window switcher](/features/window-switcher/). The table is optional; when a
 
 ## keyboardModes
 
-[Keyboard modes](/guides/keyboard-shortcuts/#keyboard-modes). The table is optional; when absent, every key takes its default. Unreleased: available when building from `main`.
+[Keyboard modes](/guides/keyboard-shortcuts/#keyboard-modes). The table is optional; when absent, every key takes its default.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -249,7 +249,7 @@ The [window switcher](/features/window-switcher/). The table is optional; when a
 
 ## workspaceBar
 
-The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverrides`](#per-monitor-overrides). A [shell profile or theme](/omnishell/configuration/profiles-palettes/#profile-settings) can override most of these keys in its own `[workspaceBar]`. Unreleased: available when building from `main`.
+The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverrides`](#per-monitor-overrides). A [shell profile or theme](/omnishell/configuration/profiles-palettes/#profile-settings) can override most of these keys in its own `[workspaceBar]`.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -263,9 +263,9 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 | `position` | string | `"overlappingMenuBar"` | `overlappingMenuBar`, `belowMenuBar`, `bottom`, `left`, or `right`. Bottom and side placements follow the usable display edge, avoiding a visible Dock. |
 | `notchMode` | string | `"moveBelowMenuBar"` | Notch handling: `off`, `moveBelowMenuBar`, `rightOfNotch`, `splitActiveLeft`, `splitActiveRight`, or `fillLeftOfNotch`. `rightOfNotch` centers the bar without a notch, or places it 8 points to the right of the notch; offsets still apply. `fillLeftOfNotch` fills the menu-bar area left of the notch and covers app menus; without a notch it uses the left half of the menu bar. At top positions, this mode overrides `position`, `xOffset`, `yOffset`, and `height`: the bar uses the menu-bar height. With `reserveLayoutSpace` on, the bar visible, and `autoHide` off, it reserves any space the bar occupies in the usable frame. For a notched display or visible menu bar (not automatically hidden in System Settings), macOS already reserves the top of the screen and shrinks the usable frame accordingly, so this is only non-zero for a notch-less display with a hidden menu bar. Bottom/left/right ignore notch modes without changing the saved preference. |
 | `notchActiveZoneWidth` | float | `180.0` | Width in points of the active zone around the notch. |
-| `fullWidth` *(optional)* | boolean | `false` | Spans the whole screen edge, with the shell's `leading`, `center` and `trailing` widgets at its start, middle and end (top, middle and bottom on a side bar). `notchMode`, `notchActiveZoneWidth` and the offset along the bar don't apply. An enabled full-width bar at any edge sets macOS's **Automatically hide and show the menu bar** to Always on every display, including while automatic hiding, Reveal on modifier hold or native fullscreen hides the bar. Overlapping the menu bar also places the bar at the screen top, above native menus. Your previous choice returns when the last full-width bar is disabled or hidden with Toggle Workspace Bar, or OmniWM quits normally. A crash can leave automatic hiding active; relaunch OmniWM and disable its full-width bars or quit normally to restore the saved preference. Unreleased: available when building from `main`. |
-| `fullWidthNotchMode` *(optional)* | string | `"rightOfNotch"` | Where a full-width bar's `center` widgets go on a display with a notch: `off` (centered under the notch), `moveBelowMenuBar` (the whole bar moves below the menu bar), `rightOfNotch`, `leftOfNotch`, or `splitAroundNotch` (the first half left of the notch, the rest right of it). Bottom/left/right ignore it. Unreleased: available when building from `main`. |
-| `systemStatsButton` | boolean | `false` | Adds a system stats button to the bar. When building from `main`, the button and the `Toggle System Stats` hotkey need the shell's `system-stats` widget in one of the bar's groups. |
+| `fullWidth` *(optional)* | boolean | `false` | Spans the whole screen edge, with the shell's `leading`, `center` and `trailing` widgets at its start, middle and end (top, middle and bottom on a side bar). `notchMode`, `notchActiveZoneWidth` and the offset along the bar don't apply. An enabled full-width bar at any edge sets macOS's **Automatically hide and show the menu bar** to Always on every display, including while automatic hiding, Reveal on modifier hold or native fullscreen hides the bar. Overlapping the menu bar also places the bar at the screen top, above native menus. Your previous choice returns when the last full-width bar is disabled or hidden with Toggle Workspace Bar, or OmniWM quits normally. A crash can leave automatic hiding active; relaunch OmniWM and disable its full-width bars or quit normally to restore the saved preference. |
+| `fullWidthNotchMode` *(optional)* | string | `"rightOfNotch"` | Where a full-width bar's `center` widgets go on a display with a notch: `off` (centered under the notch), `moveBelowMenuBar` (the whole bar moves below the menu bar), `rightOfNotch`, `leftOfNotch`, or `splitAroundNotch` (the first half left of the notch, the rest right of it). Bottom/left/right ignore it. |
+| `systemStatsButton` | boolean | `false` | Adds a system stats button to the bar. The button and the `Toggle System Stats` hotkey need the shell's `system-stats` widget in one of the bar's groups. |
 | `deduplicateAppIcons` | boolean | `false` | Collapses repeated icons of the same app within a pill. |
 | `hideEmptyWorkspaces` | boolean | `false` | Hides inactive empty workspaces in the bar and Overview; next/previous navigation skips them. |
 | `excludedBundleIDs` | string array | `[]` | Bundle IDs whose windows never contribute icons to the bar. |
@@ -299,7 +299,7 @@ The per-monitor workspace bar. Per-monitor exceptions live in [`monitorBarOverri
 
 ## island
 
-The Dynamic Island master switch. The table is optional; when absent, the island is disabled. Unreleased: available when building from `main`.
+The Dynamic Island master switch. The table is optional; when absent, the island is disabled.
 
 | Key | Type | Default | Description |
 | --- | --- | --- | --- |
@@ -318,7 +318,7 @@ The seven optional `overviewGesture…` and `window…` keys below configure Ove
 | `scrollEnabled` | boolean | `true` | Trackpad column scrolling (`fingerCount`) and modifier + mouse scroll wheel scrolling along the Niri primary axis; `false` turns off both. |
 | `scrollSensitivity` | float | `5.0` | Scroll gesture sensitivity. |
 | `scrollModifierKey` | string | `"optionShift"` | Modifier for wheel scrolling: `optionShift`, `controlShift`, `commandShift`, `controlOptionShift`, `optionCommandShift`, `controlCommandShift`, or `controlOptionCommandShift`. The System Hyper Trigger does not add modifiers to wheel events. |
-| `mouseMoveModifierKey` | string | `"option"` | Modifier for left-dragging tiled windows. Both layouts choose from the drop position (**unreleased**, available when building from `main`): the target tile's center swaps and its sides insert beside it. In Niri, the sides facing neighboring columns open a new column and the other sides stack into the target's column; in Dwindle, internal dividers insert between subtrees and the workspace's outer edges insert at the root. `Shift` does not change this behavior. Workspace-edge targets take precedence in a band up to 24 points wide along the working area's boundary; dropping on another display uses the same targets there; see [drag guidance](/guides/tips/#swap-windows-by-dragging). Values: `off`, `option`, `control`, `command`, `controlOption`, `optionCommand`, `controlCommand`, `controlOptionCommand`. |
+| `mouseMoveModifierKey` | string | `"option"` | Modifier for left-dragging tiled windows. Both layouts choose from the drop position: the target tile's center swaps and its sides insert beside it. In Niri, the sides facing neighboring columns open a new column and the other sides stack into the target's column; in Dwindle, internal dividers insert between subtrees and the workspace's outer edges insert at the root. `Shift` does not change this behavior. Workspace-edge targets take precedence in a band up to 24 points wide along the working area's boundary; dropping on another display uses the same targets there; see [drag guidance](/guides/tips/#swap-windows-by-dragging). Values: `off`, `option`, `control`, `command`, `controlOption`, `optionCommand`, `controlCommand`, `controlOptionCommand`. |
 | `mouseResizeModifierKey` | string | `"option"` | Modifier for right-drag resize: `option`, `control`, `command`, `shift`, `controlOption`, `optionCommand`, `optionShift`, `controlCommand`, `controlShift`, `commandShift`, `controlOptionCommand`, `controlOptionShift`, `optionCommandShift`, `controlCommandShift`, `controlOptionCommandShift`. |
 | `fingerCount` | integer | `3` | Trackpad column-scroll finger count: `3` or `4`. |
 | `invertDirection` | boolean | `true` | Inverts trackpad gesture direction. |
@@ -335,9 +335,9 @@ The seven optional `overviewGesture…` and `window…` keys below configure Ove
 | `windowResizeFingerCount` *(optional)* | integer | `3` | Window-resize finger count: `2`, `3`, or `4`. |
 | `windowGestureSensitivity` *(optional)* | float | `1.0` | Move/resize sensitivity, clamped to `0.1…5.0`; non-finite values use `1.0`. |
 | `resizePreviewStyle` *(optional)* | string | `"live"` | What modifier-based mouse resizing, trackpad resize gestures, and Niri keyboard resizing show while the size changes: `live` writes the real window frames on every step, `glass` shows a glass panel with the app icon over each moving window, `snapshot` stretches a still capture of each moving window (needs Screen Recording, falls back to `glass` without it). `glass` and `snapshot` write the final frames once the resize ends. Native edge or corner drags bypass this setting; Dwindle neighbours always resize live. |
-| `dwindleGroupDragAcrossDisplays` *(optional)* | string | `"group"` | What a modifier drag of a Dwindle tab group moves when you drop it on another display (**unreleased**): `group` moves the whole group, which becomes one tabbed column in Niri; `window` moves only the dragged window. The same choice decides whether a swap onto a Dwindle group exchanges the whole group or only the window under the pointer. |
-| `adoptNativeResize` *(optional)* | boolean | `false` | Keep a native edge or corner resize of a tiled window (**unreleased**). Dwindle moves the shared split and resizes neighbouring windows while you drag. Niri changes that column's width or the stacked windows' heights after release. |
-| `adoptNativeMoveAcrossDisplays` *(optional)* | boolean | `false` | Keep a native title-bar move onto another display without a modifier (**unreleased**, available when building from `main`). The pointer's display determines the destination active workspace. Drops use the same placement, group, size-constraint and focus rules as modifier drags. Moves within one display still snap back; native resizing is controlled separately by `adoptNativeResize`. |
+| `dwindleGroupDragAcrossDisplays` *(optional)* | string | `"group"` | What a modifier drag of a Dwindle tab group moves when you drop it on another display: `group` moves the whole group, which becomes one tabbed column in Niri; `window` moves only the dragged window. The same choice decides whether a swap onto a Dwindle group exchanges the whole group or only the window under the pointer. |
+| `adoptNativeResize` *(optional)* | boolean | `false` | Keep a native edge or corner resize of a tiled window. Dwindle moves the shared split and resizes neighbouring windows while you drag. Niri changes that column's width or the stacked windows' heights after release. |
+| `adoptNativeMoveAcrossDisplays` *(optional)* | boolean | `false` | Keep a native title-bar move onto another display without a modifier. The pointer's display determines the destination active workspace. Drops use the same placement, group, size-constraint and focus rules as modifier drags. Moves within one display still snap back; native resizing is controlled separately by `adoptNativeResize`. |
 
 Window move and resize gestures use all directions, so their finger counts must differ from every other enabled gesture. Configuration loading rejects overlaps with each other, column scrolling, workspace switching, or Overview. In Settings, **Set Up…** previews the conflicting assignments and lets you choose which gestures to turn off before applying the change. When editing TOML, disable or reassign conflicting gestures in the same edit. Moving stays on the starting monitor; resizing can continue beyond its bounds. Lift all fingers to finish, and turn off matching macOS gestures under System Settings → Trackpad → More Gestures. These gestures are inactive while Overview is open and do not use `invertDirection`.
 
@@ -364,7 +364,7 @@ Menu-bar icon concealment (requires macOS 27+ and Full Disk Access).
 | `hiddenBundleIDs` | string array | `[]` | Bundle IDs of menu-bar apps whose icons are concealed. |
 | `rehideIntervalSeconds` | float | `5.0` | Seconds before revealed icons re-hide automatically. |
 
-A [shell profile](/omnishell/configuration/profiles-palettes/#profile-settings) can override `enabled` and `rehideIntervalSeconds` in its own `[hiddenBar]`. Unreleased: available when building from `main`.
+A [shell profile](/omnishell/configuration/profiles-palettes/#profile-settings) can override `enabled` and `rehideIntervalSeconds` in its own `[hiddenBar]`.
 
 ## clipboard
 
@@ -394,11 +394,9 @@ The drop-down (Quake) terminal. `enabled` and `provider` apply to either provide
 | `backgroundEffect` | string | `"standardBlur"` | Background material: `standardBlur`, `glassRegular`, `glassClear`. |
 | `backgroundBlurRadius` *(optional)* | integer | `0` | Background blur radius; `0` disables the extra blur. |
 | `monitorMode` *(optional)* | string | `"focusedWindow"` | Which monitor it appears on: `mouseCursor`, `focusedWindow`, `mainMonitor`. |
-| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded) or `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`). Unreleased: available when building from `main`. |
+| `provider` *(optional)* | string | `"ghostty"` | Terminal that provides the Quake terminal: `ghostty` (embedded) or `kitty` (Kitty's quick-access terminal, configured in Kitty's `quick-access-terminal.conf`). |
 
 ### quakeTerminal.kitty
-
-Unreleased: available when building from `main`.
 
 Optional overrides for OmniWM's Kitty Quake panel. When a new Kitty quick-access process starts, omitted keys use `quick-access-terminal.conf`. Removing an override keeps its last applied value in the running process; Kitty's configured value takes effect when a new quick-access process starts. Hiding and showing the panel reuses the current process. Ghostty's values above are not used for Kitty.
 
@@ -467,9 +465,9 @@ id = "toggleScratchpad.1"
 - `binding` is a human-readable chord: `+`-joined modifiers (`Control`, `Option`, `Shift`, `Command`, or the `Hyper` shorthand for the full [`hyperKeyModifiers`](#general) set) followed by a key name — or `"Unassigned"`. A `Left `/`Right ` prefix pins a modifier to one side (e.g. `"Left Option+H"`). A binding can instead be an extra mouse button, `MouseButton2`–`MouseButton31`, alone or after modifiers without side prefixes (e.g. `"Option+MouseButton3"`); a button used by `systemHyperTrigger` or Overview cannot also be a hotkey.
 - The array is validated strictly: each action may appear **only once**, and an action that is left out is unassigned. Workspace `10+` action IDs are optional and appear while those workspaces exist. An unknown, unassignable, or duplicate action id rejects the whole file, so rebind by editing `binding` values in place.
 - The numeric suffix is zero-based for `switchWorkspace.N`, `moveToWorkspace.N`, `focusColumn.N`, and `moveColumnToWorkspace.N` — `switchWorkspace.0` is *Switch to Workspace 1* (`Option + 1` by default) — and one-based for `switchWorkspaceSlot.N`, `moveToWorkspaceSlot.N`, `focusWindowInColumn.N`, `moveColumnToIndex.N`, `toggleScratchpad.N`, and `assignFocusedWindowToScratchpad.N`.
-- `toggleShellWidget.<name>` toggles the shell drawer or widget popout named `<name>`. Settings lists one for every drawer and every widget with a popout, and a bound one stays while its drawer or widget is missing. Unreleased: available when building from `main`.
-- `modeKey` *(optional)* is the key that runs the action inside [Prefix or Window mode](/guides/keyboard-shortcuts/#keyboard-modes): a key name, optionally with `Shift` (for example `"H"` or `"Shift+H"`), never `Escape`. It is separate from `binding`, so an action can have both, either, or neither. Two actions with the same mode key, a mode key that is also a shortcut, or a mode key with other modifiers are reported and ignored without rejecting the file. Unreleased: available when building from `main`.
-- `openCommandPalette.<mode>` opens the command palette in `windows`, `menu`, `clipboard`, `commands`, `applications`, or `files` mode, switches to that mode if the palette is open in another one, and closes it if it is already open in that mode. These actions are unassigned by default. Unreleased: available when building from `main`.
+- `toggleShellWidget.<name>` toggles the shell drawer or widget popout named `<name>`. Settings lists one for every drawer and every widget with a popout, and a bound one stays while its drawer or widget is missing.
+- `modeKey` *(optional)* is the key that runs the action inside [Prefix or Window mode](/guides/keyboard-shortcuts/#keyboard-modes): a key name, optionally with `Shift` (for example `"H"` or `"Shift+H"`), never `Escape`. It is separate from `binding`, so an action can have both, either, or neither. Two actions with the same mode key, a mode key that is also a shortcut, or a mode key with other modifiers are reported and ignored without rejecting the file.
+- `openCommandPalette.<mode>` opens the command palette in `windows`, `menu`, `clipboard`, `commands`, `applications`, or `files` mode, switches to that mode if the palette is open in another one, and closes it if it is already open in that mode. These actions are unassigned by default.
 
 The default bindings are listed in the [keyboard shortcuts guide](/guides/keyboard-shortcuts/); assignable actions appear in **Settings > Keyboard Shortcuts**.
 
@@ -531,7 +529,7 @@ minWidth = 574.0
 
 ## shellPermissions
 
-**Settings > Network & Permissions** writes these decisions to the app’s `settings.toml`. They are separate from widget `settings.toml` declarations and `shell.toml` layout/options. External edits are live-reloaded. The section is optional: missing widget/program lists are empty, and missing service switches default to on. Unreleased: available when building from `main`.
+**Settings > Network & Permissions** writes these decisions to the app’s `settings.toml`. They are separate from widget `settings.toml` declarations and `shell.toml` layout/options. External edits are live-reloaded. The section is optional: missing widget/program lists are empty, and missing service switches default to on.
 
 | Key | Type | Default | Description |
 |---|---|---|---|
@@ -590,7 +588,7 @@ When `workspaceBar.enabled = false`, no monitor can show its bar. Saved `monitor
 
 | Array | Overridable keys |
 | --- | --- |
-| `monitorBarOverrides` | `enabled`, `showLabels`, `showFloatingWindows`, `deduplicateAppIcons`, `hideEmptyWorkspaces`, `reserveLayoutSpace`, `autoHide`, `notchMode`, `notchActiveZoneWidth`, `fullWidth`, `fullWidthNotchMode`, `position`, `windowLevel`, `height`, `backgroundOpacity`, `inactiveIconOpacity`, `transparentBackground`, `solidBlackBackground`, `showItemBackgrounds`, `showAccentHighlights`, `xOffset`, `yOffset` — see [`workspaceBar`](#workspacebar). `fullWidth` and `fullWidthNotchMode` are Unreleased: available when building from `main`. |
+| `monitorBarOverrides` | `enabled`, `showLabels`, `showFloatingWindows`, `deduplicateAppIcons`, `hideEmptyWorkspaces`, `reserveLayoutSpace`, `autoHide`, `notchMode`, `notchActiveZoneWidth`, `fullWidth`, `fullWidthNotchMode`, `position`, `windowLevel`, `height`, `backgroundOpacity`, `inactiveIconOpacity`, `transparentBackground`, `solidBlackBackground`, `showItemBackgrounds`, `showAccentHighlights`, `xOffset`, `yOffset` — see [`workspaceBar`](#workspacebar). |
 | `monitorOrientationOverrides` | `orientation`: `horizontal` or `vertical` layout orientation for that monitor |
 | `monitorNiriOverrides` | `visibleContainerCount`, `defaultContainerPrimarySpan`, `centerFocusedColumn`, `alwaysCenterSingleColumn`, `singleWindowFit`, `infiniteLoop` — see [`niri`](#niri) |
 | `monitorDwindleOverrides` | `smartSplit`, `defaultSplitRatio`, `splitWidthMultiplier`, `singleWindowFit`, `useGlobalGaps`, `innerGap` — see [`dwindle`](#dwindle) |
