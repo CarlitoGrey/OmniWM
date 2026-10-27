@@ -23,6 +23,8 @@ struct CommandPaletteLauncherResultsView: View {
         case copy
         case copyPath
         case dontSuggest
+        case edit
+        case remove
     }
 
     @State private var icons = LauncherIconStore.shared
@@ -44,6 +46,15 @@ struct CommandPaletteLauncherResultsView: View {
     let onActivate: (LauncherSelection) -> Void
     let onContextAction: (LauncherSelection, ContextAction) -> Void
     let onColumnCountChange: (Int) -> Void
+    var filter: LauncherFilter = .all
+    var savedEntries: [LauncherEntry] = []
+    var executables: [LauncherExecutable] = []
+    var cliLoading = false
+    var cliFailure: String?
+    var onFilter: @MainActor @Sendable (LauncherFilter) -> Void = { _ in }
+    var onAdd: (LauncherEntry.Kind) -> Void = { _ in }
+    var onManage: () -> Void = {}
+    var onRefresh: () -> Void = {}
 
     var body: some View {
         GeometryReader { geometry in
@@ -54,6 +65,7 @@ struct CommandPaletteLauncherResultsView: View {
                         toolbar
                             .id(Self.topID)
                         if mode == .applications {
+                            savedResults
                             ForEach(applicationSections) { section in
                                 applicationSection(section, columnCount: columnCount)
                             }
@@ -62,8 +74,11 @@ struct CommandPaletteLauncherResultsView: View {
                                 fileSection(section, columnCount: columnCount)
                             }
                         }
-                        if mode == .applications, applicationSections.allSatisfy({ $0.items.isEmpty }) {
-                            emptyState(String(localized: "No applications found"))
+                        if mode == .applications, applicationSections.allSatisfy({ $0.items.isEmpty }),
+                           savedEntries.isEmpty, executables.isEmpty, !cliLoading
+                        {
+                            emptyState(cliFailure ?? String(localized: "No launcher results found"))
+                            Button("Add Entry…") { onAdd(.command) }.buttonStyle(.borderless)
                         } else if mode == .files, fileSections.allSatisfy({ $0.items.isEmpty }) {
                             emptyState(String(localized: "No files found"))
                         }
@@ -87,6 +102,12 @@ struct CommandPaletteLauncherResultsView: View {
     }
 
     private var firstSelection: LauncherSelection? {
+        if mode == .applications, let entry = savedEntries.first {
+            return LauncherSelection(sectionID: .saved, itemID: entry.id.uuidString)
+        }
+        if mode == .applications, let executable = executables.first {
+            return LauncherSelection(sectionID: .executables, itemID: executable.path)
+        }
         if mode == .applications, let section = applicationSections.first(where: { !$0.items.isEmpty }) {
             return LauncherSelection(sectionID: section.id, itemID: section.items[0].id)
         }
@@ -101,49 +122,6 @@ struct CommandPaletteLauncherResultsView: View {
         let cap = mode == .files ? 5 : 7
         let availableWidth = max(0, width - 40)
         return min(cap, max(1, Int((availableWidth + 10) / 100)))
-    }
-
-    private var toolbar: some View {
-        HStack(spacing: 8) {
-            if !chips.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(chips) { chip in
-                            Button {
-                                onChipSelect(chip)
-                            } label: {
-                                Text(chip.title)
-                                    .font(.system(size: 11, weight: .medium))
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 6)
-                                    .background(chipBackgroundColor(for: chip), in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(selectedChipID == chip.id ? .isSelected : [])
-                        }
-                    }
-                }
-            }
-
-            Spacer(minLength: 0)
-            Menu {
-                Button("Grid", systemImage: viewStyle == .grid ? "checkmark" : "square.grid.2x2") {
-                    onViewStyleChange(.grid)
-                }
-                Button("List", systemImage: viewStyle == .list ? "checkmark" : "list.bullet") {
-                    onViewStyleChange(.list)
-                }
-            } label: {
-                Image(systemName: viewStyle == .grid ? "square.grid.2x2" : "list.bullet")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .menuStyle(.borderlessButton)
-            .accessibilityLabel("View content as")
-        }
-        .frame(height: 30)
-        .padding(.horizontal, 20)
     }
 
     @ViewBuilder
@@ -319,7 +297,7 @@ struct CommandPaletteLauncherResultsView: View {
             .padding(.top, 48)
     }
 
-    private func chipBackgroundColor(for chip: LauncherChip) -> Color {
+    func chipBackgroundColor(for chip: LauncherChip) -> Color {
         selectedChipID == chip.id ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.12)
     }
 }

@@ -70,6 +70,8 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
     var selectionScrollRequest = 0
 
     var applicationSections: [LauncherSection<LauncherApplicationResult>] = []
+    var launcherFilter: LauncherFilter = .all
+    var savedApplicationIdentifiers: [UUID: String] = [:]
     var fileSections: [LauncherSection<LauncherFileResult>] = []
     var applicationChips: [LauncherChip] = []
     var fileChips: [LauncherChip] = []
@@ -98,7 +100,7 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
     private let menuSession: CommandPaletteMenuSession
     private var isProgrammaticDismiss = false
     private var isConfirmingClipboardClear = false
-    var isPresentingMarkPrompt = false
+    var isPresentingModalPrompt = false
     private var clipboardPreviewGeneration = 0
 
     enum DismissReason {
@@ -202,7 +204,7 @@ final class CommandPaletteController: NSObject, NSWindowDelegate {
     }
 
     func windowDidResignKey(_: Notification) {
-        guard isVisible, !isProgrammaticDismiss, !isConfirmingClipboardClear, !isPresentingMarkPrompt else {
+        guard isVisible, !isProgrammaticDismiss, !isConfirmingClipboardClear, !isPresentingModalPrompt else {
             return
         }
         dismiss(reason: .deactivation)
@@ -437,7 +439,7 @@ extension CommandPaletteController {
     private func installEventMonitor() {
         removeEventMonitor()
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, isVisible, !isPresentingMarkPrompt else { return event }
+            guard let self, isVisible, !isPresentingModalPrompt else { return event }
             return handleKeyDown(event) ? nil : event
         }
     }
@@ -449,7 +451,7 @@ extension CommandPaletteController {
         }
     }
 
-    func restoreKeyWindowAfterMarkPrompt() {
+    func restoreKeyWindowAfterModalPrompt() {
         if isVisible {
             presentation.panel?.makeKey()
         }

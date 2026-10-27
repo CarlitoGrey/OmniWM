@@ -51330,6 +51330,7 @@
       "extractionState" : "stale"
     },
     "Enter opens the selected application." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -122599,6 +122600,7 @@
       }
     },
     "Search applications..." : {
+      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -162010,7 +162012,6 @@
       "extractionState" : "stale"
     },
     "Shell" : {
-      "extractionState" : "stale",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -173006,8 +173007,7 @@
     },
     "Opacity changes apply live as you drag." : {
 
-    }
-,
+    },
     "Placement changes apply the next time Kitty is shown." : {
 
     },
@@ -173232,6 +173232,315 @@
 
     },
     "Choose a Style…" : {
+
+    },
+    "%@ is not installed. Choose its executable in Launcher settings." : {
+
+    },
+    "Add Application…" : {
+
+    },
+    "Add Argument" : {
+
+    },
+    "Add Command…" : {
+
+    },
+    "Add Entry…" : {
+
+    },
+    "Add Folder…" : {
+
+    },
+    "Add Script…" : {
+
+    },
+    "Add…" : {
+
+    },
+    "Advanced Options" : {
+
+    },
+    "All" : {
+
+    },
+    "App Folders" : {
+
+    },
+    "Applications use the application launcher." : {
+
+    },
+    "Argument" : {
+
+    },
+    "Argument value" : {
+
+    },
+    "Arguments" : {
+
+    },
+    "Background" : {
+
+    },
+    "Built-in Quake Terminal" : {
+
+    },
+    "CLI" : {
+
+    },
+    "CLI Tools" : {
+
+    },
+    "CLI search uses the selected shell’s PATH, Homebrew, and active Nix profiles. Extra folders are searched after PATH." : {
+
+    },
+    "Choose Nushell, fish, zsh, or Bash in Launcher settings." : {
+
+    },
+    "Choose an application" : {
+
+    },
+    "Command Shell" : {
+
+    },
+    "Commands open in a fresh session and keep their output visible. The built-in option requires the Ghostty Quake Terminal. Background execution is available per entry." : {
+
+    },
+    "Custom Shell Executable" : {
+
+    },
+    "Default Shell" : {
+
+    },
+    "Default Terminal" : {
+
+    },
+    "Default — %@" : {
+
+    },
+    "Discovery and Advanced Options" : {
+
+    },
+    "Edit" : {
+
+    },
+    "Enable the built-in Ghostty Quake Terminal, or choose an external terminal." : {
+
+    },
+    "Enter a command to run." : {
+
+    },
+    "Enter a command…" : {
+
+    },
+    "Enter launches an entry or configures a CLI tool." : {
+
+    },
+    "Entry Type" : {
+
+    },
+    "Environment Shell" : {
+
+    },
+    "Execution Defaults" : {
+
+    },
+    "Exit status" : {
+
+    },
+    "Exited with status %d" : {
+
+    },
+    "Extra CLI Folders" : {
+
+    },
+    "File" : {
+
+    },
+    "Filter" : {
+
+    },
+    "Home folder" : {
+
+    },
+    "Interpreter (optional)" : {
+
+    },
+    "Launch apps, CLI tools, saved commands, and scripts." : {
+
+    },
+    "Launcher Entry" : {
+
+    },
+    "Loading CLI tools…" : {
+
+    },
+    "Manage Launcher…" : {
+
+    },
+    "Name" : {
+
+    },
+    "Name in Launcher" : {
+
+    },
+    "No launcher results found" : {
+
+    },
+    "Optional search terms" : {
+
+    },
+    "Output truncated." : {
+
+    },
+    "Path to a script or executable" : {
+
+    },
+    "Press Return to close." : {
+
+    },
+    "Refresh Launcher" : {
+
+    },
+    "Remove “%@”?" : {
+
+    },
+    "Run" : {
+
+    },
+    "Run CLI" : {
+
+    },
+    "Run In" : {
+
+    },
+    "Run Now" : {
+
+    },
+    "Running" : {
+
+    },
+    "Run…" : {
+
+    },
+    "Save Entry" : {
+
+    },
+    "Saved" : {
+
+    },
+    "Saved Entries" : {
+
+    },
+    "Saved apps, commands, and scripts appear together in the Launcher." : {
+
+    },
+    "Script" : {
+
+    },
+    "Search Keywords" : {
+
+    },
+    "Search apps and saved entries..." : {
+
+    },
+    "Standard app folders and active Nix profiles are included. Add custom folders for other apps, including Homebrew formula apps kept inside a keg." : {
+
+    },
+    "System Login Shell" : {
+
+    },
+    "The built-in terminal could not create a command tab." : {
+
+    },
+    "The command output could not be read." : {
+
+    },
+    "The command output pipe could not be configured." : {
+
+    },
+    "The file is not executable. Choose an interpreter or an executable script." : {
+
+    },
+    "The launcher environment connection could not be created." : {
+
+    },
+    "The launcher environment connection could not be opened." : {
+
+    },
+    "The launcher environment connection path is too long." : {
+
+    },
+    "The saved application is unavailable." : {
+
+    },
+    "The selected file does not exist: %@" : {
+
+    },
+    "The selected shell could not provide its environment." : {
+
+    },
+    "The selected shell did not provide PATH." : {
+
+    },
+    "The selected shell is not executable: %@" : {
+
+    },
+    "The selected terminal is not installed." : {
+
+    },
+    "The shell did not finish loading its environment in time." : {
+
+    },
+    "The system login shell could not be found." : {
+
+    },
+    "The terminal could not connect to its launcher environment." : {
+
+    },
+    "The terminal could not read its launcher environment." : {
+
+    },
+    "The terminal did not receive the launcher environment in time." : {
+
+    },
+    "The terminal did not return its new session." : {
+
+    },
+    "The terminal environment connection could not be configured." : {
+
+    },
+    "The terminal launch was canceled." : {
+
+    },
+    "The terminal session could not be addressed." : {
+
+    },
+    "The terminal session is unavailable." : {
+
+    },
+    "The terminal window is unavailable." : {
+
+    },
+    "The timed-out shell could not be stopped." : {
+
+    },
+    "The working directory does not exist: %@" : {
+
+    },
+    "This removes the saved launcher entry. Your apps and script files stay on disk." : {
+
+    },
+    "Use the script’s shebang" : {
+
+    },
+    "Use the selected shell" : {
+
+    },
+    "Used by saved entries and CLI tools unless an entry overrides them." : {
+
+    },
+    "Working Folder" : {
 
     }
   },

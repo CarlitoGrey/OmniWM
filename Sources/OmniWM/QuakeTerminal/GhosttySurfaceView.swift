@@ -52,6 +52,8 @@ final class GhosttySurfaceView: NSView {
         windowInteraction.isInteracting
     }
 
+    let keepsCommandOutput: Bool
+    var onCommandExit: (@MainActor () -> Void)?
     private var pendingProtectedClipboardRequests: [GhosttyProtectedClipboardRequest] = []
     var onFrameChanged: ((NSRect) -> Void)?
 
@@ -63,7 +65,12 @@ final class GhosttySurfaceView: NSView {
         false
     }
 
-    init(ghosttyApp: ghostty_app_t, callbackContext: GhosttySurfaceCallbackContext) {
+    init(
+        ghosttyApp: ghostty_app_t,
+        callbackContext: GhosttySurfaceCallbackContext,
+        launch: LauncherLaunchRequest? = nil
+    ) {
+        keepsCommandOutput = launch != nil
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 400))
 
         callbackContext.view = self
@@ -79,7 +86,12 @@ final class GhosttySurfaceView: NSView {
         config.scale_factor = Double(initialScale)
         config.userdata = retainedContext.toOpaque()
 
-        guard let surface = ghostty_surface_new(ghosttyApp, &config) else {
+        let surface = if let launch {
+            Self.makeLaunchSurface(app: ghosttyApp, config: &config, launch: launch)
+        } else {
+            ghostty_surface_new(ghosttyApp, &config)
+        }
+        guard let surface else {
             Log.terminal.error("Failed to create surface")
             retainedContext.release()
             return
@@ -98,10 +110,40 @@ final class GhosttySurfaceView: NSView {
         addTrackingArea(trackingArea)
     }
 
+    private static func makeLaunchSurface(
+        app: ghostty_app_t,
+        config: inout ghostty_surface_config_s,
+        launch: LauncherLaunchRequest
+    ) -> ghostty_surface_t? {
+        var strings: [UnsafeMutablePointer<CChar>] = []
+        defer { strings.forEach { free($0) } }
+        var variables: [ghostty_env_var_s] = []
+        for (key, value) in launch.terminalEnvironment {
+            guard let keyPointer = strdup(key) else { return nil }
+            strings.append(keyPointer)
+            guard let valuePointer = strdup(value) else { return nil }
+            strings.append(valuePointer)
+            variables.append(ghostty_env_var_s(key: UnsafePointer(keyPointer), value: UnsafePointer(valuePointer)))
+        }
+        return ("/usr/bin/env " + launch.shellCommand).withCString { command in
+            launch.directory.withCString { directory in
+                variables.withUnsafeMutableBufferPointer { variables in
+                    config.command = command
+                    config.working_directory = directory
+                    config.env_vars = variables.baseAddress
+                    config.env_var_count = variables.count
+                    config.wait_after_command = true
+                    return ghostty_surface_new(app, &config)
+                }
+            }
+        }
+    }
+
     init(
         occlusionHandlerForTests: @escaping (Bool) -> Void,
         displayHooksForTests: GhosttySurfaceDisplayTestHooks? = nil
     ) {
+        keepsCommandOutput = false
         self.occlusionHandlerForTests = occlusionHandlerForTests
         self.displayHooksForTests = displayHooksForTests
         super.init(frame: .zero)

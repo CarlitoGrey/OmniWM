@@ -27,6 +27,13 @@ final class GhosttyAppCallbackContext {
         runtimeConfig.action_cb = { app, target, action in
             guard let app, let userdata = ghostty_app_userdata(app) else { return false }
             switch action.tag {
+            case GHOSTTY_ACTION_SHOW_CHILD_EXITED:
+                guard target.tag == GHOSTTY_TARGET_SURFACE,
+                      let surface = target.target.surface,
+                      let userdata = ghostty_surface_userdata(surface) else { return false }
+                let context = Unmanaged<GhosttySurfaceCallbackContext>.fromOpaque(userdata).takeUnretainedValue()
+                DispatchQueue.main.async { context.view?.onCommandExit?() }
+                return false
             case GHOSTTY_ACTION_NEW_TAB,
                  GHOSTTY_ACTION_CLOSE_TAB,
                  GHOSTTY_ACTION_NEW_SPLIT,

@@ -233,7 +233,7 @@ final class CommandPaletteControllerTests: XCTestCase {
         )
         XCTAssertEqual(
             CommandPalettePresentation.modeHint(for: .applications),
-            .init(title: "Applications", shortcut: "⌘5")
+            .init(title: "Launcher", shortcut: "⌘5")
         )
         XCTAssertEqual(
             CommandPalettePresentation.modeHint(for: .files),
@@ -514,7 +514,7 @@ final class CommandPaletteControllerTests: XCTestCase {
         var palette: CommandPaletteController!
         var environment = CommandPaletteEnvironment()
         environment.requestWindowMarkName = {
-            XCTAssertTrue(palette.isPresentingMarkPrompt)
+            XCTAssertTrue(palette.isPresentingModalPrompt)
             palette.selectedItemID = .window(otherToken)
             return "review"
         }
@@ -527,7 +527,7 @@ final class CommandPaletteControllerTests: XCTestCase {
 
         palette.setMarkOnSelectedWindow()
 
-        XCTAssertFalse(palette.isPresentingMarkPrompt)
+        XCTAssertFalse(palette.isPresentingModalPrompt)
         XCTAssertEqual(wmController.windowMarkRegistry.lookup("review"), .found(selectedToken))
         XCTAssertTrue(wmController.windowMarkRegistry.names(for: otherToken).isEmpty)
     }

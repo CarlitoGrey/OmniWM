@@ -17,6 +17,8 @@ final class ApplicationCatalogService {
     private var sources: [ApplicationCatalogSource]?
     private var entries: [ApplicationCatalogEntry] = []
     private var isRefreshing = false
+    private var folders: [String] = []
+    private var pendingFolders: [String]?
     private var fingerprint: ApplicationCatalogFingerprint?
     private nonisolated let buildQueue = DispatchQueue(
         label: "com.barut.OmniWM.launcher.applications.catalog",
@@ -39,24 +41,22 @@ final class ApplicationCatalogService {
         "_kMDItemRecentOutOfSpotlightEngagementDates"
     ]
 
-    func refreshIfNeeded(refreshMetadata: Bool = false) {
-        guard !isRefreshing else { return }
+    func refreshIfNeeded(refreshMetadata: Bool = false, extraFolders: [String] = []) {
+        if isRefreshing {
+            if extraFolders != folders || refreshMetadata || pendingFolders != nil { pendingFolders = extraFolders }
+            return
+        }
         let currentFingerprint = Self.databaseFingerprint()
-        let isCurrent = hasLoadedCatalog && (currentFingerprint == nil || currentFingerprint == fingerprint)
+        let isCurrent = hasLoadedCatalog && currentFingerprint == fingerprint && extraFolders == folders
         guard !isCurrent || refreshMetadata else { return }
         isRefreshing = true
-        let reusableSources = isCurrent ? sources : nil
+        folders = extraFolders
         buildQueue.async { [weak self] in
             let metadata = Self.applicationMetadata()
-            let sources = reusableSources ?? Self.catalogSources(metadata: metadata)
-            let entries = sources.map { Self.buildEntries($0, metadata: metadata) }
+            let sources = Self.catalogSources(metadata: metadata, extraFolders: extraFolders)
+            let entries = Self.buildEntries(sources, metadata: metadata)
             Task { @MainActor [weak self] in
-                self?.finishRefresh(
-                    sources: sources,
-                    entries: entries,
-                    rebuilt: reusableSources == nil,
-                    fingerprint: currentFingerprint
-                )
+                self?.finishRefresh(sources: sources, entries: entries, fingerprint: currentFingerprint)
             }
         }
     }
@@ -162,23 +162,24 @@ final class ApplicationCatalogService {
     }
 
     private func finishRefresh(
-        sources: [ApplicationCatalogSource]?,
-        entries next: [ApplicationCatalogEntry]?,
-        rebuilt: Bool,
+        sources: [ApplicationCatalogSource],
+        entries next: [ApplicationCatalogEntry],
         fingerprint: ApplicationCatalogFingerprint?
     ) {
         isRefreshing = false
-        hasLoadedCatalog = true
-        guard let sources, let next else {
-            onCatalogChanged?()
+        if let pendingFolders {
+            self.pendingFolders = nil
+            refreshIfNeeded(refreshMetadata: true, extraFolders: pendingFolders)
             return
         }
+        hasLoadedCatalog = true
+        let changed = self.sources != sources
         self.sources = sources
         self.fingerprint = fingerprint
         entries = next.sorted {
             $0.result.displayName.localizedStandardCompare($1.result.displayName) == .orderedAscending
         }
-        if rebuilt {
+        if changed {
             LauncherIconStore.shared.clear()
             chips = Self.categoryChips(for: entries)
         }
@@ -208,47 +209,41 @@ final class ApplicationCatalogService {
 
 extension ApplicationCatalogService {
     private nonisolated static func catalogSources(
-        metadata: [String: ApplicationCatalogMetadata]
-    ) -> [ApplicationCatalogSource]? {
-        guard let records = omniwm_launcher_copy_app_records() else { return nil }
+        metadata: [String: ApplicationCatalogMetadata],
+        extraFolders: [String]
+    ) -> [ApplicationCatalogSource] {
+        let records = omniwm_launcher_copy_app_records() ?? []
         let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let byTarget = Dictionary(records.map {
+            (URL(fileURLWithPath: $0.path).resolvingSymlinksInPath().path, $0)
+        }, uniquingKeysWith: { first, _ in first })
+        let scanned = ApplicationCatalogFilter.scannedBundlePaths(home: home, extraFolders: extraFolders)
+        let registered = records.map(\.path).filter {
+            ApplicationCatalogFilter.isCatalogPath($0, home: home, extraFolders: extraFolders)
+        }.sorted()
         var identifiers: Set<String> = []
         var paths: Set<String> = []
         var sources: [ApplicationCatalogSource] = []
-        for record in records {
-            let path = URL(fileURLWithPath: record.path).resolvingSymlinksInPath().path
-            guard ApplicationCatalogFilter.isCatalogPath(path, home: home),
-                  identifiers.insert(record.bundleIdentifier).inserted
-            else {
-                continue
-            }
-            paths.insert(path)
+        for installedPath in scanned.sorted() + registered + [ApplicationCatalogFilter.finderPath] {
+            guard let target = ApplicationCatalogFilter.resolvedBundleURL(installedPath),
+                  let bundle = Bundle(url: target), let identifier = bundle.bundleIdentifier,
+                  !paths.contains(target.path), identifiers.insert(identifier).inserted else { continue }
+            paths.insert(target.path)
+            let record = byTarget[target.path]
+            let isAlias = ApplicationCatalogFilter.isFinderAlias(URL(fileURLWithPath: installedPath))
+            let name = record?.displayName
+                ?? bundle.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+                ?? bundle.object(forInfoDictionaryKey: "CFBundleName") as? String
+                ?? FileManager.default.displayName(atPath: installedPath)
             sources.append(ApplicationCatalogSource(
-                path: path,
-                bundleIdentifier: record.bundleIdentifier,
-                displayName: record.displayName,
-                alternateNames: record.alternateNames,
-                lsCategory: record.category
-            ).categorized(fallback: metadata[path]?.category))
-        }
-        var scannedPaths = ApplicationCatalogFilter.scannedBundlePaths(home: home)
-        if !paths.contains(ApplicationCatalogFilter.finderPath) {
-            scannedPaths.append(ApplicationCatalogFilter.finderPath)
-        }
-        for path in scannedPaths where !paths.contains(path) {
-            guard let identifier = Bundle(path: path)?.bundleIdentifier,
-                  identifiers.insert(identifier).inserted
-            else {
-                continue
-            }
-            paths.insert(path)
-            sources.append(ApplicationCatalogSource(
-                path: path,
+                path: installedPath,
+                resolvedPath: target.path,
+                isAlias: isAlias,
                 bundleIdentifier: identifier,
-                displayName: FileManager.default.displayName(atPath: path),
-                alternateNames: [],
-                lsCategory: nil
-            ).categorized(fallback: metadata[path]?.category))
+                displayName: name,
+                alternateNames: record?.alternateNames ?? [],
+                lsCategory: record?.category
+            ).categorized(fallback: metadata[target.path]?.category))
         }
         return sources
     }
@@ -258,8 +253,8 @@ extension ApplicationCatalogService {
         metadata: [String: ApplicationCatalogMetadata]
     ) -> [ApplicationCatalogEntry] {
         sources.map { source in
-            let values = metadata[source.path] ?? ApplicationCatalogMetadata()
-            let url = URL(fileURLWithPath: source.path)
+            let values = metadata[source.resolvedPath] ?? ApplicationCatalogMetadata()
+            let url = URL(fileURLWithPath: source.isAlias ? source.resolvedPath : source.path)
             var seenNames: Set<String> = [source.displayName]
             let alternateNames = (values.alternateNames + source.alternateNames + [
                 url.deletingPathExtension().lastPathComponent
@@ -269,7 +264,8 @@ extension ApplicationCatalogService {
                 bundleURL: url,
                 bundleIdentifier: source.bundleIdentifier,
                 displayName: source.displayName,
-                categoryName: source.categoryName
+                categoryName: source.categoryName,
+                id: source.path
             )
             let candidate = SpotlightRanking.Candidate(
                 id: result.id,
@@ -386,8 +382,10 @@ private struct ApplicationCatalogFingerprint: Equatable, Sendable {
     let sequence: UInt64
 }
 
-private struct ApplicationCatalogSource: Sendable {
+private struct ApplicationCatalogSource: Equatable, Sendable {
     let path: String
+    let resolvedPath: String
+    let isAlias: Bool
     let bundleIdentifier: String
     let displayName: String
     let alternateNames: [String]

@@ -49,6 +49,13 @@ enum SettingsSearchIndex {
     }
 
     private static let settings: [SettingsSearchEntry] = [
+        setting("Saved Entries", section: .launcher),
+        setting("App Folders", section: .launcher, anchor: "launcher-discovery"),
+        setting("Extra CLI Folders", section: .launcher, anchor: "launcher-discovery"),
+        setting("Custom Shell Executable", section: .launcher, anchor: "launcher-discovery"),
+        setting("Execution Defaults", section: .launcher, anchor: "launcher-execution"),
+        setting("Shell", section: .launcher, anchor: "launcher-execution"),
+        setting("Terminal", section: .launcher, anchor: "launcher-execution"),
         setting("Language", section: .general, anchor: "Language"),
         setting("App Language", section: .general, anchor: "App Language"),
         setting("Startup", section: .general, anchor: "Startup"),

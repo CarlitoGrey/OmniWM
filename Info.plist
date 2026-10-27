@@ -25,7 +25,7 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>OmniWM shows the macOS log out, restart and shut down confirmations from shell widgets.</string>
+	<string>OmniWM opens command sessions in your chosen terminal and shows the macOS log out, restart and shut down confirmations from shell widgets.</string>
 	<key>NSAudioCaptureUsageDescription</key>
 	<string>OmniWM uses system audio recording to set the volume of individual apps and to show audio visualizers in shell widgets.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>

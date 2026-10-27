@@ -24,7 +24,7 @@ extension IPCCommandPaletteMode {
                 bundle: .omniWM
             )
         case .applications: LocalizedStringResource(
-                "command.palette.mode.applications", defaultValue: "Command Palette: Applications",
+                "command.palette.mode.applications", defaultValue: "Command Palette: Launcher",
                 table: "Commands", bundle: .omniWM
             )
         case .files: LocalizedStringResource(

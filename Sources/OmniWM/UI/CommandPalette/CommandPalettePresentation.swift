@@ -64,7 +64,7 @@ enum CommandPalettePresentation {
         case .menu: String(localized: "Search menu items...")
         case .clipboard: String(localized: "Search clipboard history...")
         case .commands: String(localized: "Search OmniWM commands...")
-        case .applications: String(localized: "Search applications...")
+        case .applications: String(localized: "Search apps and saved entries...")
         case .files: String(localized: "Search files...")
         }
     }
@@ -186,7 +186,7 @@ extension CommandPaletteMode {
         case .menu: String(localized: "Menu")
         case .clipboard: String(localized: "Clipboard")
         case .commands: String(localized: "Commands")
-        case .applications: String(localized: "Applications")
+        case .applications: String(localized: "Launcher")
         case .files: String(localized: "Files")
         }
     }

@@ -9,12 +9,30 @@ enum LauncherViewStyle: String, Codable, Sendable {
 }
 
 enum LauncherSectionID: Hashable, Sendable {
+    case saved
+    case executables
     case suggestions
     case recents
     case results
     case all
     case other
     case category(String)
+}
+
+enum LauncherFilter: String, CaseIterable {
+    case all
+    case apps
+    case saved
+    case cli
+
+    var title: String {
+        switch self {
+        case .all: String(localized: "All")
+        case .apps: String(localized: "Apps")
+        case .saved: String(localized: "Saved")
+        case .cli: String(localized: "CLI")
+        }
+    }
 }
 
 struct LauncherSection<Item: Identifiable & Sendable>: Identifiable, Sendable where Item.ID: Sendable {
@@ -52,9 +70,10 @@ struct LauncherApplicationResult: Identifiable, Sendable {
         bundleIdentifier: String?,
         displayName: String,
         categoryName: String? = nil,
-        recordSequence: UInt64 = 0
+        recordSequence: UInt64 = 0,
+        id: String? = nil
     ) {
-        id = bundleURL.path
+        self.id = id ?? bundleURL.path
         self.bundleURL = bundleURL
         self.bundleIdentifier = bundleIdentifier
         self.displayName = displayName

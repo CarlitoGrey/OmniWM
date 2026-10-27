@@ -6,6 +6,19 @@ import XCTest
 
 @MainActor
 final class SettingsNavigationTests: XCTestCase {
+    func testCancelingGuardedNavigationClearsLauncherDraft() {
+        let navigation = SettingsNavigationModel()
+        navigation.section = .styles
+        navigation.leaveGuard = { _ in true }
+        navigation.presentLauncherEntry(.init(entry: LauncherEntry()))
+        XCTAssertEqual(navigation.section, .styles)
+        navigation.cancelNavigation()
+        XCTAssertNil(navigation.launcherEditorRequest)
+        navigation.leaveGuard = nil
+        navigation.section = .launcher
+        XCTAssertNil(navigation.launcherEditorRequest)
+    }
+
     func testEveryDestinationAppearsInExactlyOneSidebarGroup() {
         let destinations = SettingsSectionGroup.allCases.flatMap(\.sections)
         XCTAssertEqual(Set(destinations), Set(SettingsSection.allCases))

@@ -378,6 +378,21 @@ Clipboard history limits. History content itself is stored in the state director
 | `maxTotalBytes` | integer | `67108864` | Maximum total history size, including pins (64 MiB). |
 | `ignoredTypes` *(optional)* | string array | `[]` | Exact pasteboard type identifiers that exclude a copy from history. |
 
+## launcher
+
+Configure these values in **Settings > Launcher**. **Execution Defaults** groups the shell and terminal used by saved entries and CLI tools. Extra app/CLI folders and the custom shell executable are under **Discovery and Advanced Options**. Saved entries are stored in `launcher.entries` and edited through its shared Add/Edit form.
+
+| Key | Type | Default | Description |
+| --- | --- | --- | --- |
+| `appFolders` | string array | `[]` | Extra app folders, scanned alongside standard app folders and active Nix profiles. |
+| `cliFolders` | string array | `[]` | Extra executable folders, searched after the selected shell's PATH and standard Homebrew/Nix bin folders. |
+| `shell` | string | `"system"` | `system`, `nushell`, `fish`, `zsh`, or `bash`. |
+| `shellExecutable` | string | `""` | Optional explicit executable path for the selected shell. |
+| `terminal` | string | `"terminal"` | Default terminal: `builtIn`, `terminal`, `ghostty`, `iterm`, or `kitty`. |
+| `entries` | table array | `[]` | Named applications, commands, scripts, and saved CLI launches. |
+
+Commands and scripts can override the default shell and terminal, including Background execution. Use Refresh Launcher after changing shell startup configuration.
+
 ## quakeTerminal
 
 The drop-down (Quake) terminal. `enabled` and `provider` apply to every provider; the position, size, animation, auto-hide and appearance keys below configure Ghostty. Kitty and foot use their own configuration and the optional [Kitty](#quaketerminalkitty) or [foot](#quaketerminalfoot) overrides.
