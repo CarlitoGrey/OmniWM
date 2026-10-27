@@ -1076,7 +1076,7 @@ Quickly search windows, app menus, clipboard history, OmniWM commands, applicati
 
 - Open it from the global shortcut shown in `Keyboard Shortcuts`
 - Use `Tab` / `Shift + Tab` to cycle forward or backward through the available modes
-- Use `Cmd + 1` for `Windows`, `Cmd + 2` for `Menu`, `Cmd + 3` for `Clipboard`, `Cmd + 4` for `Commands`, `Cmd + 5` for `Applications`, and `Cmd + 6` for `Files`
+- Use `Cmd + 1` for `Windows`, `Cmd + 2` for `Menu`, `Cmd + 3` for `Clipboard`, `Cmd + 4` for `Commands`, `Cmd + 5` for `Launcher`, and `Cmd + 6` for `Files`
 - Type to search; mark-name matches come first in Windows mode, then window title, app name, and workspace name, with focus recency breaking ties
 - Windows mode shows window marks and finds windows by mark name; its Mark and Remove Mark buttons act on the selected window
 - Menu results always show keyboard shortcuts when available
@@ -1087,7 +1087,7 @@ Quickly search windows, app menus, clipboard history, OmniWM commands, applicati
 - Windows from macOS-hidden apps remain searchable with a Hidden badge; selecting one unhides its app and focuses that exact window
 - In Windows mode, `Shift + Enter` summons the selected window to the right when available, or moves it into an empty current workspace, including floating windows. Floating windows cannot be summoned right
 - In Clipboard mode, `Enter` copies the selected entry; `Shift + Enter` pastes it into the previous app when that target is still available
-- Applications and Files open in a browse grid; switch either mode to a list from the view menu
+- Launcher and Files open in a browse grid; switch either mode to a list from the view menu
 - Files shows recent documents before typing, supports type filters, and can reveal a selection in Finder with `Cmd + Enter`
 - `Escape` dismisses the palette
 
