@@ -7,6 +7,35 @@ import unittest
 
 
 class MakeToolTests(unittest.TestCase):
+    def test_dev_tools_runs_both_python_suites_and_propagates_failures(self):
+        source = Path(__file__).resolve().parents[2]
+        for failed_suite in (None, "DevToolingTests", "KittyControlTests"):
+            with self.subTest(failed_suite=failed_suite), tempfile.TemporaryDirectory(prefix="omniwm make tests ") as temporary:
+                root = Path(temporary)
+                shutil.copy2(source / "Makefile", root / "Makefile")
+                (root / "Scripts").mkdir()
+                shutil.copy2(source / "Scripts/dev-tools.env", root / "Scripts/dev-tools.env")
+                for suite in ("DevToolingTests", "KittyControlTests"):
+                    tests = root / "Tests" / suite
+                    tests.mkdir(parents=True)
+                    (tests / "test_probe.py").write_text(
+                        "import unittest\n\n"
+                        "class ProbeTests(unittest.TestCase):\n"
+                        "    def test_probe(self):\n"
+                        f"        print('{suite} executed', flush=True)\n"
+                        f"        self.assertNotEqual('{suite}', {failed_suite!r})\n"
+                    )
+
+                result = subprocess.run(["/usr/bin/make", "test-dev-tools"], cwd=root, text=True, capture_output=True, check=False)
+                output = result.stdout + result.stderr
+                self.assertIn("DevToolingTests executed", output)
+                if failed_suite != "DevToolingTests":
+                    self.assertIn("KittyControlTests executed", output)
+                if failed_suite is None:
+                    self.assertEqual(result.returncode, 0, output)
+                else:
+                    self.assertNotEqual(result.returncode, 0, output)
+
     def test_format_and_lint_use_pinned_tools_independently_of_inherited_path(self):
         source = Path(__file__).resolve().parents[2]
         with tempfile.TemporaryDirectory(prefix="omniwm make tools ") as temporary:
