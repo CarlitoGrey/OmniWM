@@ -37,7 +37,11 @@ class CheckPinnedDownloadsTests(unittest.TestCase):
             )
 
     def test_published_pins_pass(self):
-        result = self.run_check(f"SWIFTLINT_VERSION=0.65.1\nOMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/published.zip\n")
+        result = self.run_check(
+            "SWIFTLINT_VERSION=0.65.1\n"
+            f"OMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/published.zip\n"
+            f"# OMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/v0.0.0/retired.zip\n"
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
 
