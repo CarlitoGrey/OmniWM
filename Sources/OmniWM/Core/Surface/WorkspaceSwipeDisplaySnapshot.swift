@@ -13,8 +13,8 @@ enum WorkspaceSwipeDisplaySnapshot {
                 return nil
             }
             let iconLayer = Int(CGWindowLevelForKey(.desktopIconWindow))
-            let excluded = content.windows.filter {
-                $0.windowLayer == iconLayer || !registry.isCaptureEligible(windowNumber: Int($0.windowID))
+            let included = content.windows.filter {
+                $0.windowLayer != iconLayer && registry.isCaptureEligible(windowNumber: Int($0.windowID))
             }
             let rect = ScreenCoordinateSpace.toWindowServer(rect: frame)
             let config = SCStreamConfiguration()
@@ -24,7 +24,7 @@ enum WorkspaceSwipeDisplaySnapshot {
             config.showsCursor = false
             config.capturesAudio = false
             return try await SCScreenshotManager.captureImage(
-                contentFilter: SCContentFilter(display: display, excludingWindows: excluded),
+                contentFilter: SCContentFilter(display: display, including: included),
                 configuration: config
             )
         } catch {
