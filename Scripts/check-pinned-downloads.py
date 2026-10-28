@@ -22,13 +22,13 @@ def pinned_urls(path):
 
 
 def unreachable(url, timeout=30):
-    request = urllib.request.Request(url, method="HEAD")
     try:
+        request = urllib.request.Request(url, method="HEAD")
         with urllib.request.urlopen(request, timeout=timeout):
             return None
     except urllib.error.HTTPError as error:
         return f"HTTP {error.code}"
-    except (urllib.error.URLError, OSError) as error:
+    except (urllib.error.URLError, OSError, ValueError) as error:
         return str(getattr(error, "reason", error))
 
 
