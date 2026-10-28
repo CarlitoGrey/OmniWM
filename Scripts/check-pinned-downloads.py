@@ -4,6 +4,7 @@ The flake fetches these URLs during make setup and in every CI job. A pin
 that points at a release asset before the release is published breaks both.
 """
 
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -16,19 +17,19 @@ def pinned_urls(path):
     urls = {}
     for line in path.read_text(encoding="utf-8").splitlines():
         key, separator, value = line.partition("=")
-        if separator and key.endswith("_URL"):
+        if separator and re.fullmatch(r"[A-Z0-9_]+_URL", key):
             urls[key] = value
     return urls
 
 
 def unreachable(url, timeout=30):
-    request = urllib.request.Request(url, method="HEAD")
     try:
+        request = urllib.request.Request(url, method="HEAD")
         with urllib.request.urlopen(request, timeout=timeout):
             return None
     except urllib.error.HTTPError as error:
         return f"HTTP {error.code}"
-    except (urllib.error.URLError, OSError) as error:
+    except (urllib.error.URLError, OSError, ValueError) as error:
         return str(getattr(error, "reason", error))
 
 

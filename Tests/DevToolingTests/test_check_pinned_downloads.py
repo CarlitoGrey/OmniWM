@@ -37,16 +37,23 @@ class CheckPinnedDownloadsTests(unittest.TestCase):
             )
 
     def test_published_pins_pass(self):
-        result = self.run_check(f"SWIFTLINT_VERSION=0.65.1\nOMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/published.zip\n")
+        result = self.run_check(
+            "SWIFTLINT_VERSION=0.65.1\n"
+            f"OMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/published.zip\n"
+            f"# OMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/v0.0.0/retired.zip\n"
+        )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr, "")
 
     def test_unpublished_pin_fails_and_names_the_key(self):
         result = self.run_check(
             f"OMNIWM_GHOSTTY_DOWNLOAD_URL={self.base}/published.zip\n"
+            "OMNIWM_MALFORMED_DOWNLOAD_URL=github.com/missing-scheme.zip\n"
             f"OMNIWM_OTHER_DOWNLOAD_URL={self.base}/v9.9.9/missing.zip\n"
         )
         self.assertEqual(result.returncode, 1)
+        self.assertNotIn("Traceback", result.stderr)
+        self.assertIn("OMNIWM_MALFORMED_DOWNLOAD_URL is not downloadable (unknown url type", result.stderr)
         self.assertIn("OMNIWM_OTHER_DOWNLOAD_URL is not downloadable (HTTP 404)", result.stderr)
         self.assertNotIn("OMNIWM_GHOSTTY_DOWNLOAD_URL", result.stderr)
 
