@@ -4,11 +4,21 @@ set -u
 root="$(git rev-parse --show-toplevel)"
 tools="$root/.cache/flake-tools/bin"
 status=0
+swift="$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')"
 
-if [ -n "$(git diff --cached --name-only --diff-filter=ACMR -- '*.swift')" ]; then
+if [ -n "$swift" ]; then
   if [ -x "$tools/swiftformat" ] && [ -x "$tools/swiftlint" ]; then
-    git diff --cached -z --name-only --diff-filter=ACMR -- '*.swift' | xargs -0 "$tools/swiftformat" --lint --quiet || status=1
-    git diff --cached -z --name-only --diff-filter=ACMR -- '*.swift' | xargs -0 "$tools/swiftlint" lint --quiet --force-exclude || status=1
+    snapshot="$(mktemp -d)"
+    trap 'rm -rf "$snapshot"' EXIT
+    printf '%s\n' "$swift" .swiftformat .swiftlint.yml .swift-version | git checkout-index --prefix="$snapshot/" --stdin
+    sources="$(printf '%s\n' "$swift" | grep '^Sources/' || true)"
+    (
+      cd "$snapshot" || exit 1
+      printf '%s\n' "$swift" | tr '\n' '\0' | xargs -0 "$tools/swiftformat" --lint --quiet || exit 1
+      if [ -n "$sources" ]; then
+        printf '%s\n' "$sources" | tr '\n' '\0' | xargs -0 "$tools/swiftlint" lint --quiet --force-exclude || exit 1
+      fi
+    ) || status=1
   else
     echo "pre-commit: skipping SwiftFormat and SwiftLint, run make setup-tools to enable them" >&2
   fi
