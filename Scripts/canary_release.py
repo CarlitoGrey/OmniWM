@@ -94,6 +94,9 @@ def check(repo, force):
                 "should_skip": "true",
                 "skip_reason": f"HEAD {head[:12]} is already contained in {tag}",
             }
+        base = notes_base(repo, head)
+        if base and not app_changes(repo, f"{base}..{head}"):
+            return {"should_skip": "true", "skip_reason": f"only docs changed since {base}"}
     return {"should_skip": "false", "skip_reason": ""}
 
 
@@ -183,6 +186,11 @@ def notes(repo):
     lines.append(f"### Changes since {previous}" if previous else "### Recent changes")
     lines.append("")
     log_range = [f"{previous}..{head}"] if previous else ["-20", head]
+    lines.append("\n".join(app_changes(repo, *log_range)) or "No commits recorded.")
+    return "\n".join(lines) + "\n"
+
+
+def app_changes(repo, *log_range):
     log = git(
         repo, "-c", "core.quotePath=false", "log", "--format=%x00- %h %s",
         "--name-only", "--no-renames", "--diff-merges=first-parent", *log_range,
@@ -192,8 +200,7 @@ def notes(repo):
         entry, *paths = [line for line in record.splitlines() if line]
         if not paths or not all(map(is_docs_path, paths)):
             changes.append(entry)
-    lines.append("\n".join(changes) or "No commits recorded.")
-    return "\n".join(lines) + "\n"
+    return changes
 
 
 def is_docs_path(path):

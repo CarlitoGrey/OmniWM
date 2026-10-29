@@ -44,6 +44,14 @@ class GitRepo:
     def commit(self, message, date=None):
         self.git("commit", "--allow-empty", "-m", message, date=date)
 
+    def change(self, message, *paths):
+        for path in paths:
+            file = self.path / path
+            file.parent.mkdir(parents=True, exist_ok=True)
+            file.write_text(message)
+        self.git("add", *paths)
+        self.commit(message)
+
     def tag(self, name, date=None):
         self.git("tag", name, date=date)
 
@@ -63,6 +71,16 @@ class CanaryReleaseTests(unittest.TestCase):
     def seed_release(self):
         self.repo.commit("c1", date="2026-01-01T12:00:00+00:00")
         self.repo.tag("v0.7.5")
+
+    def test_docs_only_commits_since_the_last_tag_skip(self):
+        self.seed_release()
+        self.repo.change("docs", "README.md", "website/a.md")
+        result = canary_release.check(str(self.repo.path), False)
+        self.assertEqual(result["should_skip"], "true")
+        self.assertIn("only docs changed since v0.7.5", result["skip_reason"])
+        self.assertEqual(canary_release.check(str(self.repo.path), True)["should_skip"], "false")
+        self.repo.change("code", "Sources/a.swift")
+        self.assertEqual(canary_release.check(str(self.repo.path), False)["should_skip"], "false")
 
     def test_no_tags_builds(self):
         self.repo.commit("c1")
@@ -192,15 +210,7 @@ class CanaryReleaseTests(unittest.TestCase):
 
     def test_notes_skip_commits_that_only_touch_docs(self):
         self.seed_release()
-
-        def change(message, *paths):
-            for path in paths:
-                file = self.repo.path / path
-                file.parent.mkdir(parents=True, exist_ok=True)
-                file.write_text(message)
-            self.repo.git("add", *paths)
-            self.repo.commit(message)
-
+        change = self.repo.change
         change("readme only", "README.md")
         change("site only", "website/src/content/docs/a.md", "docs/b.md")
         change("bundled prompt", "Sources/Prompts/prompt.md")
