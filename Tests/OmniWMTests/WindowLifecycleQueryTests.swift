@@ -469,11 +469,17 @@ final class WindowLifecycleQueryTests: XCTestCase {
     }
 
     func testSpaceDestructionRetiresOrderedOutWindowOnlyWhenAXElementIsGone() async throws {
-        let cases: [(orderedIn: Bool?, axInvalid: Bool, retired: Bool, probed: Bool)] = [
-            (false, true, true, true),
-            (false, false, false, true),
-            (true, true, false, false),
-            (nil, true, false, false)
+        struct Case {
+            let orderedIn: Bool?
+            let axInvalid: Bool
+            let retired: Bool
+            let probed: Bool
+        }
+        let cases = [
+            Case(orderedIn: false, axInvalid: true, retired: true, probed: true),
+            Case(orderedIn: false, axInvalid: false, retired: false, probed: true),
+            Case(orderedIn: true, axInvalid: true, retired: false, probed: false),
+            Case(orderedIn: nil, axInvalid: true, retired: false, probed: false)
         ]
         for testCase in cases {
             let controller = WindowAdmissionTestSupport.controller()
