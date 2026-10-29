@@ -183,7 +183,10 @@ def notes(repo):
     lines.append(f"### Changes since {previous}" if previous else "### Recent changes")
     lines.append("")
     log_range = [f"{previous}..{head}"] if previous else ["-20", head]
-    log = git(repo, "log", "--format=%x00- %h %s", "--name-only", "--diff-merges=first-parent", *log_range)
+    log = git(
+        repo, "-c", "core.quotePath=false", "log", "--format=%x00- %h %s",
+        "--name-only", "--no-renames", "--diff-merges=first-parent", *log_range,
+    )
     changes = []
     for record in log.split("\x00")[1:]:
         entry, *paths = [line for line in record.splitlines() if line]

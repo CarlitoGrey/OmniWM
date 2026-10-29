@@ -205,15 +205,20 @@ class CanaryReleaseTests(unittest.TestCase):
         change("site only", "website/src/content/docs/a.md", "docs/b.md")
         change("bundled prompt", "Sources/Prompts/prompt.md")
         change("code and docs", "README.md", "Sources/a.swift")
-        self.repo.git("switch", "-q", "-c", "side")
-        change("side docs", "CONTRIBUTING.md")
-        self.repo.git("switch", "-q", "main")
-        self.repo.git("merge", "-q", "--no-ff", "-m", "merge docs pr", "side")
+        change("unicode docs", "docs/\u00fcber.md")
+        change("add moved", "Sources/moved.swift")
+        self.repo.git("mv", "Sources/moved.swift", "docs/moved.swift")
+        self.repo.commit("move code into docs")
+        for branch, message, path in (("side", "side docs", "CONTRIBUTING.md"), ("side-code", "side code", "Sources/b.swift")):
+            self.repo.git("switch", "-q", "-c", branch)
+            change(message, path)
+            self.repo.git("switch", "-q", "main")
+            self.repo.git("merge", "-q", "--no-ff", "-m", f"merge {message}", branch)
         text = canary_release.notes(self.repo.path)
-        for kept in ("bundled prompt", "code and docs"):
-            self.assertIn(kept, text)
-        for skipped in ("readme only", "site only", "side docs", "merge docs pr"):
-            self.assertNotIn(skipped, text)
+        for kept in ("bundled prompt", "code and docs", "move code into docs", "side code", "merge side code"):
+            self.assertRegex(text, rf"(?m)^- [0-9a-f]+ {kept}$")
+        for skipped in ("readme only", "site only", "unicode docs", "side docs", "merge side docs"):
+            self.assertNotRegex(text, rf"(?m)^- [0-9a-f]+ {skipped}$")
 
     def test_notes_without_any_tag_falls_back_to_recent_commits(self):
         self.repo.commit("first")
