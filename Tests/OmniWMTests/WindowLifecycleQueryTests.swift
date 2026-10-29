@@ -502,4 +502,31 @@ final class WindowLifecycleQueryTests: XCTestCase {
             XCTAssertEqual(controller.workspaceManager.entry(for: token) == nil, testCase.retired, "\(testCase)")
         }
     }
+
+    func testCleanupDuringAXProbeCannotRetireOrderedOutWindow() async throws {
+        let controller = WindowAdmissionTestSupport.controller()
+        defer { cleanup(controller) }
+        _ = try track(token, controller: controller)
+        let handler = controller.axEventHandler
+        let retained = WindowServerInfo(
+            id: UInt32(token.windowId), pid: token.pid, level: 0,
+            frame: CGRect(x: 10, y: 10, width: 800, height: 600), isOrderedIn: false
+        )
+        var probe: CheckedContinuation<Bool, Never>?
+        let probeStarted = expectation(description: "AX probe suspended")
+        handler.lifecycleQueries.query = { _ in retained }
+        handler.lifecycleQueries.isAXElementInvalid = { _ in
+            await withCheckedContinuation { continuation in
+                probe = continuation
+                probeStarted.fulfill()
+            }
+        }
+        handler.handleCGSEvent(.destroyed(windowId: UInt32(token.windowId), spaceId: 0))
+        let task = try XCTUnwrap(handler.lifecycleQueries.task)
+        await fulfillment(of: [probeStarted], timeout: 2)
+        handler.cleanup()
+        probe?.resume(returning: true)
+        await task.value
+        XCTAssertNotNil(controller.workspaceManager.entry(for: token))
+    }
 }
