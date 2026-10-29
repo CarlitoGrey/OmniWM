@@ -467,4 +467,33 @@ final class WindowLifecycleQueryTests: XCTestCase {
         XCTAssertNotNil(controller.workspaceManager.entry(for: token))
         XCTAssertNil(controller.workspaceManager.hiddenState(for: token))
     }
+
+    func testSpaceDestructionRetiresOrderedOutWindowOnlyWhenAXElementIsGone() async throws {
+        let cases: [(orderedIn: Bool?, axInvalid: Bool, retired: Bool, probed: Bool)] = [
+            (false, true, true, true),
+            (false, false, false, true),
+            (true, true, false, false),
+            (nil, true, false, false)
+        ]
+        for testCase in cases {
+            let controller = WindowAdmissionTestSupport.controller()
+            defer { cleanup(controller) }
+            _ = try track(token, controller: controller)
+            let handler = controller.axEventHandler
+            let retained = WindowServerInfo(
+                id: UInt32(token.windowId), pid: token.pid, level: 0,
+                frame: CGRect(x: 10, y: 10, width: 800, height: 600), isOrderedIn: testCase.orderedIn
+            )
+            var probed = false
+            handler.lifecycleQueries.query = { _ in retained }
+            handler.lifecycleQueries.isAXElementInvalid = { _ in
+                probed = true
+                return testCase.axInvalid
+            }
+            handler.handleCGSEvent(.destroyed(windowId: UInt32(token.windowId), spaceId: 0))
+            await handler.lifecycleQueries.task?.value
+            XCTAssertEqual(probed, testCase.probed, "\(testCase)")
+            XCTAssertEqual(controller.workspaceManager.entry(for: token) == nil, testCase.retired, "\(testCase)")
+        }
+    }
 }
