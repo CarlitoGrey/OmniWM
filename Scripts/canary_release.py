@@ -182,12 +182,19 @@ def notes(repo):
     lines.append("")
     lines.append(f"### Changes since {previous}" if previous else "### Recent changes")
     lines.append("")
-    if previous:
-        log = git(repo, "log", "--format=- %h %s", f"{previous}..{head}")
-    else:
-        log = git(repo, "log", "--format=- %h %s", "-20", head)
-    lines.append(log or "No commits recorded.")
+    log_range = [f"{previous}..{head}"] if previous else ["-20", head]
+    log = git(repo, "log", "--format=%x00- %h %s", "--name-only", "--diff-merges=first-parent", *log_range)
+    changes = []
+    for record in log.split("\x00")[1:]:
+        entry, *paths = [line for line in record.splitlines() if line]
+        if not paths or not all(map(is_docs_path, paths)):
+            changes.append(entry)
+    lines.append("\n".join(changes) or "No commits recorded.")
     return "\n".join(lines) + "\n"
+
+
+def is_docs_path(path):
+    return path.startswith(("docs/", "website/")) or ("/" not in path and path.endswith(".md"))
 
 
 def write_github_output(path, values):

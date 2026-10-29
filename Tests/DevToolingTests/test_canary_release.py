@@ -190,6 +190,31 @@ class CanaryReleaseTests(unittest.TestCase):
         self.assertIn("feature two", text)
         self.assertNotRegex(text, r"(?m)^- [0-9a-f]+ c1$")
 
+    def test_notes_skip_commits_that_only_touch_docs(self):
+        self.seed_release()
+
+        def change(message, *paths):
+            for path in paths:
+                file = self.repo.path / path
+                file.parent.mkdir(parents=True, exist_ok=True)
+                file.write_text(message)
+            self.repo.git("add", *paths)
+            self.repo.commit(message)
+
+        change("readme only", "README.md")
+        change("site only", "website/src/content/docs/a.md", "docs/b.md")
+        change("bundled prompt", "Sources/Prompts/prompt.md")
+        change("code and docs", "README.md", "Sources/a.swift")
+        self.repo.git("switch", "-q", "-c", "side")
+        change("side docs", "CONTRIBUTING.md")
+        self.repo.git("switch", "-q", "main")
+        self.repo.git("merge", "-q", "--no-ff", "-m", "merge docs pr", "side")
+        text = canary_release.notes(self.repo.path)
+        for kept in ("bundled prompt", "code and docs"):
+            self.assertIn(kept, text)
+        for skipped in ("readme only", "site only", "side docs", "merge docs pr"):
+            self.assertNotIn(skipped, text)
+
     def test_notes_without_any_tag_falls_back_to_recent_commits(self):
         self.repo.commit("first")
         text = canary_release.notes(str(self.repo.path))
